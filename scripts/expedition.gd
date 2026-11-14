@@ -28,6 +28,7 @@ const SYSTEMS: Array[Dictionary] = [
 var current_system: int = 0
 var battle_outcomes: Dictionary = {}
 var approach_system := -1
+var departure_system := -1
 
 
 func enter_system(index: int) -> void:
@@ -50,7 +51,22 @@ func fly_to(index: int, close_approach: bool = false) -> Error:
 	var scene_error := get_tree().change_scene_to_file(SYSTEMS[index].flight_scene)
 	if scene_error == OK:
 		approach_system = index if close_approach else -1
+		departure_system = -1
 	return scene_error
+
+
+func leave_orbit() -> Error:
+	var destination := current_system
+	var scene_error := fly_to(destination)
+	if scene_error == OK:
+		departure_system = destination
+	return scene_error
+
+
+func take_departure() -> int:
+	var destination := departure_system
+	departure_system = -1
+	return destination
 
 
 func take_approach() -> int:
@@ -67,3 +83,4 @@ func reset_journey() -> void:
 	current_system = 0
 	approach_system = -1
 	battle_outcomes.clear()
+	departure_system = -1

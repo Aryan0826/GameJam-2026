@@ -4,13 +4,17 @@ A pawn-only tactics duel on a collapsing 3D orbital arena. Five pawns per side s
 
 ## Play
 
-Kalypso hosts **The Fractured Flag** and the red planet Cinder hosts **Drift Circuit**. Select **Cinder** in the flight HUD to turn on its red pointer and mark it on the minimap. Fly toward the planet and release thrust inside its capture ring to enter orbit. Press **Enter / Space** in stable orbit or wait for the descent, then choose **Accept challenge** or **Local duel**.
+Kalypso hosts **The Fractured Flag** and the red planet Cinder hosts **Drift Circuit**. Select **Cinder** in the flight HUD to turn on its red pointer and mark it on the minimap. Fly toward the planet and release thrust inside its capture ring to enter orbit. Press **Enter / Space** in stable orbit or wait for the descent to open the cockpit communication screen.
 
-Use **Return to planets** from either duel to choose another destination. **Keep playing** closes the menu. Choosing a planet ends the active match and returns the Horizon to flight near the chosen planet.
+Both games begin with an alien exchange typed directly onto the cockpit's computer display, with a blinking `_` cursor and subtle scan lines. The envoy asks why the Horizon is there, Valeria explains that the crew is looking for friends away from home, and the aliens challenge the crew to their game. Win to be welcomed as friends; lose and leave in peace. Press **Enter** to accept once the exchange finishes, or press it during the exchange to reveal the whole conversation first. **Q** declines immediately and resumes exploration outside that planet's gravity and capture boundaries. **Local duel**, **How to play**, **System map**, and **Replay prologue** sit in the bottom bar beside **Asset credits**.
+
+Use **Leave orbit** from either duel, or **Q** from the communication screen, to return directly to exploration at the same planet. Leaving an active duel ends that match. There is no destination-selection menu when quitting; choose a new course from the flight HUD after returning to exploration.
+
+During both games the cockpit shows animated reactor-output and thermal-load graphs plus ship-reserve gauges. These are procedural Godot graphics in `scripts/cockpit.gd`, with IBM Plex Mono labels; no graph image assets are imported. Their credits are listed under **Asset credits**.
 
 In Drift Circuit, row 4 moves right and row 6 moves left after both sides act. Pieces wrap around the edges. Each occupied gold relay scores one point after the shift. Reach five points with a lead to win, with a draw after round 12 if neither side wins.
 
-Open `project.godot` in Godot 4.7.2 Standard and press **F5**. The opening crawl leads into the solar-system flight and then the Horizon cockpit. Choose **Accept challenge** to face the Aliens or **Local duel** for two people on one device. **Replay prologue** returns to the opening crawl.
+Open `project.godot` in Godot 4.7.2 Standard and press **F5**. The opening crawl leads into the solar-system flight and then the Horizon cockpit. After the communication, press **Enter** to face the Aliens or choose **Local duel** for two people on one device. **Replay prologue** returns to the opening crawl.
 
 For the Windows build, extract the ZIP and run `ConquerorsChess.exe` beside its `ConquerorsChess.pck`.
 

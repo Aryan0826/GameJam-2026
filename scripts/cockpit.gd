@@ -79,6 +79,12 @@ func _draw() -> void:
 	if envoy:
 		_draw_envoy()
 		return
+	if mode == "terminal":
+		_draw_terminal()
+		return
+	if mode == "trial":
+		_draw_ship_telemetry()
+		return
 	var active := mode == "trial"
 	var horizon := 241.0 if active else 595.0
 	var window := Rect2(35, 18, 1250, horizon)
@@ -116,6 +122,62 @@ func _draw() -> void:
 	elif alert > 0 and motion:
 		var amount := 0.38 * alert
 		draw_rect(Rect2(38, horizon - 8, 1244, 3), Color(1, 0.39, 0.26, amount))
+
+
+func _draw_terminal() -> void:
+	var horizon := 595.0
+	draw_rect(Rect2(Vector2.ZERO, size), Color("#101622"))
+	draw_rect(Rect2(35, 18, 1250, horizon), Color("#06110e"))
+	# Subtle scan lines sit behind the live communication text.
+	for y in range(34, 594, 4):
+		draw_line(Vector2(38, y), Vector2(1282, y), Color(0.30, 0.85, 0.56, 0.035), 1.0)
+	var scan_y := 34.0 + fposmod(time * 32.0, 550.0)
+	draw_rect(Rect2(38, scan_y, 1244, 3), Color(0.35, 1.0, 0.65, 0.025))
+	draw_line(Vector2(126, 125), Vector2(1194, 125), Color(0.37, 0.9, 0.65, 0.22), 1.0)
+	_windshield(horizon)
+	_dashboard(horizon)
+
+
+func _draw_ship_telemetry() -> void:
+	var horizon := 241.0
+	draw_rect(Rect2(Vector2.ZERO, size), Color("#101622"))
+	draw_rect(Rect2(35, 18, 1250, horizon), Color("#07151e"))
+	_telemetry_graph(Rect2(586, 48, 240, 144), "REACTOR OUTPUT", AQUA, 0.0)
+	_telemetry_graph(Rect2(850, 48, 240, 144), "THERMAL LOAD", AMBER, 1.7)
+	_caption(Vector2(1114, 65), "RESERVES", AQUA)
+	var labels: Array[String] = ["PWR", "O2", "HULL"]
+	var levels: Array[float] = [0.86, 0.95, 0.98]
+	for i in labels.size():
+		var y := 88.0 + float(i) * 23.0
+		draw_string(MONO, Vector2(1114, y), labels[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#8cafbb"))
+		draw_rect(Rect2(1152, y - 7.0, 65, 5), Color("#20353d"))
+		var level: float = levels[i] + sin(time * 0.4 + float(i)) * 0.01
+		draw_rect(Rect2(1152, y - 7.0, 65 * level, 5), AQUA if i != 0 else AMBER)
+	_windshield(horizon)
+	_dashboard(horizon)
+
+
+func _telemetry_graph(rect: Rect2, title: String, color: Color, phase: float) -> void:
+	draw_rect(rect, Color("#0a1b25"))
+	draw_rect(rect, Color(color, 0.22), false, 1.0)
+	draw_string(MONO, rect.position + Vector2(10, 19), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, color)
+	var plot := Rect2(rect.position + Vector2(11, 35), rect.size - Vector2(22, 49))
+	for x in 7:
+		var grid_x := plot.position.x + plot.size.x * float(x) / 6.0
+		draw_line(Vector2(grid_x, plot.position.y), Vector2(grid_x, plot.end.y), Color(color, 0.075), 1.0)
+	for y in 5:
+		var grid_y := plot.position.y + plot.size.y * float(y) / 4.0
+		draw_line(Vector2(plot.position.x, grid_y), Vector2(plot.end.x, grid_y), Color(color, 0.075), 1.0)
+	var points := PackedVector2Array()
+	for i in 97:
+		var sample := float(i) / 96.0
+		var level := 0.52 + sin(sample * 9.0 - time * 0.7 + phase) * 0.16 + sin(sample * 23.0 + time * 0.4 + phase) * 0.055
+		points.append(Vector2(plot.position.x + sample * plot.size.x, plot.end.y - level * plot.size.y))
+	var fill := PackedVector2Array([Vector2(plot.position.x, plot.end.y)])
+	fill.append_array(points)
+	fill.append(Vector2(plot.end.x, plot.end.y))
+	draw_colored_polygon(fill, Color(color, 0.07))
+	draw_polyline(points, color, 1.5, true)
 
 
 func _body(sprite: Texture2D, center: Vector2, diameter: float, tint: Color = Color.WHITE) -> void:
