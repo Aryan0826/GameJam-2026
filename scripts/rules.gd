@@ -122,11 +122,23 @@ static func _play_drift_turn(state: Dictionary, action: Dictionary, events: Arra
 		pawn.pos = Drift.landing(origin, BOARD_SIZE)
 		if report and origin != pawn.pos:
 			events.append({"kind": "drift_move", "pawn": pawn.id, "from": origin, "to": pawn.pos})
-		if pawn.pos in state.drift.relays:
-			points[pawn.side] += 1
+	var occupied := _occupancy(state)
+	var relocations := PackedStringArray()
+	for i in state.drift.relays.size():
+		var relay: Vector2i = state.drift.relays[i]
+		if relay not in occupied:
+			continue
+		var side: int = state.pawns[occupied[relay]].side
+		points[side] += 1
+		var destination := Drift.relocate(relay, BOARD_SIZE, occupied)
+		state.drift.relays[i] = destination
+		if report:
+			relocations.append("%s → %s" % [_tile(relay), _tile(destination)])
 	for side in 2:
 		state.drift.scores[side] += points[side]
 	if report:
+		if not relocations.is_empty():
+			_event(events, "relay_relocated", "Relays moved · %s." % " / ".join(relocations))
 		_event(events, "drift_score", "Rows shifted · Aliens +%d / Pilots +%d." % points)
 
 	var scores: Array = state.drift.scores

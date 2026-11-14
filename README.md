@@ -8,7 +8,7 @@ Kalypso hosts **The Fractured Flag** and the red planet Cinder hosts **Drift Cir
 
 Use **Return to planets** from either duel to choose another destination. **Keep playing** closes the menu. Choosing a planet ends the active match and returns the Horizon to flight near the chosen planet.
 
-In Drift Circuit, row 4 moves right and row 6 moves left after both sides act. Pieces wrap around the edges. Each occupied gold relay scores one point after the shift. Reach five points with a lead to win, with a draw after round 12 if neither side wins.
+In Drift Circuit, the tiles on row 4 lift and slide right and those on row 6 slide left after both sides act. Pieces ride with them and wrap around the edges. Each occupied gold relay scores one point after the shift, then jumps to another column on its own row (4, 5, or 6). Reach five points with a lead to win, with a draw after round 12 if neither side wins.
 
 Open `project.godot` in Godot 4.7.2 Standard and press **F5**. The opening crawl leads into the solar-system flight and then the Horizon cockpit. Choose **Accept challenge** to face the Aliens or **Local duel** for two people on one device. **Replay prologue** returns to the opening crawl.
 

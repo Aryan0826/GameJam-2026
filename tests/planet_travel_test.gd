@@ -47,7 +47,7 @@ func _run() -> void:
 	_check_rules()
 	await _check_travel()
 	print("Planet travel: %d checks, %d failures." % [checks, failures])
-	quit(1 if failures or checks < 30 else 0)
+	quit(1 if failures or checks < 45 else 0)
 
 
 func _check_rules() -> void:
@@ -66,7 +66,40 @@ func _check_rules() -> void:
 	_check(state.active == 1 and state.drift.scores == [4, 2], "The opening move does not trigger the shift.")
 	state = Rules.apply_action(state, reply).state
 	_check(state.pawns[1].pos == Vector2i(1, 4) and state.pawns[5].pos == Vector2i(8, 6), "Pieces on the drift lanes move in opposite directions and wrap.")
-	_check(state.phase == "finished" and state.winner == 0 and state.drift.scores == [5, 3], "The second move shifts both lanes and scores fixed relays.")
+	_check(state.phase == "finished" and state.winner == 0 and state.drift.scores == [5, 3], "The second move shifts both lanes and scores each claimed relay once.")
+	_check(state.drift.relays == [Vector2i(6, 4), Vector2i(5, 5), Vector2i(3, 6)], "Claimed relays jump across their own rows. The unclaimed relay stays put.")
+
+	state = Rules.create_drift_match(32, 0, Drift.CENTER, 0)
+	state.pawns[0].pos = Vector2i(1, 3)
+	state = Rules.apply_action(state, first).state
+	state = Rules.apply_action(state, {"kind": "step", "pawn": 5, "to": Vector2i(3, 8)}).state
+	var points_after_claim: Array = state.drift.scores.duplicate()
+	state = Rules.apply_action(state, first).state
+	state = Rules.apply_action(state, {"kind": "step", "pawn": 5, "to": Vector2i(3, 9)}).state
+	_check(points_after_claim == [1, 0] and state.drift.scores == points_after_claim and state.pawns[0].pos == Vector2i(2, 4),
+		"Repeating the same drift back onto B4 no longer scores again.")
+
+	state = Rules.create_drift_match(32, 0, Drift.CENTER, 0)
+	for id in state.pawns.keys():
+		if id not in [0, 1, 2, 5]:
+			state.pawns.erase(id)
+	state.pawns[0].pos = Vector2i(5, 5)
+	state.pawns[1].pos = Vector2i(9, 5)
+	state.pawns[5].pos = Vector2i(4, 6)
+	var opponent := {"kind": "step", "pawn": 5, "to": Vector2i(4, 7)}
+	state = Rules.apply_action(state, {"kind": "step", "pawn": 2, "to": Vector2i(5, 2)}).state
+	var result := Rules.apply_action(state, opponent)
+	var simulated := Rules.apply_legal_action(state, opponent, false)
+	_check(result.state == simulated.state, "The AI sees the same relay relocations as the player.")
+	state = result.state
+	_check(state.drift.scores == [1, 0] and state.drift.relays[1] == Vector2i(1, 5), "The steady relay skips occupied squares after scoring.")
+	state = Rules.apply_action(state, {"kind": "step", "pawn": 2, "to": Vector2i(5, 1)}).state
+	state = Rules.apply_action(state, {"kind": "step", "pawn": 5, "to": Vector2i(4, 8)}).state
+	_check(state.drift.scores == [1, 0], "Camping on the old relay earns zero additional points.")
+	for layout in [Drift.CENTER, Drift.SPLIT]:
+		for mirrored in [false, true]:
+			var rows := Drift.relays(layout, mirrored).map(func(relay: Vector2i): return relay.y)
+			_check(rows == [4, 5, 6], "Every opening layout has one relay on each scoring row.")
 	var openings := {}
 	for focus in 3:
 		for seed_value in [44, 48, 52]:
@@ -106,6 +139,8 @@ func _check_travel() -> void:
 	_check(duel.drift_circuit and duel.expedition.current_system_data().planet_name == "CINDER", "Cinder descent opens Drift Circuit with Cinder as the destination.")
 	_check(_press(duel, "Local duel"), "Cinder offers local play.")
 	_check(duel.state.has("drift") and duel.board.relay_nodes.size() == 3, "The local match has the relay board.")
+	await _check_lift_and_shift(duel)
+	duel._start(true)
 	duel._commit(duel.legal[0])
 	_check(_press(duel, "Return to planets"), "Departure is available while resolving a move.")
 	_check(_press(duel, "Keep playing") and duel.records.size() == 1, "Cancel keeps the same match and move.")
@@ -126,3 +161,24 @@ func _check_travel() -> void:
 	while not duel.records.any(func(action): return action.get("pawn", 5) < 5) and Time.get_ticks_msec() < deadline:
 		await process_frame
 	_check(duel.records.any(func(action): return action.get("pawn", 5) < 5), "The live solo scene completes an Alien move.")
+
+
+func _check_lift_and_shift(duel: Control) -> void:
+	duel.state = Rules.create_drift_match(32, 0, Drift.CENTER, 0)
+	duel.state.active = 1
+	duel.state.turn = 1
+	duel.state.pawns[0].pos = Vector2i(1, 4)
+	duel.state.pawns[5].pos = Vector2i(9, 7)
+	duel._enter_turn()
+	var pad: MeshInstance3D = duel.board.tiles[Vector2i(1, 4)]
+	var steady: MeshInstance3D = duel.board.tiles[Vector2i(5, 5)]
+	var mover: Node3D = duel.board.pieces[5]
+	duel._commit({"kind": "step", "pawn": 5, "to": Vector2i(9, 6)})
+	_check(duel.board.shift_tween != null and duel.busy, "Completing both turns starts the lane animation and gates input.")
+	_check(duel.board.displayed_relays[0] == Vector2i(2, 4), "The old relay remains visible during the shift.")
+	await create_timer(0.45).timeout
+	_check(pad.position.y > 0.25 and steady.position.y == 0.0, "Drift tiles visibly lift while row five stays grounded.")
+	_check(mover.position.y > 0.39, "A unit that moved onto a lane rides the lifting tile.")
+	await create_timer(0.7).timeout
+	_check(duel.board.tiles[Vector2i(2, 4)] == pad and pad.position.is_equal_approx(Vector3(-3, 0, -1)), "The same tile slides to the next column and settles.")
+	_check(duel.board.shift_tween == null and duel.board.displayed_relays == duel.state.drift.relays, "The board shows the relocated relays after the animation.")

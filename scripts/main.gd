@@ -60,10 +60,10 @@ Infected Trail blocks entry into the 3 × 3 area around a selected unit through 
 Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
 const DRIFT_RULES_TEXT = """[color=#f8d587]RACE TO FIVE[/color]
-After both players act, the marked rows shift. Each fixed gold relay occupied after the shift earns one point for its occupant’s side. Reach five points with a lead to win. A tie at five or more goes to another round. If no side wins by the end of round %d, the match draws.
+After both players act, the marked rows shift. Each gold relay occupied after the shift earns one point, then jumps to another column on the same row. Each relay can score once per round. Reach five points with a lead to win. A tie at five or more goes to another round. If no side wins by the end of round %d, the match draws.
 
 [color=#f8d587]PLAN YOUR LANDING[/color]
-Row 4 shifts right and row 6 shifts left. Units at the edge wrap around to the other side. For a relay at E4, aim for D4 so the shift carries you onto it. Hover over a highlighted move on a drift row to preview the landing. A unit on the steady relay can score again if it stays there.
+Row 4 shifts right and row 6 shifts left. The tiles lift and carry their units one square, wrapping around at the edge. The tiles on row 5 stay put, but its gold relay relocates after scoring too. For a relay at E4, aim for D4 so the shift carries you onto it. Hover over a highlighted move on a drift row to preview the landing.
 
 [color=#f8d587]TAKE ONE ACTION[/color]
 Move one tile orthogonally or one or two diagonally to an empty square. A two-tile diagonal can jump over a unit. Capture one tile diagonally forward (Aliens down, Pilots up) to disrupt a rival’s setup.
@@ -363,6 +363,7 @@ func _commit(action: Dictionary) -> void:
 		return
 	var was_draft: bool = state.phase == "draft"
 	var played_round: int = state.round
+	var shifting: bool = result.events.any(func(event: Dictionary): return event.kind == "drift_score")
 	state = result.state
 	records.append(action.duplicate(true))
 	var rolled: bool = action.kind == "roll"
@@ -399,7 +400,10 @@ func _commit(action: Dictionary) -> void:
 	busy = true
 	_refresh()
 	var stamp := generation
-	await get_tree().create_timer(0.65 if motion else 0.10).timeout
+	var turn_delay := 0.65 if motion else 0.10
+	if motion and shifting:
+		turn_delay = Arena.DRIFT_DELAY + Arena.DRIFT_DURATION + 0.15
+	await get_tree().create_timer(turn_delay).timeout
 	if stamp != generation:
 		return
 	busy = false
@@ -449,7 +453,7 @@ func _refresh() -> void:
 		var coords := PackedStringArray()
 		for relay: Vector2i in state.drift.relays:
 			coords.append(_coord(relay))
-		status_label.text = "RELAYS   " + "  /  ".join(coords)
+		status_label.text = "LANES SHIFTING" if board.shift_tween else "RELAYS   " + "  /  ".join(coords)
 	else:
 		var flag_status := "%d/%d HELD" % [state.replies, Rules.FLAG_REPLIES] if state.holder >= 0 else "UNCLAIMED"
 		if state.holder < 0 and _pawn_at(state.flag) >= 0:
@@ -469,7 +473,7 @@ func _refresh() -> void:
 
 func _update_transmission() -> void:
 	if drift_circuit:
-		signal_text.text = "The relay race has ended." if state.phase == "finished" else "Watch the marked lanes. Each relay scores after the shift."
+		signal_text.text = "The relay race has ended." if state.phase == "finished" else "Gold relays score after the shift, then move along their rows."
 		return
 	var line := "Configure your units. The trial begins when both sides lock their choices."
 	var lamp_color := SOUTH
@@ -568,7 +572,7 @@ func _draw_drift_play() -> void:
 	_panel(side_panel, Rect2(846, 359, 430, 225))
 	_label(side_panel, Rect2(864, 371, 394, 37), "Reach five points with the lead.", 21, GOLD, bold)
 	_label(side_panel, Rect2(864, 419, 394, 56), _action_hint(), 16, INK, SANS, true)
-	_label(side_panel, Rect2(864, 488, 390, 70), "Each occupied gold relay scores after the shift. Point at a highlighted drift move to preview its landing.", 16, MUTED, SANS, true)
+	_label(side_panel, Rect2(864, 488, 390, 70), "Claimed relays jump to a new square on the same row. Hover over a highlighted move to preview its landing.", 16, MUTED, SANS, true)
 	_draw_flight_log()
 
 
@@ -627,6 +631,8 @@ func _action_hint() -> String:
 	if state.phase == "finished":
 		return "Duel complete."
 	if busy:
+		if drift_circuit and board.shift_tween:
+			return "Rows 4 and 6 are shifting."
 		if not local_mode and state.active == 0:
 			return "Aliens are taking their turn."
 		return "Resolving the turn."
@@ -928,6 +934,7 @@ func _copy_replay() -> void:
 	}
 	if drift_circuit:
 		replay["mode"] = "drift"
+		replay["rules_version"] = 5
 		replay["layout"] = state.drift.layout
 		replay["bot_focus"] = state.drift.focus
 	DisplayServer.clipboard_set(JSON.stringify(replay))
