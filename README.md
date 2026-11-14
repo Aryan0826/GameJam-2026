@@ -14,7 +14,7 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 
 - During solar-system flight, hold **W / Up** to accelerate; the ship coasts on release. Exhaust runs while accelerating and during automatic orbit entry. Hold **Shift / Space** while accelerating to boost, **A / D** or **Left / Right** to steer, and **S / Down** to brake. Descent begins after **2 seconds** in stable orbit.
 - Click a pawn, choose an action in the right panel if needed, and click a highlighted target. The arrow keys move the board cursor, Enter selects, and Esc clears the selection.
-- **Roll ability** gives your side one optional die power for the current round. The roll does not consume your turn. After rolling, you may combine a normal move with the power, or make a normal move alone.
+- **Roll ability** before moving or using a drafted ability; roll once per round. Choose a path: **Move → Use power** (both), **Move → Finish / skip turn** (move only), or **Use power → Finish / skip turn** (power only). To move, select a unit, click **Move / capture**, then a highlighted destination. To use power, click **Use power** and a highlighted target: your unit for Infected Trail, an enemy for Spy or Long Capture. The die panel names the power.
 - In the draft, select two different pawns, assign them different abilities, and lock your choices. In local mode, pass the device when prompted.
 - **Take Over Aliens** queues the switch to a second player for the next Alien turn boundary. **Rematch** keeps the current mode, swaps the starter, and rolls a new setup.
 - **Rules** shows the complete gameplay reference. **FX** toggles movement effects. **View log** can copy the match seed, starting side, committed actions, first flag round, duration, and outcome.
@@ -30,7 +30,7 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 
 The revised rules allow one orthogonal step or one or two diagonal steps in any direction. A two-square diagonal can jump blockers. Regular captures are one square diagonally forward. A distant entry onto the flag requires a capture. Fracture and Teleport are drafted abilities alongside Shield and Borrow Tomorrow.
 
-The six-sided die gives equal odds to Infected Trail, Spy, and Long Capture. Use the power after your normal move: Infection covers the move's starting tile and its 3 × 3 neighborhood except the flag; Spy can control an enemy within two orthogonal steps of an ally after the move; Long Capture lets one of your pawns capture one or two squares diagonally in any direction. Spy's control lasts three subsequent turns of the caster. While stolen, a pawn can stand on the flag without scoring and cannot capture a pawn on it. The browser build uses Godot’s Compatibility renderer.
+The six-sided die gives equal odds to Infected Trail, Spy, and Long Capture. Use the power separately from a normal move or use it alone: Infection covers a selected unit's tile and its 3 × 3 neighborhood except the flag; Spy can control an enemy within two orthogonal steps of an ally; Long Capture lets one of your pawns capture one or two squares diagonally in any direction. Spy's control lasts three subsequent turns of the caster. While stolen, a pawn can stand on the flag without scoring and cannot capture a pawn on it. The browser build uses Godot’s Compatibility renderer.
 
 ## Build and verify
 
