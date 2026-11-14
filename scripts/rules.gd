@@ -17,7 +17,8 @@ static func create_match(seed_value: int, first_override: int = -1) -> Dictionar
 		"phase": "draft", "seed": seed_value, "rng": posmod(seed_value, RNG_RANGE) + 1,
 		"first": 0, "active": 0, "round": 1, "turn": 0, "flag": Vector2i(5, 5),
 		"holder": -1, "replies": 0, "holes": {}, "cracks": {}, "infected": {}, "fractures": {},
-		"pawns": {}, "dice": ["", ""], "rolls": [0, 0], "winner": -1,
+		"pawns": {}, "dice": ["", ""], "rolls": [0, 0], "turn_move": false,
+		"turn_power_used": false, "turn_mark": -1, "winner": -1,
 		"reason": "", "_draft": [],
 	}
 	var random_first := _roll(state, 2)
@@ -40,18 +41,19 @@ static func legal_actions(state: Dictionary) -> Array[Dictionary]:
 		return actions
 	var side: int = state.active
 	var occupancy := _occupancy(state)
-	var move_actions := _normal_actions(state, occupancy)
-	actions.append_array(move_actions)
-	actions.append_array(_combined_actions(state, move_actions))
-	for id in state.pawns:
-		var pawn: Dictionary = state.pawns[id]
-		if pawn.side != side or not pawn.borrow.is_empty():
-			continue
-		actions.append_array(_drafted_actions(state, pawn, occupancy))
 	if state.dice[side].is_empty():
 		actions.append({"kind": "roll"})
-	if actions.is_empty():
-		actions.append({"kind": "pass"})
+	else:
+		if not state.turn_move and not state.turn_power_used:
+			actions.append_array(_normal_actions(state, occupancy))
+			for id in state.pawns:
+				var pawn: Dictionary = state.pawns[id]
+				if pawn.side != side or not pawn.borrow.is_empty():
+					continue
+				actions.append_array(_drafted_actions(state, pawn, occupancy))
+		if not state.turn_power_used:
+			actions.append_array(_dice_power_actions(state))
+	actions.append({"kind": "skip"})
 	return actions
 
 
@@ -75,7 +77,10 @@ static func apply_legal_action(state: Dictionary, action: Dictionary) -> Diction
 		_event(events, "roll", "%s rolled %d · %s." % [SIDE_NAMES[next.active], pip, face.capitalize()],
 			{"round": next.round, "special": face, "side": next.active, "pip": pip})
 	else:
-		_play_turn(next, action, events)
+		if action.kind == "skip":
+			_play_turn(next, events)
+		else:
+			_resolve_action(next, action, events)
 	return {"state": next, "events": events, "ok": true}
 
 
@@ -232,27 +237,14 @@ static func _borrow_actions(state: Dictionary, pawn: Dictionary, occupancy: Dict
 	return actions
 
 
-static func _combined_actions(state: Dictionary, normal: Array[Dictionary]) -> Array[Dictionary]:
-	var actions: Array[Dictionary] = []
-	var face: String = state.dice[state.active]
-	if face.is_empty():
-		return actions
-	for move: Dictionary in normal:
-		var after_move := state.duplicate(true)
-		var simulation_events: Array[Dictionary] = []
-		_resolve_action(after_move, move, simulation_events)
-		var powers := _dice_power_actions(after_move)
-		for power: Dictionary in powers:
-			actions.append({"kind": "combined", "move": move.duplicate(true), "power": power})
-	return actions
-
-
 static func _dice_power_actions(state: Dictionary) -> Array[Dictionary]:
 	var actions: Array[Dictionary] = []
 	var occupancy := _occupancy(state)
 	match state.dice[state.active]:
 		"infected_trail":
-			actions.append({"kind": "infected_trail"})
+			for pawn: Dictionary in state.pawns.values():
+				if pawn.side == state.active and pawn.borrow.is_empty():
+					actions.append({"kind": "infected_trail", "pawn": pawn.id, "to": pawn.pos})
 		"spy":
 			for id in _spy_targets(state):
 				actions.append({"kind": "spy", "mark": id})
@@ -310,6 +302,9 @@ static func _lock_draft(state: Dictionary, action: Dictionary, events: Array[Dic
 static func _start_round(state: Dictionary, events: Array[Dictionary]) -> void:
 	state.dice = ["", ""]
 	state.rolls = [0, 0]
+	state.turn_move = false
+	state.turn_power_used = false
+	state.turn_mark = -1
 	_warn_rim(state, events)
 	_turn_event(state, events)
 
@@ -339,9 +334,9 @@ static func _turn_event(state: Dictionary, events: Array[Dictionary]) -> void:
 	_event(events, "turn", "%s to move." % SIDE_NAMES[state.active], {"side": state.active})
 
 
-static func _play_turn(state: Dictionary, action: Dictionary, events: Array[Dictionary]) -> void:
+static func _play_turn(state: Dictionary, events: Array[Dictionary]) -> void:
 	var side: int = state.active
-	_resolve_action(state, action, events)
+	_event(events, "skip", "%s ended the turn." % SIDE_NAMES[side], {"side": side})
 	_resolve_return(state, events)
 	_collapse(state, events)
 	_check_elimination(state)
@@ -350,13 +345,16 @@ static func _play_turn(state: Dictionary, action: Dictionary, events: Array[Dict
 		_flag_event(state, events)
 		if state.replies == FLAG_REPLIES:
 			_finish(state, state.pawns[state.holder].side, "flag")
-	_expire_effects(state, events, action)
+	_expire_effects(state, events)
 	if state.phase == "playing" and state.round == 8 and state.turn == 1:
 		_finish(state, -1, "round_cap")
 	if state.phase == "finished":
 		_result_event(state, events)
 		return
 	state.active = 1 - side
+	state.turn_move = false
+	state.turn_power_used = false
+	state.turn_mark = -1
 	if state.turn == 0:
 		state.turn = 1
 		_turn_event(state, events)
@@ -368,13 +366,11 @@ static func _play_turn(state: Dictionary, action: Dictionary, events: Array[Dict
 
 static func _resolve_action(state: Dictionary, action: Dictionary, events: Array[Dictionary]) -> void:
 	var kind: String = action.kind
-	if kind == "combined":
-		var origin: Vector2i = state.pawns[action.move.pawn].pos
-		_resolve_action(state, action.move, events)
-		_resolve_dice_power(state, action.power, events, origin, action.move.pawn)
-		return
-	if kind == "pass":
-		_event(events, "pass", "%s had no legal action." % SIDE_NAMES[state.active], {"side": state.active})
+	if kind in SPECIALS:
+		_resolve_dice_power(state, action, events)
+		state.turn_power_used = true
+		if kind == "spy":
+			state.turn_mark = action.mark
 		return
 	var pawn: Dictionary = state.pawns[action.pawn]
 	var origin: Vector2i = pawn.pos
@@ -400,14 +396,17 @@ static func _resolve_action(state: Dictionary, action: Dictionary, events: Array
 				{"pawn": pawn.id, "from": target, "to": origin, "due": pawn.borrow.due})
 		_:
 			_shift(state, pawn, target, "step", events)
+	state.turn_move = true
 
 
-static func _resolve_dice_power(state: Dictionary, power: Dictionary, events: Array[Dictionary], origin: Vector2i, moved_pawn: int) -> void:
+static func _resolve_dice_power(state: Dictionary, power: Dictionary, events: Array[Dictionary]) -> void:
 	var kind: String = power.kind
+	var pawn: Dictionary = state.pawns[power.pawn] if kind in ["infected_trail", "long_capture"] else {}
 	_event(events, "ability", "%s used %s." % [SIDE_NAMES[state.active], kind.replace("_", " ").capitalize()],
-		{"pawn": moved_pawn, "from": origin, "ability": kind, "side": state.active})
+		{"pawn": pawn.get("id", -1), "from": pawn.get("pos", Vector2i.ZERO), "ability": kind, "side": state.active})
 	match kind:
 		"infected_trail":
+			var origin: Vector2i = pawn.pos
 			var infected: Array[Vector2i] = []
 			for y in range(origin.y - 1, origin.y + 2):
 				for x in range(origin.x - 1, origin.x + 2):
@@ -425,7 +424,7 @@ static func _resolve_dice_power(state: Dictionary, power: Dictionary, events: Ar
 			_event(events, "spy", "%s took control of the pawn at %s for three turns." % [SIDE_NAMES[state.active], _tile(marked.pos)],
 				{"pawn": marked.id, "to": marked.pos, "side": marked.side})
 		"long_capture":
-			_capture(state, state.pawns[power.pawn], power.to, events)
+			_capture(state, pawn, power.to, events)
 
 
 static func _capture(state: Dictionary, pawn: Dictionary, target: Vector2i, events: Array[Dictionary]) -> void:
@@ -531,14 +530,12 @@ static func _check_elimination(state: Dictionary) -> void:
 		_finish(state, 0 if alive[0] else 1, "elimination")
 
 
-static func _expire_effects(state: Dictionary, events: Array[Dictionary], action: Dictionary) -> void:
+static func _expire_effects(state: Dictionary, events: Array[Dictionary]) -> void:
 	for tile: Vector2i in state.infected.keys():
 		if state.infected[tile] <= _serial(state):
 			state.infected.erase(tile)
 			_event(events, "infection_expired", "Infection cleared at %s." % _tile(tile), {"tiles": [tile]})
-	var marked_id: int = action.get("mark", -1)
-	if action.kind == "combined" and action.power.kind == "spy":
-		marked_id = action.power.mark
+	var marked_id: int = state.turn_mark
 	for pawn: Dictionary in state.pawns.values():
 		if pawn.side != state.active or pawn.spy == 0 or pawn.id == marked_id:
 			continue

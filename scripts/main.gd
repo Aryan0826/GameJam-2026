@@ -21,7 +21,7 @@ const SPELLS = {
 	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any unit on it."],
 	"teleport": ["Teleport", "Jump to any open tile outside the beacon."],
 	"borrow_tomorrow": ["Borrow Tomorrow", "Move this unit, then a different ally. The first unit owes a return."],
-	"infected_trail": ["Infected Trail", "Infect the 3 × 3 area around your move’s starting tile through the enemy turn."],
+	"infected_trail": ["Infected Trail", "Infect the 3 × 3 area around a selected unit through the enemy turn."],
 	"spy": ["Spy", "Take control of a nearby enemy unit for your next three turns. It cannot score the beacon."],
 	"long_capture": ["Long Capture", "Capture diagonally in any direction, from one or two squares away."],
 }
@@ -31,7 +31,9 @@ const IMAGE_URL = "https://esahubble.org/images/heic1509a/"
 const RULES_TEXT = """[color=#f8d587]WIN THE DUEL[/color]
 Hold the center beacon through three enemy turns with the same unit, or remove every enemy unit. The match draws after round 8 if neither side wins.
 
-[color=#f8d587]TAKE ONE ACTION[/color]
+[color=#f8d587]TAKE YOUR TURN[/color]
+Roll first. Then choose one path: Move → Use power; Move → Finish turn; or Use power → Finish turn. A drafted ability counts as your move. Finish / skip turn is available at any time.
+
 Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the beacon from an adjacent square or by making a capture.
 
 [color=#f8d587]WATCH THE RIM[/color]
@@ -43,9 +45,9 @@ Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any
 Borrow Tomorrow moves its assigned unit one orthogonal step, then moves another ally one orthogonal step. The first unit cannot enter or leave the beacon. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
 
 [color=#f8d587]ROLL FOR AN ABILITY[/color]
-Each player can roll once per round before acting. Rolling is optional and does not spend the turn. After rolling, take a normal move and optionally use the rolled power in the same turn. You can also move without using the power.
+Roll once per round before moving or using a drafted ability. After rolling, the die panel shows your special power. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
 
-Infected Trail blocks entry into the 3 × 3 area around the unit’s departure tile through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally after your move. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction after your move.
+Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
 
 [color=#f8d587]CONTROLS[/color]
 Click a unit, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
@@ -77,7 +79,6 @@ var selected := -1
 var action_group := "standard"
 var first_destination := Vector2i.ZERO
 var second_pawn := -1
-var pending_move: Dictionary = {}
 var assignments: Dictionary = {}
 var overlay_kind := ""
 var first_flag_round := 0
@@ -285,8 +286,6 @@ func _enter_turn() -> void:
 		return
 	if state.phase == "finished":
 		_show_result()
-	elif state.phase == "playing" and legal.size() == 1 and legal[0].kind == "pass":
-		_schedule_action(legal[0], 0.32)
 	elif not local_mode and state.active == 0:
 		if state.phase == "draft":
 			_commit(Bot.choose(state, legal))
@@ -390,7 +389,7 @@ func _refresh() -> void:
 	board.state = state
 	board.selected = selected
 	board.second = second_pawn
-	board.preview_to = pending_move.get("to", first_destination)
+	board.preview_to = first_destination
 	board.draft_slots = {}
 	for pawn: int in assignments:
 		board.draft_slots[pawn] = Arena.SPELL_ICON[assignments[pawn]]
@@ -472,18 +471,16 @@ func _draw_play() -> void:
 	roll.disabled = busy or state.phase != "playing" or not face.is_empty() or (not local_mode and state.active == 0)
 	var drops := "Purple cracks fall after this turn." if not state.fractures.is_empty() else "Rim cracks fall after both turns."
 	if state.fractures.is_empty() and state.cracks.is_empty():
-		drops = "Optional roll. Your move is always available."
+		drops = "Roll before moving. Skip turn is always available."
 	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() or not state.fractures.is_empty() else MUTED)
 	_panel(side_panel, Rect2(846, 359, 430, 282))
-	_label(side_panel, Rect2(864, 369, 396, 25), "ACTION", 12, MUTED, MONO)
+	_label(side_panel, Rect2(864, 369, 396, 25), "TURN CHOICES", 12, MUTED, MONO)
 	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 16, INK, SANS, true)
 	if selected >= 0 and selected in state.pawns:
 		var p: Dictionary = state.pawns[selected]
 		_action_button(Rect2(864, 462, 189, 38), "Move / capture", "standard")
 		if p.ability != "":
 			_action_button(Rect2(864, 509, 189, 38), SPELLS[p.ability][0], "ability")
-		if not face.is_empty():
-			_action_button(Rect2(1062, 462, 196, 38), "Move + " + SPELLS[face][0], "combo")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
@@ -491,13 +488,17 @@ func _draw_play() -> void:
 			details = "Stolen unit · %d turns left. Cannot score or capture at the beacon." % p.spy
 		elif details.is_empty() and action_group == "ability":
 			details = SPELLS[p.ability][1]
-		elif details.is_empty() and action_group == "combo":
+		elif details.is_empty() and action_group == "power" and not face.is_empty():
 			details = SPELLS[face][1]
 		if not details.is_empty():
 			_label(side_panel, Rect2(865, 595, 387, 36), details, 13, MUTED, SANS, true)
 	else:
-		_label(side_panel, Rect2(864, 473, 394, 40), "Hold the beacon through three enemy turns.", 19, GOLD, bold, true)
-		_label(side_panel, Rect2(864, 518, 390, 67), "Choose a unit to see its moves. Red cracks mark the rim. Purple cracks mark a fractured pad.", 15, MUTED, SANS, true)
+		_label(side_panel, Rect2(864, 473, 188, 40), "Hold the beacon through three enemy turns.", 16, GOLD, bold, true)
+		_label(side_panel, Rect2(864, 518, 188, 67), "Select a unit to move. Power targets appear after Use power.", 14, MUTED, SANS, true)
+	if not face.is_empty():
+		_action_button(Rect2(1062, 462, 196, 38), "Use power", "power")
+	var skip := _button(side_panel, Rect2(1062, 509, 196, 38), "Finish / skip turn", _skip_turn)
+	skip.disabled = busy or state.phase != "playing" or (not local_mode and state.active == 0)
 	_panel(side_panel, Rect2(846, 654, 430, 145))
 	_label(side_panel, Rect2(864, 665, 270, 22), "FLIGHT LOG", 12, MUTED, MONO)
 	_button(side_panel, Rect2(1162, 663, 97, 27), "View log", _show_log)
@@ -536,6 +537,12 @@ func _roll_ability() -> void:
 	_commit({"kind": "roll"})
 
 
+func _skip_turn() -> void:
+	if busy or {"kind": "skip"} not in legal or (not local_mode and state.active == 0):
+		return
+	_commit({"kind": "skip"})
+
+
 func _action_hint() -> String:
 	if state.phase == "finished":
 		return "Duel complete."
@@ -543,19 +550,31 @@ func _action_hint() -> String:
 		if not local_mode and state.active == 0:
 			return "Aliens are taking their turn."
 		return "Resolving the turn."
+	if state.dice[state.active].is_empty():
+		return "Step 1: Roll the die. Or finish / skip to pass without acting."
+	if state.turn_power_used:
+		return "Move + power complete. Finish your turn." if state.turn_move else "Power-only path complete. Finish your turn."
+	if action_group == "power":
+		if _group_actions("power").is_empty():
+			return "No legal target for this power. Choose Move / capture, or finish / skip."
+		match state.dice[state.active]:
+			"infected_trail":
+				return "Click the highlighted unit to infect its surrounding tiles."
+			"spy":
+				return "Click a highlighted enemy to use Spy, then finish your turn."
+			"long_capture":
+				return "Click a highlighted enemy to use Long Capture."
+	if state.turn_move:
+		if _group_actions("power").is_empty():
+			return "No legal target for this power. Finish now for Move only."
+		return "Move complete. Use power for Move + power, or finish now for Move only."
 	if selected < 0:
-		return "Select one of your units to see its legal actions."
+		if _group_actions("power").is_empty():
+			return "No legal target for this power. Choose Move / capture, or finish / skip."
+		return "Choose: Move → Power, Move → Finish (move only), or Power → Finish (power only)."
 	var p: Dictionary = state.pawns[selected]
 	if not p.borrow.is_empty():
 		return "This unit is waiting to return to its echo."
-	if action_group == "combo":
-		if pending_move.is_empty():
-			return "Choose a normal move to use the rolled power."
-		match state.dice[state.active]:
-			"spy":
-				return "Select a highlighted enemy unit to take control."
-			"long_capture":
-				return "Choose a unit, then a highlighted capture target." if second_pawn < 0 else "Select a highlighted long-capture target."
 	if action_group == "ability" and p.ability == "borrow_tomorrow":
 		if first_destination == Vector2i.ZERO:
 			return "Choose where the borrowed unit steps."
@@ -568,6 +587,8 @@ func _action_hint() -> String:
 		return "Select a tile to drop after the next turn."
 	if _group_actions(action_group).is_empty():
 		return "This unit has no legal target for the selected action."
+	if action_group == "standard":
+		return "Choose a highlighted destination. Finish after moving for Move only, or use power for both."
 	return "Select a highlighted destination for %s." % _coord(p.pos)
 
 
@@ -580,13 +601,18 @@ func _set_group(group: String) -> void:
 	action_group = group
 	first_destination = Vector2i.ZERO
 	second_pawn = -1
-	pending_move = {}
 	board.grab_focus()
 	_refresh()
 
 
 func _group_actions(group: String) -> Array[Dictionary]:
 	var choices: Array[Dictionary] = []
+	if group == "power":
+		for action in legal:
+			if action.kind != state.dice[state.active]:
+				continue
+			choices.append(action)
+		return choices
 	if selected < 0 or selected not in state.pawns:
 		return choices
 	for a in legal:
@@ -597,30 +623,18 @@ func _group_actions(group: String) -> Array[Dictionary]:
 			"ability":
 				if a.get("pawn", -1) == selected and a.kind == state.pawns[selected].ability:
 					choices.append(a)
-			"combo":
-				if a.kind == "combined" and a.move.pawn == selected:
-					if not pending_move.is_empty() and a.move != pending_move:
-						continue
-					if second_pawn >= 0 and a.power.kind == "long_capture" and a.power.pawn != second_pawn:
-						continue
-					choices.append(a)
 	return choices
 
 
 func _targets() -> Dictionary:
 	var highlighted := {}
-	if busy or state.phase != "playing" or selected < 0:
+	if busy or state.phase != "playing":
+		return highlighted
+	if selected < 0 and action_group != "power":
 		return highlighted
 	for action in _group_actions(action_group):
-		if action.kind == "combined" and action_group == "combo":
-			if pending_move.is_empty():
-				highlighted[action.move.to] = "capture" if action.move.kind == "capture" else "move"
-			elif action.power.kind == "spy":
-				highlighted[state.pawns[action.power.mark].pos] = "mark"
-			elif action.power.kind == "long_capture" and second_pawn < 0:
-				highlighted[_combo_unit_square(action.power.pawn)] = "mark"
-			elif action.power.kind == "long_capture":
-				highlighted[action.power.to] = "capture"
+		if action.kind == "spy":
+			highlighted[state.pawns[action.mark].pos] = "mark"
 		elif action.kind == "borrow_tomorrow" and first_destination != Vector2i.ZERO:
 			if action.to == first_destination:
 				if second_pawn < 0:
@@ -644,52 +658,25 @@ func _square_pressed(square: Vector2i) -> void:
 			_refresh()
 		return
 	for action in _group_actions(action_group):
-		if action.kind == "combined" and action_group == "combo":
-			if pending_move.is_empty() and action.move.to == square:
-				if action.power.kind == "infected_trail":
-					_commit(action)
-				else:
-					pending_move = action.move.duplicate(true)
-					second_pawn = -1
-					_refresh()
-				return
-			if not pending_move.is_empty():
-				if action.power.kind == "spy" and state.pawns[action.power.mark].pos == square:
-					_commit(action)
-					return
-				if action.power.kind == "long_capture":
-					if second_pawn < 0 and square == _combo_unit_square(action.power.pawn):
-						second_pawn = action.power.pawn
-						_refresh()
-						return
-					if second_pawn >= 0 and action.power.pawn == second_pawn and action.power.to == square:
-						_commit(action)
-						return
-			continue
 		if _select_target(action, square, id):
 			return
-	if not pending_move.is_empty():
-		return
 	if id >= 0 and state.pawns[id].side == state.active:
 		_clear_selection()
 		selected = id
 		if _group_actions("standard").is_empty():
-			for group: String in ["ability", "combo"]:
+			for group: String in ["ability", "power"]:
 				if not _group_actions(group).is_empty():
 					action_group = group
 					break
 		_refresh()
 
 
-func _combo_unit_square(id: int) -> Vector2i:
-	if id == pending_move.get("pawn", -1):
-		var victim := _pawn_at(pending_move.to)
-		if pending_move.kind == "step" or (victim >= 0 and not state.pawns[victim].shield):
-			return pending_move.to
-	return state.pawns[id].pos
-
-
 func _select_target(action: Dictionary, square: Vector2i, id: int) -> bool:
+	if action.kind == "spy":
+		if state.pawns[action.mark].pos == square:
+			_commit(action)
+			return true
+		return false
 	if action.kind == "borrow_tomorrow":
 		if first_destination == Vector2i.ZERO and action.to == square:
 			first_destination = square
@@ -747,7 +734,6 @@ func _clear_selection() -> void:
 	action_group = "standard"
 	first_destination = Vector2i.ZERO
 	second_pawn = -1
-	pending_move = {}
 
 
 func _coord(p: Vector2i) -> String:
@@ -836,7 +822,7 @@ func _copy_replay() -> void:
 		actions.append(_replay_action(record))
 	var end := finished_at if finished_at > 0 else Time.get_ticks_msec()
 	var replay := {
-		"rules_version": 3, "seed": state.seed, "first": state.first, "actions": actions,
+		"rules_version": 4, "seed": state.seed, "first": state.first, "actions": actions,
 		"first_flag_round": first_flag_round, "result": state.reason, "winner": state.winner,
 		"elapsed_ms": end - started_at if started_at > 0 else 0,
 	}

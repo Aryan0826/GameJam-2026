@@ -8,6 +8,7 @@ var failures := 0
 
 func _initialize() -> void:
 	_setup_and_roll()
+	_standalone_power_and_skip()
 	_movement_and_flag()
 	_drafted_abilities()
 	_die_abilities()
@@ -33,6 +34,8 @@ func _opening(seed_value: int = 7) -> Dictionary:
 
 func _position(positions: Dictionary) -> Dictionary:
 	var s := _opening()
+	s.dice = ["infected_trail", "infected_trail"]
+	s.rolls = [1, 1]
 	for id in s.pawns.keys():
 		if id in positions:
 			s.pawns[id].pos = positions[id]
@@ -52,21 +55,13 @@ func _has(s: Dictionary, kind: String, id: int, p: Vector2i) -> bool:
 	return {"kind": kind, "pawn": id, "to": p} in Rules.legal_actions(s)
 
 
-func _play(s: Dictionary, kind: String, id: int, p: Vector2i) -> Dictionary:
-	var result := Rules.apply_action(s, {"kind": kind, "pawn": id, "to": p})
-	_check(result.ok, "Expected legal %s from pawn %d to %s" % [kind, id, p])
-	return result.state
-
-
-func _combined_action(s: Dictionary, move_kind: String, mover: int, move_to: Vector2i, power_kind: String, power_details: Dictionary = {}) -> Dictionary:
+func _action(s: Dictionary, kind: String, details: Dictionary = {}) -> Dictionary:
 	for action: Dictionary in Rules.legal_actions(s):
-		if action.kind != "combined" or action.move.kind != move_kind or action.move.pawn != mover or action.move.to != move_to:
-			continue
-		if action.power.kind != power_kind:
+		if action.kind != kind:
 			continue
 		var matches := true
-		for key in power_details:
-			if action.power.get(key) != power_details[key]:
+		for key in details:
+			if action.get(key) != details[key]:
 				matches = false
 				break
 		if matches:
@@ -74,12 +69,19 @@ func _combined_action(s: Dictionary, move_kind: String, mover: int, move_to: Vec
 	return {}
 
 
-func _play_combo(s: Dictionary, move_kind: String, mover: int, move_to: Vector2i, power_kind: String, power_details: Dictionary = {}) -> Dictionary:
-	var action := _combined_action(s, move_kind, mover, move_to, power_kind, power_details)
-	_check(not action.is_empty(), "Expected combined %s + %s action" % [move_kind, power_kind])
+func _play_action(s: Dictionary, action: Dictionary) -> Dictionary:
 	var result := Rules.apply_action(s, action)
-	_check(result.ok, "Expected combined action to be legal")
+	_check(result.ok, "Expected legal action %s" % action)
 	return result.state
+
+
+func _play(s: Dictionary, kind: String, id: int, p: Vector2i) -> Dictionary:
+	if s.dice[s.active].is_empty():
+		s = _play_action(s, {"kind": "roll"})
+	var action := _action(s, kind, {"pawn": id, "to": p})
+	_check(not action.is_empty(), "Expected legal %s from pawn %d to %s" % [kind, id, p])
+	s = _play_action(s, action)
+	return _play_action(s, {"kind": "skip"})
 
 
 func _setup_and_roll() -> void:
@@ -94,13 +96,14 @@ func _setup_and_roll() -> void:
 		_check(locked.pawns[0].ability == "" and locked.active == 1, "First lock stays private")
 		var s := _opening(seed_value)
 		var before := s.duplicate(true)
+		_check(not _has(s, "step", 2, Vector2i(4, 3)), "Cannot move before rolling")
 		var result := Rules.apply_action(s, {"kind": "roll"})
 		var rolled: Dictionary = result.state
 		_check(s == before and rolled.active == s.active and rolled.turn == s.turn, "Roll is immutable and does not end turn")
 		_check(rolled.rolls[0] in range(1, 7) and rolled.dice[1].is_empty(), "Six-sided and personal")
 		faces[rolled.dice[0]] = true
 		_check(not Rules.apply_action(rolled, {"kind": "roll"}).ok, "Cannot reroll")
-		_check(_has(s, "step", 2, Vector2i(4, 3)) and _has(rolled, "step", 2, Vector2i(4, 3)), "Same moves before and after roll")
+		_check(_has(rolled, "step", 2, Vector2i(4, 3)), "Moves become available after rolling")
 		s = _play(rolled, "step", 2, Vector2i(4, 3))
 		_check(s.dice[1].is_empty(), "Opponent does not inherit the roll")
 		s = _play(s, "step", 7, Vector2i(4, 7))
@@ -150,7 +153,8 @@ func _drafted_abilities() -> void:
 	var borrowed := {"kind": "borrow_tomorrow", "pawn": 1, "to": Vector2i(6, 5), "second": 0, "second_to": Vector2i(4, 5)}
 	var result := Rules.apply_action(s, borrowed)
 	_check(result.ok and result.state.pawns[1].borrow.origin == Vector2i(7, 5), "Borrow establishes an echo")
-	s = _play(result.state, "step", 5, Vector2i(8, 7))
+	s = _play_action(result.state, {"kind": "skip"})
+	s = _play(s, "step", 5, Vector2i(8, 7))
 	s = _play(s, "step", 0, s.flag)
 	_check(s.pawns[1].pos == Vector2i(7, 5) and s.holder == 0, "Borrow returns after next owner turn")
 	s = _position({0: Vector2i(3, 3), 5: Vector2i(4, 4)})
@@ -161,22 +165,30 @@ func _drafted_abilities() -> void:
 
 
 func _die_abilities() -> void:
-	var s := _position({0: Vector2i(4, 4), 5: Vector2i(7, 7), 6: Vector2i(2, 4)})
+	var s := _position({0: Vector2i(4, 4), 5: Vector2i(7, 7), 6: Vector2i(6, 8)})
 	s.dice[0] = "infected_trail"
 	_check(_has(s, "step", 0, Vector2i(6, 6)), "Normal moves remain available after rolling")
-	_check({"kind": "infected_trail", "pawn": 0, "to": Vector2i(6, 6)} not in Rules.legal_actions(s),
-		"Infected Trail no longer replaces the normal move")
-	s = _play_combo(s, "step", 0, Vector2i(6, 6), "infected_trail")
+	var movement := _action(s, "step", {"pawn": 0, "to": Vector2i(6, 6)})
+	s = _play_action(s, movement)
+	var infection := _action(s, "infected_trail", {"pawn": 0, "to": Vector2i(6, 6)})
+	_check(not infection.is_empty(), "Can use Infected Trail after moving")
+	s = _play_action(s, infection)
 	_check(s.infected.size() == 8 and s.flag not in s.infected, "Centered infection affects 3 × 3 except the flag")
-	_check(not _has(s, "step", 6, Vector2i(3, 4)), "Infection blocks entry")
+	_check(s.turn_move and s.turn_power_used and s.active == 0, "Move and power are separate actions in one turn")
+	s = _play_action(s, {"kind": "skip"})
+	_check(not _has(s, "step", 6, Vector2i(6, 7)), "Infection blocks entry")
 	s = _play(s, "step", 5, Vector2i(8, 7))
 	_check(s.infected.is_empty(), "Infection expires after enemy turn")
 	s = _position({0: Vector2i(2, 4), 1: Vector2i(7, 7), 5: Vector2i(4, 5), 6: Vector2i(7, 8)})
 	_grant(s, 5, "teleport")
 	s.dice[0] = "spy"
-	s = _play_combo(s, "step", 0, Vector2i(3, 4), "spy", {"mark": 5})
+	s = _play_action(s, _action(s, "step", {"pawn": 0, "to": Vector2i(3, 4)}))
+	var spy := _action(s, "spy", {"mark": 5})
+	_check(not spy.is_empty(), "Spy is available after a normal move")
+	s = _play_action(s, spy)
 	_check(s.pawns[0].pos == Vector2i(3, 4) and s.pawns[5].side == 0 and s.pawns[5].spy == 3,
-		"Spy follows a normal move and grants three turns of control")
+		"Separate Spy use grants three turns of control")
+	s = _play_action(s, {"kind": "skip"})
 	s = _play(s, "step", 6, Vector2i(6, 8))
 	_check(not _has(s, "teleport", 5, Vector2i(1, 1)), "Stolen pawn cannot spend its original charge")
 	s = _play(s, "step", 5, s.flag)
@@ -190,14 +202,37 @@ func _die_abilities() -> void:
 	s.holder = 5
 	s.dice[0] = "long_capture"
 	_check(not _has(s, "capture", 0, s.flag), "Normal capture cannot reach two diagonals")
-	s = _play_combo(s, "step", 0, Vector2i(3, 4), "long_capture", {"pawn": 1, "to": s.flag})
+	s = _play_action(s, _action(s, "step", {"pawn": 0, "to": Vector2i(3, 4)}))
+	var long_capture := _action(s, "long_capture", {"pawn": 1, "to": s.flag})
+	_check(not long_capture.is_empty(), "Long Capture remains available after moving")
+	s = _play_action(s, long_capture)
+	s = _play_action(s, {"kind": "skip"})
 	_check(5 not in s.pawns and s.pawns[0].pos == Vector2i(3, 4) and s.holder == 1 and s.replies == 0,
-		"Long Capture follows a normal move and can claim the flag with another pawn")
+		"Long Capture can claim the flag with another pawn after a separate move")
 	s = _position({0: Vector2i(4, 4), 1: Vector2i(3, 3), 5: Vector2i(5, 5)})
 	s.pawns[0].spy = 3
 	s.dice[0] = "long_capture"
-	_check(_combined_action(s, "step", 1, Vector2i(3, 2), "long_capture", {"pawn": 0, "to": s.flag}).is_empty(),
+	_check(_action(s, "long_capture", {"pawn": 0, "to": s.flag}).is_empty(),
 		"Stolen pawn cannot use Long Capture against a flag holder")
+
+
+func _standalone_power_and_skip() -> void:
+	var unrolled := _opening()
+	var skipped := Rules.apply_action(unrolled, {"kind": "skip"})
+	_check(skipped.ok and skipped.state.active != unrolled.active,
+		"Can skip without rolling first")
+	var s := _position({0: Vector2i(4, 4), 5: Vector2i(8, 8)})
+	s.dice[0] = "infected_trail"
+	var infection := _action(s, "infected_trail", {"pawn": 0, "to": Vector2i(4, 4)})
+	_check(not infection.is_empty(), "Rolled power can be used without moving")
+	_check(_has(s, "step", 0, Vector2i(6, 6)), "Move is available before standalone power")
+	s = _play_action(s, infection)
+	_check(not s.turn_move and s.turn_power_used and s.pawns[0].pos == Vector2i(4, 4),
+		"Standalone power does not move a pawn")
+	_check(not _has(s, "step", 0, Vector2i(6, 6)), "Cannot move after using a standalone power")
+	s = _play_action(s, {"kind": "skip"})
+	_check(s.active == 1 and s.turn_move == false and s.turn_power_used == false,
+		"Skip ends the turn and resets its action state")
 
 
 func _rims() -> void:
