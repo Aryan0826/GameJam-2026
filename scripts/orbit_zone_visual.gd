@@ -4,15 +4,22 @@ extends Node2D
 
 @export var capture_radius: float = 320.0
 @export var stable_orbit_radius: float = 175.0
+@export var gravity_radius: float = 0.0
+@export var gravity_color: Color = Color(0.3, 0.75, 1.0, 0.3)
 @export var proximity_color: Color = Color(0.3, 0.75, 1.0, 0.28)
 @export var orbit_color: Color = Color(0.25, 0.9, 0.7, 0.32)
 
 func _draw() -> void:
+	if gravity_radius > 0.0:
+		draw_circle(Vector2.ZERO, gravity_radius, Color(gravity_color, 0.025))
+		_draw_dotted_circle(gravity_radius, gravity_color, 96)
 	# 1. Dotted line for the radius proximity
-	_draw_dotted_circle(capture_radius, proximity_color, 48)
+	if capture_radius > 0.0:
+		_draw_dotted_circle(capture_radius, proximity_color, 48)
 
 	# 2. Dotted line for the stable orbit around the planet
-	_draw_dotted_circle(stable_orbit_radius, orbit_color, 36)
+	if stable_orbit_radius > 0.0:
+		_draw_dotted_circle(stable_orbit_radius, orbit_color, 36)
 
 
 func _draw_dotted_circle(radius: float, col: Color, segments: int) -> void:
