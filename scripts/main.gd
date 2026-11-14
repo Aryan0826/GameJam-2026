@@ -477,7 +477,7 @@ func _draw_play() -> void:
 	if state.fractures.is_empty() and state.cracks.is_empty():
 		drops = "Roll before moving. Skip turn is always available."
 	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() or not state.fractures.is_empty() else MUTED)
-	_panel(side_panel, Rect2(846, 359, 430, 282))
+	_panel(side_panel, Rect2(846, 359, 430, 225))
 	_label(side_panel, Rect2(864, 369, 396, 25), "TURN CHOICES", 12, MUTED, MONO)
 	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 15, INK, SANS, true)
 	if selected >= 0 and selected in state.pawns:
@@ -495,16 +495,14 @@ func _draw_play() -> void:
 		elif details.is_empty() and action_group == "power" and not face.is_empty():
 			details = SPELLS[face][1]
 		if not details.is_empty():
-			_label(side_panel, Rect2(864, 549, 394, 35), details, 13, MUTED, SANS, true)
+			_label(side_panel, Rect2(864, 546, 394, 35), details, 13, MUTED, SANS, true)
 	else:
-		_label(side_panel, Rect2(864, 510, 394, 74), "For a move, select a unit first. For power, click Use power, then choose a highlighted target.", 15, MUTED, SANS, true)
+		_label(side_panel, Rect2(864, 510, 394, 70), "For a move, select a unit first. For power, click Use power, then choose a highlighted target.", 15, MUTED, SANS, true)
 	if not face.is_empty():
 		_action_button(Rect2(1062, 462, 196, 38), "Use power", "power")
-	var skip := _button(side_panel, Rect2(864, 590, 394, 38), "Finish / skip turn", _skip_turn)
-	skip.disabled = busy or state.phase != "playing" or (not local_mode and state.active == 0)
-	_panel(side_panel, Rect2(846, 654, 430, 145), ALIEN_PANEL, ALIEN_LINE, 12)
-	_label(side_panel, Rect2(864, 665, 270, 22), "ALIEN FLIGHT LOG", 12, ALIEN_GREEN, MONO)
-	var log_button := _button(side_panel, Rect2(1162, 663, 97, 27), "View log", _show_log)
+	_panel(side_panel, Rect2(846, 592, 430, 140), ALIEN_PANEL, ALIEN_LINE, 12)
+	_label(side_panel, Rect2(864, 600, 270, 22), "ALIEN FLIGHT LOG", 12, ALIEN_GREEN, MONO)
+	var log_button := _button(side_panel, Rect2(1162, 598, 97, 27), "View log", _show_log)
 	log_button.add_theme_stylebox_override("normal", _style(Color("#14281a"), ALIEN_LINE, 8))
 	log_button.add_theme_stylebox_override("hover", _style(Color("#1e3925"), ALIEN_GREEN, 8))
 	log_button.add_theme_stylebox_override("pressed", _style(Color("#284b30"), ALIEN_GREEN, 8))
@@ -512,8 +510,10 @@ func _draw_play() -> void:
 	log_button.add_theme_color_override("font_hover_color", Color("#d0ffc4"))
 	var latest := messages.slice(0, 3)
 	for i in range(latest.size()):
-		var line := _label(side_panel, Rect2(864, 695 + i * 30, 389, 27), latest[i], 14, ALIEN_GREEN if i == 0 else ALIEN_DIM)
+		var line := _label(side_panel, Rect2(864, 630 + i * 25, 389, 24), latest[i], 13, ALIEN_GREEN if i == 0 else ALIEN_DIM, MONO)
 		line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	var skip := _button(side_panel, Rect2(846, 744, 430, 42), "Finish / skip turn", _skip_turn)
+	skip.disabled = busy or state.phase != "playing" or (not local_mode and state.active == 0)
 
 
 func _team_card(x: float, y: float, side: int) -> void:
