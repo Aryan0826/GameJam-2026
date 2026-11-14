@@ -2,12 +2,14 @@ class_name SolarSystem
 extends Node2D
 
 ## 2D Solar System Exploration Scene
-## Features an expanded 5000px solar system, a colossal central Sun with realistic gravity,
+## Features four orbiting planets, a colossal central Sun with realistic gravity,
 ## gradual spacecraft momentum accumulation (Newtonian inertia), planetary gravitational pull,
 ## graceful slow orbital insertion, and transition to the game board after 2 seconds of stable orbit.
 
 signal orbit_entered
 signal scene_transition_started
+
+const OrbitingPlanetBody = preload("res://scripts/orbiting_planet.gd")
 
 enum ShipState {
 	FREE_FLIGHT,
@@ -20,15 +22,22 @@ enum ShipState {
 @export_file("*.tscn") var next_scene_path: String = "res://main.tscn"
 @export var orbit_dwell_duration: float = 2.0
 
+@export_group("Flight Entry")
+@export var ship_spawn_position: Vector2 = Vector2(-5200.0, 3800.0)
+
+@export_group("Flight Camera")
+@export_range(0.1, 2.0, 0.01) var camera_cruise_zoom: float = 0.65
+@export_range(0.1, 2.0, 0.01) var camera_fast_zoom: float = 0.45
+
 @export_group("Solar Mechanics")
 @export var sun_gravity_constant: float = 120000.0 # gravitational pull across the deep space system
 @export var sun_min_dist: float = 760.0 # solar thermal repulsion buffer outside the enlarged star
-@export var planet_orbit_radius: float = 5000.0 # vast solar system radius
-@export var planet_orbit_speed: float = 0.025 # radians/sec (~250s full orbit)
+@export var planet_orbit_radius: float = 5600.0 # home occupies the second solar orbit
+@export var planet_orbit_speed: float = 0.022 # radians/sec (~286s full orbit)
 @export var planet_gravity_influence_radius: float = 1000.0 # planetary gravitational well
 @export var planet_gravity_strength: float = 28000.0 # planet's own inward gravitational pull
 @export var planet_capture_radius: float = 650.0 # dotted proximity boundary
-@export var planet_stable_orbit_radius: float = 420.0 # orbit stays outside the 300px planet radius
+@export var planet_stable_orbit_radius: float = 420.0 # orbit stays outside the 255px planet radius
 @export var planet_orbit_rot_speed: float = 0.45 # radians/sec (~14s per planetary orbit)
 @export var orbit_absorption_speed: float = 38.0 # slightly quicker insertion while preserving the smooth curve
 @export_range(1.0, 1000.0, 1.0) var orbit_capture_accel: float = 260.0 # gradual change in orbital velocity
@@ -53,6 +62,7 @@ enum ShipState {
 @onready var planet_node: Node2D = $World/Planet
 @onready var planet_sprite: Sprite2D = $World/Planet/PlanetSprite
 @onready var planet_zone: Node2D = $World/Planet/OrbitZone
+@onready var additional_planets: Node2D = $World/AdditionalPlanets
 @onready var ship_node: CharacterBody2D = $World/PlayerShip
 @onready var ship_sprite: Sprite2D = $World/PlayerShip/ShipSprite
 @onready var engine_thrusters: Node2D = $World/PlayerShip/EngineThrusters
@@ -67,6 +77,7 @@ enum ShipState {
 @onready var speed_label: Label = $HUDLayer/HUD/FlightInfo/SpeedLabel
 @onready var dist_sun_label: Label = $HUDLayer/HUD/FlightInfo/DistSunLabel
 @onready var dist_planet_label: Label = $HUDLayer/HUD/FlightInfo/DistPlanetLabel
+@onready var gravity_status_label: Label = $HUDLayer/HUD/FlightInfo/GravityLabel
 @onready var screen_fade: ColorRect = $HUDLayer/ScreenFade
 @onready var sun_pointer: Control = $HUDLayer/HUD/Radar/SunPointer
 @onready var planet_pointer: Control = $HUDLayer/HUD/Radar/PlanetPointer
@@ -94,15 +105,22 @@ func _ready() -> void:
 		rotation_material.set_shader_parameter("frame_grid", Vector2(body.hframes, body.vframes))
 	planet_zone.set("capture_radius", planet_capture_radius)
 	planet_zone.set("stable_orbit_radius", planet_stable_orbit_radius)
+	planet_zone.set("gravity_radius", planet_gravity_influence_radius)
+	$World/Planet/GravityLabel.position.y = -planet_gravity_influence_radius - 28.0
+	$World/OrbitLine.set("orbit_radius", planet_orbit_radius)
 
 	# Initial positions in expanded solar system
 	sun_node.position = Vector2.ZERO
 	_update_planet_position(0.0)
 
-	# Place ship in outer quadrant heading inward
-	ship_node.position = Vector2(3400.0, 3100.0)
+	# Begin in open space, well outside every planet's gravity boundary.
+	ship_node.position = ship_spawn_position
 	ship_node.rotation = (planet_node.position - ship_node.position).angle()
 	_ship_velocity = Vector2.from_angle(ship_node.rotation) * 180.0
+	camera.position = ship_node.position
+	var initial_zoom := lerpf(camera_cruise_zoom, camera_fast_zoom, clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0))
+	camera.zoom = Vector2.ONE * initial_zoom
+	camera.reset_smoothing()
 
 	# Initial UI states
 	if orbit_hud:
@@ -130,7 +148,7 @@ func _process(delta: float) -> void:
 	if camera and ship_node:
 		camera.position = ship_node.position
 		var speed_ratio = clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0)
-		var target_zoom = lerpf(0.95, 0.60, speed_ratio)
+		var target_zoom = lerpf(camera_cruise_zoom, camera_fast_zoom, speed_ratio)
 		camera.zoom = camera.zoom.lerp(Vector2(target_zoom, target_zoom), 2.2 * delta)
 
 	# Starfield parallax
@@ -159,6 +177,9 @@ func _update_body_rotation(sprite: Sprite2D, progress: float) -> void:
 func _physics_process(delta: float) -> void:
 	# 1. Update Planet's orbit around the Sun
 	_update_planet_position(delta)
+	for child in additional_planets.get_children():
+		var body := child as OrbitingPlanetBody
+		body.advance_orbit(delta)
 
 	# 2. Handle Ship state machine
 	match _state:
@@ -187,6 +208,22 @@ func _get_planet_velocity() -> Vector2:
 		-sin(_planet_orbit_angle),
 		cos(_planet_orbit_angle)
 	) * (planet_orbit_radius * planet_orbit_speed)
+
+
+func get_system_map_data() -> Array[Dictionary]:
+	var bodies: Array[Dictionary] = [{
+		"name": "KALYPSO", "position": planet_node.global_position,
+		"orbit_radius": planet_orbit_radius, "gravity_radius": planet_gravity_influence_radius,
+		"color": Color(0.35, 0.9, 1.0), "is_target": true,
+	}]
+	for child in additional_planets.get_children():
+		var body := child as OrbitingPlanetBody
+		bodies.append({
+			"name": body.display_name, "position": body.global_position,
+			"orbit_radius": body.orbit_radius, "gravity_radius": body.gravity_influence_radius,
+			"color": body.marker_color, "is_target": false,
+		})
+	return bodies
 
 
 func _is_accelerating() -> bool:
@@ -275,6 +312,9 @@ func _process_free_flight(delta: float) -> void:
 	if dist_planet < planet_gravity_influence_radius:
 		var planet_pull: float = planet_gravity_strength / maxf(dist_planet, 120.0)
 		_ship_velocity += to_planet.normalized() * planet_pull * delta
+	for child in additional_planets.get_children():
+		var body := child as OrbitingPlanetBody
+		_ship_velocity += body.gravity_at(ship_node.global_position) * delta
 
 	# Apply velocity
 	ship_node.velocity = _ship_velocity
@@ -472,9 +512,18 @@ func _update_hud(_delta: float) -> void:
 		dist_sun_label.text = "SOLAR CORE: %d KM" % int(dist_sun)
 	if dist_planet_label:
 		dist_planet_label.text = "KALYPSO: %d KM" % int(dist_planet)
+	var local_gravity := "SOLAR"
+	var nearest_ratio := 1.0
+	for body_data in get_system_map_data():
+		var body_position: Vector2 = body_data.position
+		var ratio: float = ship_node.global_position.distance_to(body_position) / float(body_data.gravity_radius)
+		if ratio < nearest_ratio:
+			nearest_ratio = ratio
+			local_gravity = body_data.name
+	gravity_status_label.text = "GRAVITY: %s" % local_gravity
 
-	_update_tracking_marker(sun_pointer, sun_node.position, Color(1.0, 0.85, 0.2))
-	_update_tracking_marker(planet_pointer, planet_node.position, Color(0.3, 0.85, 1.0))
+	_update_tracking_marker(sun_pointer, sun_node.global_position, Color(1.0, 0.85, 0.2))
+	_update_tracking_marker(planet_pointer, planet_node.global_position, Color(0.3, 0.85, 1.0))
 
 
 func _update_tracking_marker(marker: Control, target_pos: Vector2, tint_col: Color) -> void:
@@ -482,8 +531,8 @@ func _update_tracking_marker(marker: Control, target_pos: Vector2, tint_col: Col
 		return
 
 	var vp_size = get_viewport_rect().size
-	var cam_pos = camera.position
-	var to_target = target_pos - cam_pos
+	# Project through the camera so markers match the actual zoom and smoothing.
+	var to_target: Vector2 = get_viewport().get_canvas_transform() * target_pos - vp_size * 0.5
 
 	var margin = 48.0
 	var half_w = (vp_size.x * 0.5) - margin

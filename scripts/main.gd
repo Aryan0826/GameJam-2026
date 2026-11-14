@@ -54,7 +54,7 @@ Roll once per round before moving or using a drafted ability. After rolling, the
 Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
 
 [color=#f8d587]CONTROLS[/color]
-Click a unit, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
+Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
 var state: Dictionary = {}
 var legal: Array[Dictionary] = []

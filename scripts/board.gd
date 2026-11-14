@@ -14,6 +14,9 @@ const GOLD = Color("#ffda8f")
 const LILAC = Color("#bd9dff")
 const SPELL_ICON = {"shield": "S", "fracture": "F", "teleport": "P", "borrow_tomorrow": "T"}
 const TOP := 0.14
+const CAMERA_TARGET := Vector3(0, -0.38, 0.28)
+const DRAG_THRESHOLD := 6.0
+const ORBIT_SENSITIVITY := 0.006
 
 var state: Dictionary = {}
 var targets: Dictionary = {}
@@ -29,6 +32,12 @@ var power := 1.0
 var viewport_3d: SubViewport
 var world: Node3D
 var camera: Camera3D
+var camera_yaw := 0.0
+var camera_pitch := 0.0
+var camera_distance := 0.0
+var pointer_down := false
+var orbiting := false
+var pointer_origin := Vector2.ZERO
 var tiles: Dictionary = {}
 var pieces: Dictionary = {}
 var landings: Dictionary = {}
@@ -43,6 +52,7 @@ var falling: Array[Node3D] = []
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
+	tooltip_text = "Click to select a unit or target. Drag to rotate the board view."
 	mouse_exited.connect(func():
 		hover = Vector2i.ZERO
 		queue_redraw())
@@ -60,7 +70,11 @@ func _ready() -> void:
 	camera.fov = 35.0
 	camera.position = Vector3(1.6, 8.0, 12.6)
 	world.add_child(camera)
-	camera.look_at(Vector3(0, -0.38, 0.28))
+	var offset := camera.position - CAMERA_TARGET
+	camera_distance = offset.length()
+	camera_yaw = atan2(offset.x, offset.z)
+	camera_pitch = asin(offset.y / camera_distance)
+	_update_camera()
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-52, -32, 0)
 	light.light_energy = 0.94
@@ -334,17 +348,56 @@ func _pick_square(local_pos: Vector2) -> Vector2i:
 	return picked
 
 
+func _update_camera() -> void:
+	camera.position = CAMERA_TARGET + camera_distance * Vector3(
+		sin(camera_yaw) * cos(camera_pitch), sin(camera_pitch), cos(camera_yaw) * cos(camera_pitch))
+	camera.look_at(CAMERA_TARGET)
+	queue_redraw()
+
+
+func _cancel_drag() -> void:
+	pointer_down = false
+	orbiting = false
+	mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT or (what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree()):
+		_cancel_drag()
+
+
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		hover = _pick_square(event.position)
-		queue_redraw()
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var square := _pick_square(event.position)
-		if square != Vector2i.ZERO:
-			grab_focus()
-			keyboard_square = Vector2i.ZERO
-			square_pressed.emit(square)
+		var movement: Vector2 = event.relative
+		if pointer_down and not orbiting and event.position.distance_to(pointer_origin) >= DRAG_THRESHOLD:
+			orbiting = true
+			movement = event.position - pointer_origin
+			mouse_default_cursor_shape = Control.CURSOR_DRAG
+		if pointer_down and orbiting:
+			camera_yaw = wrapf(camera_yaw - movement.x * ORBIT_SENSITIVITY, -PI, PI)
+			camera_pitch = clampf(camera_pitch + movement.y * ORBIT_SENSITIVITY, deg_to_rad(25), deg_to_rad(75))
+			hover = Vector2i.ZERO
+			_update_camera()
 			accept_event()
+		else:
+			hover = _pick_square(event.position)
+			queue_redraw()
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			pointer_down = true
+			orbiting = false
+			pointer_origin = event.position
+			grab_focus()
+		elif pointer_down:
+			# Delay selection until release so dragging never commits a game action.
+			var was_orbiting := orbiting
+			_cancel_drag()
+			hover = _pick_square(event.position) if Rect2(Vector2.ZERO, size).has_point(event.position) else Vector2i.ZERO
+			if not was_orbiting and hover != Vector2i.ZERO and hover == _pick_square(pointer_origin):
+				keyboard_square = Vector2i.ZERO
+				square_pressed.emit(hover)
+			queue_redraw()
+		accept_event()
 
 
 func _process(delta: float) -> void:
