@@ -10,6 +10,8 @@ const AbilityCards = preload("res://scripts/battle/ability_cards.gd")
 const AbilityHologram = preload("res://scripts/battle/ability_hologram.gd")
 const KalypsoGuide = preload("res://scripts/battle/kalypso_guide.gd")
 const RESULT_CHARACTERS = preload("res://art/results/characters.png")
+const Story = preload("res://scripts/core/expedition_story.gd")
+const StoryArt = preload("res://scripts/battle/story_art.gd")
 const ExpeditionState = preload("res://scripts/core/expedition.gd")
 const SANS = preload("res://art/fonts/SpaceGrotesk.ttf")
 const MONO = preload("res://art/fonts/IBMPlexMono-Regular.ttf")
@@ -141,7 +143,6 @@ var _terminal_screen: RichTextLabel
 var _terminal_messages: Array[Dictionary] = []
 var _terminal_active_line := 0
 var _terminal_characters := 0.0
-var _terminal_blink_time := 0.0
 var _encounter_options: Control
 var _telemetry_credit_label: Label
 var _communication_accept: Button
@@ -150,6 +151,11 @@ var _communication_prompt: Label
 var _communication_ready := false
 var _communication_presented := false
 var _leaving_orbit := false
+var _communication_departing := false
+var _communication_skip: Button
+var _contact_art: Control
+var _contact_name: Label
+var _contact_progress: Label
 
 
 func _ready() -> void:
@@ -312,51 +318,57 @@ func _show_home() -> void:
 	cockpit.clearance = ""
 	_clear(overlay)
 	overlay_kind = "home"
+	_communication_departing = false
 	_encounter_options.show()
 	_telemetry_credit_label.hide()
 	var system_data: Dictionary = expedition.current_system_data()
-	var planet_name := str(system_data.planet_name).capitalize()
-	var game_name := "Drift Circuit" if drift_circuit else "Conqueror’s Chess"
+	var system: int = expedition.current_system
+	var game_name := "Drift Circuit" if drift_circuit else "The Fractured Flag"
 	_label(overlay, Rect2(128, 58, 720, 24), "HORIZON // SHIP COMMUNICATIONS", 14, Color("#8effb2"), MONO)
-	var orbit_status := _label(overlay, Rect2(848, 58, 344, 24), "ORBIT / %s" % system_data.planet_name, 13, Color("#75ad83"), MONO)
+	var standing: String = expedition.standing(system)
+	var status := standing.to_upper() if standing != "unknown" else "INVITATION OPEN" if expedition.encounters_seen.has(system) else "FIRST CONTACT"
+	var orbit_status := _label(overlay, Rect2(810, 58, 382, 24), "%s / %s" % [system_data.planet_name, status], 13, Color("#75ad83"), MONO)
 	orbit_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_label(overlay, Rect2(128, 90, 1064, 28), "%s / INCOMING TRANSMISSION" % game_name.to_upper(), 19, Color("#a6efc2"), MONO)
+	_label(overlay, Rect2(128, 90, 850, 28), game_name.to_upper() + " / OPEN CHANNEL", 19, Color("#a6efc2"), MONO)
+	_communication_skip = _terminal_action(Rect2(1020, 90, 172, 30), "Skip story »", _finish_communication)
+	_contact_art = StoryArt.new()
+	_contact_art.cinder = drift_circuit
+	_contact_art.motion = motion
+	_contact_art.name = "ContactPortrait"
+	_place(overlay, _contact_art, Rect2(128, 148, 224, 240))
+	_contact_name = _label(overlay, Rect2(128, 401, 240, 24), "HOLOGRAPHIC LINK", 12, SOUTH, MONO)
+	_contact_progress = _label(overlay, Rect2(128, 431, 240, 20), "", 12, MUTED, MONO)
 	_terminal_screen = RichTextLabel.new()
 	_terminal_screen.bbcode_enabled = true
 	_terminal_screen.scroll_active = false
 	_terminal_screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_terminal_screen.add_theme_font_override("normal_font", MONO)
-	_terminal_screen.add_theme_font_size_override("normal_font_size", 18)
-	_terminal_screen.add_theme_color_override("default_color", Color("#b3f4c7"))
-	_terminal_screen.add_theme_constant_override("line_separation", 2)
-	_place(overlay, _terminal_screen, Rect2(128, 142, 1064, 312))
-	_terminal_messages = [
-		{"speaker": "ALIEN ENVOY", "color": "#a0edb4", "text": "Horizon, you have entered %s's orbit. Why have you come here?" % planet_name},
-		{"speaker": "HORIZON / VALERIA", "color": "#a6dfff", "text": "We are looking for friends away from home. We come in peace."},
-		{"speaker": "ALIEN ENVOY", "color": "#a0edb4", "text": "Then face us in %s. Win, and we will welcome you as friends. Lose, and you must leave our orbit in peace." % game_name},
-	]
+	_terminal_screen.add_theme_font_override("normal_font", SANS)
+	_terminal_screen.add_theme_font_size_override("normal_font_size", 27)
+	_terminal_screen.add_theme_color_override("default_color", INK)
+	_terminal_screen.add_theme_constant_override("line_separation", 7)
+	_terminal_screen.clip_contents = true
+	_terminal_screen.finished.connect(_place_communication_action)
+	_place(overlay, _terminal_screen, Rect2(400, 155, 792, 225))
+	_terminal_messages = Story.encounter(system, expedition.standing(system), expedition.encounters_seen.has(system))
+	expedition.encounters_seen[system] = true
 	_terminal_active_line = 0
 	_terminal_characters = 0.0
-	_terminal_blink_time = 0.0
-	_communication_prompt = _label(overlay, Rect2(128, 467, 1064, 22), "", 14, Color("#75ad83"), MONO)
-	_communication_accept = _terminal_action(Rect2(128, 506, 512, 32), "[ENTER] REVEAL TRANSMISSION", _advance_communication)
-	_terminal_action(Rect2(680, 506, 512, 32), "[Q] LEAVE ORBIT", _leave_planet_orbit)
-	_label(overlay, Rect2(128, 554, 1064, 18), "HORIZON / ORBIT LINK OPEN", 11, Color("#518368"), MONO)
-	_communication_accept.disabled = false
+	_communication_prompt = _label(overlay, Rect2(128, 467, 1064, 22), "Read at your pace. Enter reveals the line, then continues.", 13, Color("#75ad83"), MONO)
+	_communication_accept = _terminal_action(Rect2(400, 400, 420, 42), "[ENTER] CONTINUE", _advance_communication)
+	_communication_accept.name = "ContinueTransmission"
+	_communication_accept.flat = false
+	_communication_accept.add_theme_font_size_override("font_size", 18)
+	_communication_accept.add_theme_stylebox_override("normal", _style(Color("#123326"), Color("#47795b"), 4))
+	_communication_accept.add_theme_stylebox_override("hover", _style(Color("#1d4b36"), Color("#8effb2"), 4))
+	_communication_accept.add_theme_stylebox_override("pressed", _style(Color("#285d44"), Color("#c7ffdc"), 4))
+	_terminal_action(Rect2(790, 506, 402, 32), "[Q] LEAVE ORBIT", _leave_planet_orbit)
+	_label(overlay, Rect2(128, 554, 1064, 18), "HORIZON / PEACEFUL CONTACT / NO LANDING WITHOUT CLEARANCE", 11, Color("#518368"), MONO)
 	_communication_local.disabled = true
 	if _communication_presented:
 		_finish_communication()
 	else:
 		_communication_presented = true
-		_communication_tween = create_tween()
-		_communication_tween.tween_interval(0.2)
-		for i in _terminal_messages.size():
-			var message: String = _terminal_messages[i].text
-			_communication_tween.tween_callback(_begin_terminal_message.bind(i))
-			_communication_tween.tween_property(self, "_terminal_characters", float(message.length()), clampf(message.length() / 50.0, 0.75, 3.2)).from(0.0)
-			_communication_tween.tween_callback(_stop_typing_audio)
-			_communication_tween.tween_interval(0.25)
-		_communication_tween.tween_callback(_finish_communication)
+		_begin_terminal_message(0)
 	_render_terminal()
 
 
@@ -379,35 +391,51 @@ func _terminal_action(rect: Rect2, title: String, callback: Callable) -> Button:
 
 
 func _begin_terminal_message(index: int) -> void:
+	_stop_communication()
 	_terminal_active_line = index
 	_terminal_characters = 0.0
+	var message: Dictionary = _terminal_messages[index]
+	_contact_art.role = message.role
+	_contact_art.queue_redraw()
+	_contact_name.text = "TRANSMITTING / " + ("CINDER" if drift_circuit else "KALYPSO") if message.role == "envoy" else "HORIZON / CREW LINK"
+	_contact_progress.text = "%02d / %02d" % [index + 1, _terminal_messages.size()]
 	soundtrack.cue("transmission")
+	_communication_tween = create_tween()
+	_communication_tween.tween_property(self, "_terminal_characters", float(message.text.length()), clampf(message.text.length() / 45.0, 0.5, 3.5)).from(0.0)
+	_communication_tween.tween_callback(_stop_typing_audio)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if is_instance_valid(ability_hologram) and not _can_show_ability_hologram():
 		ability_hologram.hide()
 	if overlay_kind == "home":
-		_terminal_blink_time = fposmod(_terminal_blink_time + delta, 1.0)
 		_render_terminal()
 
 
 func _render_terminal() -> void:
-	var cursor := "_" if _terminal_blink_time < 0.55 else " "
-	var transcript := ""
-	for i in _terminal_messages.size():
-		if not _communication_ready and i > _terminal_active_line:
-			break
-		var message: Dictionary = _terminal_messages[i]
-		var full_text: String = message.text
-		var visible_text := full_text
-		if not _communication_ready and i == _terminal_active_line:
-			visible_text = full_text.substr(0, int(_terminal_characters)) + cursor
-		transcript += "[color=%s]%s >\n%s[/color]\n\n" % [message.color, message.speaker, visible_text]
+	if _terminal_messages.is_empty() or not is_instance_valid(_terminal_screen):
+		return
+	var message: Dictionary = _terminal_messages[_terminal_active_line]
+	var full_text: String = message.text
+	var visible_text := full_text
+	var heading: String = message.speaker
 	if _communication_ready:
-		transcript += "[color=#8effb2]AWAITING COMMAND > %s[/color]" % cursor
+		heading = "DEPARTURE CONFIRMED" if _communication_departing else "CHALLENGE BRIEFING"
+		visible_text = "Return to flight. You can come back whenever your crew is ready." if _communication_departing else Story.terms(expedition.current_system)
+		if not _communication_departing and expedition.standing(expedition.current_system) == "allied":
+			visible_text = "Friendly rematch. Your alliance is secure, whatever the result.\n\n" + ("Reach 8 total: relay points + surviving ships." if drift_circuit else "Hold the flag through 3 enemy turns, or eliminate their fleet.")
+	var transcript := "[font_size=15][color=%s]%s[/color][/font_size]\n\n%s" % [message.color, heading, visible_text]
 	if _terminal_screen.text != transcript:
 		_terminal_screen.text = transcript
+	_terminal_screen.visible_characters = -1 if _communication_ready else heading.length() + 2 + int(_terminal_characters)
+
+
+func _place_communication_action() -> void:
+	if overlay_kind != "home" or not is_instance_valid(_communication_accept):
+		return
+	# Hidden letters retain their layout, so typing cannot move the Continue button.
+	var content_height := minf(225, _terminal_screen.get_content_height())
+	_communication_accept.position = Vector2(400, _terminal_screen.position.y + content_height + 16)
 
 
 func _stop_communication() -> void:
@@ -432,15 +460,17 @@ func _finish_communication() -> void:
 		return
 	_stop_communication()
 	_communication_ready = true
-	_communication_accept.text = "[ENTER] ACCEPT CHALLENGE"
+	_communication_accept.text = "[ENTER] RETURN TO FLIGHT" if _communication_departing else "[ENTER] ACCEPT CHALLENGE"
 	_communication_accept.disabled = false
-	_communication_local.disabled = false
-	_communication_prompt.text = ""
+	_communication_local.disabled = _communication_departing
+	_communication_skip.hide()
+	_communication_prompt.text = "No penalty for declining. The invitation remains open." if _communication_departing else "Your choice, Captain."
+	_contact_progress.text = "CHANNEL / STANDBY"
 	_render_terminal()
 
 
 func _accept_challenge(local: bool = false) -> void:
-	if overlay_kind != "home" or not _communication_ready or busy:
+	if overlay_kind != "home" or not _communication_ready or busy or _communication_departing:
 		return
 	soundtrack.cue("confirm")
 	_start(local)
@@ -449,14 +479,33 @@ func _accept_challenge(local: bool = false) -> void:
 func _leave_planet_orbit() -> void:
 	if overlay_kind != "home" or busy:
 		return
-	_leave_current_orbit()
+	if _communication_departing:
+		_leave_current_orbit()
+		return
+	_communication_departing = true
+	_terminal_messages = Story.departure(expedition.current_system)
+	_communication_skip.show()
+	_communication_skip.text = "Skip farewell »"
+	_communication_accept.text = "[ENTER] CONTINUE"
+	_communication_local.disabled = true
+	_communication_prompt.text = "Channel closing. Press Q again to return directly to flight."
+	_begin_terminal_message(0)
 
 
 func _advance_communication() -> void:
 	if overlay_kind != "home" or busy:
 		return
 	if _communication_ready:
-		_accept_challenge()
+		if _communication_departing:
+			_leave_current_orbit()
+		else:
+			_accept_challenge()
+	elif _terminal_characters < _terminal_messages[_terminal_active_line].text.length():
+		_stop_communication()
+		_terminal_characters = float(_terminal_messages[_terminal_active_line].text.length())
+		_render_terminal()
+	elif _terminal_active_line + 1 < _terminal_messages.size():
+		_begin_terminal_message(_terminal_active_line + 1)
 	else:
 		_finish_communication()
 
