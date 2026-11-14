@@ -37,8 +37,8 @@ signal crawl_finished
 @export var end_local_y: float = 8.5
 
 @export_group("Scene Navigation")
-## Path to the next scene to load upon crawl completion (transitions to main.tscn).
-@export_file("*.tscn") var next_scene_path: String = "res://main.tscn"
+## Path to the next scene to load upon crawl completion (transitions to solar_system.tscn).
+@export_file("*.tscn") var next_scene_path: String = "res://scenes/solar_system.tscn"
 @export var allow_skip: bool = true
 @export var allow_speedup: bool = true
 @export var speedup_multiplier: float = 2.5

@@ -8,6 +8,7 @@ uniform vec4 star_tint_cool : source_color = vec4(0.75, 0.88, 1.0, 1.0);
 uniform vec4 star_tint_warm : source_color = vec4(1.0, 0.92, 0.75, 1.0);
 uniform float drift_speed : hint_range(0.0, 0.05) = 0.006;
 uniform float twinkle_speed : hint_range(0.5, 8.0) = 2.2;
+uniform vec2 camera_offset = vec2(0.0);
 
 // Pseudo-random 2D hash
 float hash21(vec2 p) {
@@ -63,17 +64,18 @@ void fragment() {
     float aspect = res.x / max(res.y, 1.0);
     vec2 aspect_uv = vec2(uv.x * aspect, uv.y);
     
-    // Slow downward drift representing forward motion into space
+    // Slow downward drift representing forward motion into space + camera parallax
     vec2 drift = vec2(0.0, TIME * drift_speed);
+    vec2 cam = camera_offset * 0.00018;
     
     // Layer 1: Dense, tiny background stars (distant galaxy)
-    vec3 layer1 = render_stars(aspect_uv + drift * 0.4, 45.0, TIME, 17.43);
+    vec3 layer1 = render_stars(aspect_uv + drift * 0.4 + cam * 0.25, 45.0, TIME, 17.43);
     
     // Layer 2: Medium brightness stars
-    vec3 layer2 = render_stars(aspect_uv + drift * 0.7, 24.0, TIME, 53.81);
+    vec3 layer2 = render_stars(aspect_uv + drift * 0.7 + cam * 0.55, 24.0, TIME, 53.81);
     
     // Layer 3: Prominent foreground stars with noticeable twinkle
-    vec3 layer3 = render_stars(aspect_uv + drift * 1.1, 11.0, TIME, 89.15);
+    vec3 layer3 = render_stars(aspect_uv + drift * 1.1 + cam * 1.0, 11.0, TIME, 89.15);
     
     // Very faint cosmic dust nebula in the background
     float nebula = (sin(aspect_uv.x * 2.5 + TIME * 0.02) * cos(aspect_uv.y * 2.0 - TIME * 0.015)) * 0.015;

@@ -3,8 +3,8 @@
 [ext_resource type="Script" path="res://scripts/opening_crawl.gd" id="1_crawl_script"]
 [ext_resource type="Shader" path="res://shaders/starfield.gdshader" id="2_starfield_shader"]
 [ext_resource type="Shader" path="res://shaders/crawl_fade.gdshader" id="3_crawl_fade_shader"]
-[ext_resource type="FontFile" uid="uid://cbad6c5e8970e42193f755b3ea37b5b7" path="res://art/SpaceGrotesk.ttf" id="4_space_font"]
-[ext_resource type="FontFile" uid="uid://f99b7a3c4468297024b42f01ee395ecf" path="res://art/IBMPlexMono-Regular.ttf" id="5_mono_font"]
+[ext_resource type="FontFile" path="res://art/SpaceGrotesk.ttf" id="4_space_font"]
+[ext_resource type="FontFile" path="res://art/IBMPlexMono-Regular.ttf" id="5_mono_font"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_starfield"]
 shader = ExtResource("2_starfield_shader")
@@ -29,7 +29,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_crawl_script")
-next_scene_path = "res://main.tscn"
+next_scene_path = "res://scenes/solar_system.tscn"
 
 [node name="StarfieldBackground" type="ColorRect" parent="."]
 material = SubResource("ShaderMaterial_starfield")
