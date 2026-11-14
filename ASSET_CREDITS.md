@@ -21,3 +21,5 @@ The beveled landing pads are built with a mesh defined in `scripts/board.gd`. Th
 The workspace retains femrek's CC0 [pawn sprite](https://opengameart.org/content/chess-pieces-in-svg-format) from the 2D release. The current release uses the 3D meshes.
 
 `art/kalypso-movement-guide.png` and `art/kalypso-capture-guide.png` are screenshots of the actual Godot board using the credited fleet meshes and font above. Arrows and markers show all 12 legal movement destinations or both forward captures in separate teaching positions. Rebuild them with `godot --path . --script tools/render_movement_guides.gd`. No AI-generated imagery is used.
+
+`art/results/characters.png`: unmodified [Sci-Fi RogueLike Pixel Art](https://opengameart.org/content/sci-fi-roguelike-pixel-art) character sheet by Emcee Flesher, used under the offered [CC0](https://creativecommons.org/publicdomain/zero/1.0/) option. Existing crew and alien sprites are selected with atlas regions and enlarged with nearest-neighbor filtering. No AI-generated artwork. See [source details](art/results/SOURCE.md).
