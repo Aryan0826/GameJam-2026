@@ -109,7 +109,7 @@ func _setup_textures() -> void:
 	var sun_tex = _load_texture_safe("res://art/sun_sheet.png")
 	if sun_tex and sun_sprite:
 		sun_sprite.texture = sun_tex
-		sun_sprite.hframes = 50
+		sun_sprite.hframes = 44
 		sun_sprite.vframes = 1
 		sun_sprite.frame = 0
 		sun_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -117,7 +117,7 @@ func _setup_textures() -> void:
 	var planet_tex = _load_texture_safe("res://art/planet_sheet.png")
 	if planet_tex and planet_sprite:
 		planet_sprite.texture = planet_tex
-		planet_sprite.hframes = 50
+		planet_sprite.hframes = 44
 		planet_sprite.vframes = 1
 		planet_sprite.frame = 0
 		planet_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -125,7 +125,7 @@ func _setup_textures() -> void:
 	var ship_tex = _load_texture_safe("res://art/ship.png")
 	if ship_tex and ship_sprite:
 		ship_sprite.texture = ship_tex
-		ship_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		ship_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 
 func _load_texture_safe(res_path: String) -> Texture2D:
@@ -145,11 +145,11 @@ func _process(delta: float) -> void:
 	_sun_anim_time += delta
 	_planet_anim_time += delta
 
-	# Fluid 24 FPS rotation across the 50 normalized frames
-	if sun_sprite and sun_sprite.hframes == 50:
-		sun_sprite.frame = int(_sun_anim_time * 24.0) % 50
-	if planet_sprite and planet_sprite.hframes == 50:
-		planet_sprite.frame = int(_planet_anim_time * 24.0) % 50
+	# Fluid 20 FPS rotation across the 44-frame seamless loop
+	if sun_sprite and sun_sprite.hframes == 44:
+		sun_sprite.frame = int(_sun_anim_time * 20.0) % 44
+	if planet_sprite and planet_sprite.hframes == 44:
+		planet_sprite.frame = int(_planet_anim_time * 20.0) % 44
 
 	# Smooth camera follow and dynamic velocity-based zoom
 	if camera and ship_node:

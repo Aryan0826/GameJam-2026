@@ -1,10 +1,10 @@
-[gd_scene load_steps=8 format=3 uid="uid://c8yj3a2vqx8pm"]
+[gd_scene format=3 uid="uid://c8yj3a2vqx8pm"]
 
-[ext_resource type="Script" path="res://scripts/opening_crawl.gd" id="1_crawl_script"]
-[ext_resource type="Shader" path="res://shaders/starfield.gdshader" id="2_starfield_shader"]
-[ext_resource type="Shader" path="res://shaders/crawl_fade.gdshader" id="3_crawl_fade_shader"]
-[ext_resource type="FontFile" path="res://art/SpaceGrotesk.ttf" id="4_space_font"]
-[ext_resource type="FontFile" path="res://art/IBMPlexMono-Regular.ttf" id="5_mono_font"]
+[ext_resource type="Script" uid="uid://0d4gqbmn2i4w" path="res://scripts/opening_crawl.gd" id="1_crawl_script"]
+[ext_resource type="Shader" uid="uid://oarsx800moml" path="res://shaders/starfield.gdshader" id="2_starfield_shader"]
+[ext_resource type="Shader" uid="uid://di6kwpui1m5l8" path="res://shaders/crawl_fade.gdshader" id="3_crawl_fade_shader"]
+[ext_resource type="FontFile" uid="uid://idm1c8bjbsku" path="res://art/SpaceGrotesk.ttf" id="4_space_font"]
+[ext_resource type="FontFile" uid="uid://x8fqv78r8sfs" path="res://art/IBMPlexMono-Regular.ttf" id="5_mono_font"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_starfield"]
 shader = ExtResource("2_starfield_shader")
@@ -13,6 +13,7 @@ shader_parameter/star_tint_cool = Color(0.75, 0.88, 1, 1)
 shader_parameter/star_tint_warm = Color(1, 0.92, 0.75, 1)
 shader_parameter/drift_speed = 0.006
 shader_parameter/twinkle_speed = 2.2
+shader_parameter/camera_offset = Vector2(0, 0)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_crawl_fade"]
 shader = ExtResource("3_crawl_fade_shader")
@@ -21,7 +22,7 @@ shader_parameter/top_fade_end = 0.08
 shader_parameter/bottom_fade_start = 0.88
 shader_parameter/bottom_fade_end = 0.98
 
-[node name="OpeningCrawl" type="Control"]
+[node name="OpeningCrawl" type="Control" unique_id=953728374]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -29,9 +30,8 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_crawl_script")
-next_scene_path = "res://scenes/solar_system.tscn"
 
-[node name="StarfieldBackground" type="ColorRect" parent="."]
+[node name="StarfieldBackground" type="ColorRect" parent="." unique_id=2124334581]
 material = SubResource("ShaderMaterial_starfield")
 layout_mode = 1
 anchors_preset = 15
@@ -42,7 +42,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
-[node name="CrawlViewportContainer" type="SubViewportContainer" parent="."]
+[node name="CrawlViewportContainer" type="SubViewportContainer" parent="." unique_id=1812353866]
 material = SubResource("ShaderMaterial_crawl_fade")
 layout_mode = 1
 anchors_preset = 15
@@ -53,25 +53,25 @@ grow_vertical = 2
 mouse_filter = 2
 stretch = true
 
-[node name="SubViewport" type="SubViewport" parent="CrawlViewportContainer"]
+[node name="SubViewport" type="SubViewport" parent="CrawlViewportContainer" unique_id=1936084346]
 transparent_bg = true
 handle_input_locally = false
 size = Vector2i(1320, 850)
 render_target_update_mode = 4
 
-[node name="CrawlWorld" type="Node3D" parent="CrawlViewportContainer/SubViewport"]
+[node name="CrawlWorld" type="Node3D" parent="CrawlViewportContainer/SubViewport" unique_id=1830188019]
 
-[node name="Camera3D" type="Camera3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld"]
+[node name="Camera3D" type="Camera3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld" unique_id=1600727328]
 transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 1.2, 5)
 fov = 50.0
 
-[node name="CrawlTilt" type="Node3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld"]
+[node name="CrawlTilt" type="Node3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld" unique_id=1803063531]
 transform = Transform3D(1, 0, 0, 0, 0.469472, 0.882948, 0, -0.882948, 0.469472, 0, 0, 0)
 
-[node name="TextContent" type="Node3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt"]
+[node name="TextContent" type="Node3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt" unique_id=1109614293]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3.5, 0)
 
-[node name="EpisodeLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent"]
+[node name="EpisodeLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent" unique_id=334900157]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
 modulate = Color(1, 0.9, 0.12, 1)
 outline_modulate = Color(0, 0, 0, 0.7)
@@ -80,7 +80,7 @@ font = ExtResource("5_mono_font")
 font_size = 40
 outline_size = 6
 
-[node name="TitleLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent"]
+[node name="TitleLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent" unique_id=1534026732]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.8, 0)
 modulate = Color(1, 0.9, 0.12, 1)
 outline_modulate = Color(0, 0, 0, 0.7)
@@ -89,7 +89,7 @@ font = ExtResource("4_space_font")
 font_size = 50
 outline_size = 7
 
-[node name="BodyLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent"]
+[node name="BodyLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent" unique_id=746538466]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
 modulate = Color(1, 0.9, 0.12, 1)
 outline_modulate = Color(0, 0, 0, 0.6)
@@ -101,14 +101,13 @@ Entering uncharted space, the expedition discovers a collapsing orbital arena an
 
 To forge a vital alliance and ensure their people's survival, the Commander must now take the board, hold the fractured flag, and emerge victorious...."
 font = ExtResource("4_space_font")
-font_size = 32
 outline_size = 4
 vertical_alignment = 0
+line_spacing = 16.0
 autowrap_mode = 3
 width = 820.0
-line_spacing = 16.0
 
-[node name="IntroContainer" type="CenterContainer" parent="."]
+[node name="IntroContainer" type="CenterContainer" parent="." unique_id=588539069]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -117,7 +116,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="IntroLabel" type="Label" parent="IntroContainer"]
+[node name="IntroLabel" type="Label" parent="IntroContainer" unique_id=1855873155]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.294118, 0.835294, 0.933333, 1)
 theme_override_fonts/font = ExtResource("4_space_font")
@@ -126,7 +125,7 @@ text = "A short time ago in a star system far, far away..."
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="SkipHint" type="Label" parent="."]
+[node name="SkipHint" type="Label" parent="." unique_id=940031100]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
@@ -145,4 +144,4 @@ theme_override_font_sizes/font_size = 13
 text = "[SPACE] Fast Forward  •  [ESC/ENTER] Skip"
 horizontal_alignment = 2
 
-[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
+[node name="MusicPlayer" type="AudioStreamPlayer" parent="." unique_id=2077258044]
