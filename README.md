@@ -50,7 +50,6 @@ Hold the center flag with the same ship through three opposing turns, or elimina
 | **Shield** | Blocks one capture. Entering the flag clears it. |
 | **Fracture Tile** | Marks a tile outside the flag to fall after the next turn. |
 | **Teleport** | Jumps to an empty, intact, uninfected square outside the flag. |
-| **Borrow Tomorrow** | Moves two friendly ships one orthogonal square each. The first returns to its original square after your next turn if it’s still available. |
 
 | Drawn power | Effect |
 | --- | --- |

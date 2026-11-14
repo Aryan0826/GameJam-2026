@@ -32,7 +32,6 @@ const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the beacon."],
 	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any unit on it."],
 	"teleport": ["Teleport", "Jump to any open tile outside the beacon."],
-	"borrow_tomorrow": ["Borrow Tomorrow", "Move this unit, then a different ally. The first unit owes a return."],
 	"infected_trail": ["Infected Trail", "Infect the 3 × 3 area around a selected unit through the enemy turn."],
 	"spy": ["Spy", "Take control of a nearby enemy unit for your next three turns. It cannot score the beacon."],
 	"long_capture": ["Long Capture", "Capture diagonally in any direction, from one or two squares away."],
@@ -53,8 +52,6 @@ Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Eac
 
 [color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
 Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant.
-
-Borrow Tomorrow moves its assigned unit one orthogonal step, then moves another ally one orthogonal step. The first unit cannot enter or leave the beacon. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
 
 [color=#f8d587]SHUFFLE FOR AN ABILITY[/color]
 Shuffle once per round before moving or using a drafted ability. The cards shuffle, then flip to reveal your special power. Each of the three powers has an equal chance. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
@@ -127,8 +124,6 @@ var busy := false
 var generation := 0
 var selected := -1
 var action_group := "standard"
-var first_destination := Vector2i.ZERO
-var second_pawn := -1
 var assignments: Dictionary = {}
 var overlay_kind := ""
 var first_flag_round := 0
@@ -711,7 +706,7 @@ func _play_action_audio(events: Array) -> void:
 	var cues := {}
 	for event: Dictionary in events:
 		match event.kind:
-			"step", "returned":
+			"step":
 				cues["move"] = 0.26 if motion else 0.0
 			"capture":
 				cues["capture"] = 0.20 if motion else 0.0
@@ -719,7 +714,7 @@ func _play_action_audio(events: Array) -> void:
 				cues["shield"] = 0.0
 			"warning", "draft_reveal":
 				cues["confirm"] = 0.0
-			"collapse", "return_failed":
+			"collapse":
 				cues["collapse"] = 0.0
 			"spy":
 				cues["spy"] = 0.0
@@ -728,7 +723,7 @@ func _play_action_audio(events: Array) -> void:
 			"ability":
 				if event.ability in ["teleport", "shield"]:
 					cues[event.ability] = 0.0
-				elif event.ability in ["fracture", "borrow_tomorrow"]:
+				elif event.ability == "fracture":
 					cues["confirm"] = 0.0
 			"flag":
 				if event.pawn >= 0:
@@ -786,8 +781,6 @@ func _refresh() -> void:
 		return
 	board.state = state
 	board.selected = selected
-	board.second = second_pawn
-	board.preview_to = first_destination
 	board.draft_slots = {}
 	for pawn: int in assignments:
 		board.draft_slots[pawn] = Arena.SPELL_ICON[assignments[pawn]]
@@ -856,14 +849,9 @@ func _sync_ability_hologram() -> void:
 	var title: String = SPELLS[pawn.ability][0]
 	var caption := "Use " + title
 	if pawn.ability == "fracture": caption = "Use Fracture"
-	if pawn.ability == "borrow_tomorrow": caption = "Use Borrow"
 	var hint := "Choose a landing tile"
 	if pawn.ability == "shield": hint = "Click this ship to raise its shield"
 	elif pawn.ability == "fracture": hint = "Choose a tile to fracture"
-	elif pawn.ability == "borrow_tomorrow":
-		if first_destination == Vector2i.ZERO: hint = "Choose the first ship’s step"
-		elif second_pawn < 0: hint = "Choose a second ship"
-		else: hint = "Choose the second ship’s step"
 	ability_hologram.configure({
 		"board": board, "square": pawn.pos, "title": title, "motion": motion,
 		"status": status, "description": reason if not reason.is_empty() else SPELLS[pawn.ability][1],
@@ -957,9 +945,7 @@ func _draw_play() -> void:
 		if p.ability != "":
 			_action_button(Rect2(864, 524, 189, 36), SPELLS[p.ability][0], "ability")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
-		if not p.borrow.is_empty():
-			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
-		elif p.spy > 0:
+		if p.spy > 0:
 			details = "Stolen unit · %d turns left. Cannot score or capture at the beacon." % p.spy
 		elif details.is_empty() and action_group == "ability":
 			details = SPELLS[p.ability][1]
@@ -1125,14 +1111,6 @@ func _action_hint() -> String:
 			return "No legal target for this power. Choose Move / capture, or finish / skip."
 		return "Choose: Move → Power, Move → Finish (move only), or Power → Finish (power only)."
 	var p: Dictionary = state.pawns[selected]
-	if not p.borrow.is_empty():
-		return "This unit is waiting to return to its echo."
-	if action_group == "ability" and p.ability == "borrow_tomorrow":
-		if first_destination == Vector2i.ZERO:
-			return "Choose where the borrowed unit steps."
-		if second_pawn < 0:
-			return "Choose the second unit."
-		return "Choose where the second unit steps to commit both moves."
 	if action_group == "ability" and p.ability == "shield":
 		return "Select the highlighted unit again to raise its shield."
 	if action_group == "ability" and p.ability == "fracture":
@@ -1151,8 +1129,6 @@ func _action_button(rect: Rect2, title: String, group: String) -> void:
 
 func _set_group(group: String) -> void:
 	action_group = group
-	first_destination = Vector2i.ZERO
-	second_pawn = -1
 	board.grab_focus()
 	_refresh()
 
@@ -1187,12 +1163,6 @@ func _targets() -> Dictionary:
 	for action in _group_actions(action_group):
 		if action.kind == "spy":
 			highlighted[state.pawns[action.mark].pos] = "mark"
-		elif action.kind == "borrow_tomorrow" and first_destination != Vector2i.ZERO:
-			if action.to == first_destination:
-				if second_pawn < 0:
-					highlighted[state.pawns[action.second].pos] = "mark"
-				elif action.second == second_pawn:
-					highlighted[action.second_to] = "move"
 		else:
 			highlighted[action.to] = "capture" if action.kind in ["capture", "long_capture"] else "move"
 			if action.kind == "fracture":
@@ -1211,7 +1181,7 @@ func _square_pressed(square: Vector2i) -> void:
 			_refresh()
 		return
 	for action in _group_actions(action_group):
-		if _select_target(action, square, id):
+		if _select_target(action, square):
 			return
 	if id >= 0 and state.pawns[id].side == state.active:
 		soundtrack.cue("select")
@@ -1225,24 +1195,9 @@ func _square_pressed(square: Vector2i) -> void:
 		_refresh()
 
 
-func _select_target(action: Dictionary, square: Vector2i, id: int) -> bool:
+func _select_target(action: Dictionary, square: Vector2i) -> bool:
 	if action.kind == "spy":
 		if state.pawns[action.mark].pos == square:
-			_commit(action)
-			return true
-		return false
-	if action.kind == "borrow_tomorrow":
-		if first_destination == Vector2i.ZERO and action.to == square:
-			first_destination = square
-			_refresh()
-			return true
-		if action.to != first_destination:
-			return false
-		if second_pawn < 0 and id == action.second:
-			second_pawn = id
-			_refresh()
-			return true
-		if second_pawn >= 0 and action.second == second_pawn and action.second_to == square:
 			_commit(action)
 			return true
 		return false
@@ -1286,8 +1241,6 @@ func _lock_draft() -> void:
 func _clear_selection() -> void:
 	selected = -1
 	action_group = "standard"
-	first_destination = Vector2i.ZERO
-	second_pawn = -1
 
 
 func _coord(p: Vector2i) -> String:

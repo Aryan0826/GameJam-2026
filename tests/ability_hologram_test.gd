@@ -107,19 +107,6 @@ func _run() -> void:
 	await create_timer(0.2).timeout
 	_check(game.state.fractures.has(fracture.to) and not game.state.pawns[1].charged, "Hologram-driven Fracture marks the tile and spends its charge")
 	_setup(game)
-	game.state.pawns[6].ability = "borrow_tomorrow"
-	game.legal = Rules.legal_actions(game.state)
-	game._square_pressed(game.state.pawns[6].pos)
-	game._choose_hologram_action("ability")
-	var borrowed: Dictionary = game._group_actions("ability")[0]
-	game._square_pressed(borrowed.to)
-	_check(holo.description.text == "Choose a second ship" and game.records.is_empty(), "Borrow Tomorrow explains the next step without committing early")
-	game._square_pressed(game.state.pawns[borrowed.second].pos)
-	_check(holo.description.text == "Choose the second ship’s step", "Borrow Tomorrow keeps its multi-step prompt readable")
-	game._square_pressed(borrowed.second_to)
-	await create_timer(0.2).timeout
-	_check(game.records.size() == 1 and not game.state.pawns[6].charged, "Borrow Tomorrow commits both moves only after its final target")
-	_setup(game)
 	game._square_pressed(game.state.pawns[5].pos)
 	var before: Vector2 = holo.anchor
 	game.board.camera_yaw += 0.8
