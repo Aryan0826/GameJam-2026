@@ -176,6 +176,14 @@ func _ready() -> void:
 	bold.variation_opentype = { TextServerManager.get_primary_interface().name_to_tag("wght"): 700 }
 	_build_frame()
 	_show_home()
+	if expedition.take_descent_arrival():
+		var arrival := ColorRect.new()
+		arrival.name = "DescentArrivalHologram"
+		arrival.color = Color(0.015, 0.065, 0.085)
+		_place(self, arrival, Rect2(0, 0, 1320, 850))
+		var reveal := create_tween()
+		reveal.tween_property(arrival, "modulate:a", 0.0, 0.55)
+		reveal.tween_callback(arrival.queue_free)
 
 
 func _build_frame() -> void:
@@ -1386,6 +1394,7 @@ func _show_credits() -> void:
 	audio_list.append_text("\n[url=https://opengameart.org/content/bubbling-acid]Bubbling Acid · spookymodem · CC BY 3.0[/url] (trimmed and faded)\nRocket thrust · supplied MP3 · trimmed and looped")
 	audio_list.append_text("\n\n[color=#f8d587]CREW & ENVOYS[/color]\n[url=https://opengameart.org/content/sci-fi-roguelike-pixel-art]Sci-Fi RogueLike Pixel Art · Emcee Flesher · CC0[/url]\nOriginal pixel characters, scaled with nearest-neighbor filtering. Hologram scanlines and result spotlights use Godot primitives. No AI-generated artwork.")
 
+	audio_list.append_text("\n\n[color=#f8d587]DESCENT SEQUENCE[/color]\n[url=https://commons.wikimedia.org/wiki/File:StarfieldSimulation.gif]Starfield Simulation · Jahobr · CC0 · 2017[/url]\nOriginal star animation looped and converted to video.\n[url=https://commons.wikimedia.org/wiki/File:Space_Shuttle_Atlantis_OV-104_main_flight_deck.png]Atlantis flight deck · DMolybdenum · Public domain[/url]\nPanorama reprojected to a centered forward view, darkened, and windows masked. No AI generated assets.")
 
 
 func _show_map() -> void:

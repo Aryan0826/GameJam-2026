@@ -11,6 +11,7 @@ signal scene_transition_started
 
 const OrbitingPlanetBody = preload("res://scripts/flight/orbiting_planet.gd")
 const ExpeditionState = preload("res://scripts/core/expedition.gd")
+const DescentSequence = preload("res://scripts/flight/descent_sequence.gd")
 const THRUSTER_FPS := 20.0
 const THRUSTER_IGNITION_FRAMES := 9
 const THRUSTER_LOOP_FRAMES := 5
@@ -123,8 +124,8 @@ func _ready() -> void:
 	soundtrack.music("flight")
 	_engine_sound = soundtrack.flight_engine(self)
 	orbit_entered.connect(soundtrack.cue.bind("confirm"))
-	expedition.enter_system(system_index)
-	var system_data: Dictionary = expedition.current_system_data()
+	# Kalypso and Cinder share this solar system; scenery uses its primary body.
+	var system_data: Dictionary = ExpeditionState.SYSTEMS[system_index]
 	_planet_name = system_data.planet_name
 	_star_name = system_data.star_name
 	_star_color = system_data.star_color
@@ -166,6 +167,7 @@ func _ready() -> void:
 	_ship_velocity = Vector2.from_angle(ship_node.rotation) * 180.0
 	var arrival := expedition.take_approach()
 	var departure := expedition.take_departure()
+	expedition.enter_system(departure if departure >= 0 else arrival if arrival >= 0 else system_index)
 	_track_course(cinder if arrival == ExpeditionState.CINDER else planet_node)
 	if departure >= 0:
 		var body: Node2D = cinder if departure == ExpeditionState.CINDER else planet_node
@@ -592,6 +594,12 @@ func _track_course(body: Node2D) -> void:
 	var name := _destination_name(body)
 	$HUDLayer/HUD/Radar/PlanetPointer/TagLabel.text = name
 	$HUDLayer/HUD/Destinations/Routes/Label.text = "COURSE / " + name
+	for route in [{"node": "Kalypso", "system": 0}, {"node": "Cinder", "system": ExpeditionState.CINDER}]:
+		var standing: String = expedition.standing(route.system)
+		var caption: String = route.node
+		if standing != "unknown":
+			caption += " · " + ("Ally" if standing == "allied" else "Unproven")
+		get_node("HUDLayer/HUD/Destinations/Routes/" + route.node).text = caption
 
 
 func _trigger_game_transition() -> void:
@@ -609,18 +617,17 @@ func _trigger_game_transition() -> void:
 		orbit_timer_label.text = "DESCENT INITIATED • ENTERING ARENA"
 
 	if screen_fade:
-		screen_fade.visible = true
-		screen_fade.modulate.a = 0.0
-		var tween = create_tween()
-		tween.tween_property(screen_fade, "modulate:a", 1.0, 0.6)
-		tween.tween_callback(_land.bind(destination, duel_scene))
-	else:
-		_land(destination, duel_scene)
+		screen_fade.hide()
+	var sequence := DescentSequence.new()
+	$HUDLayer.add_child(sequence)
+	sequence.finished.connect(_land.bind(destination, duel_scene, true), CONNECT_ONE_SHOT)
+	sequence.start(_destination_name(_orbit_target))
 
 
-func _land(destination: int, duel_scene: String) -> void:
+func _land(destination: int, duel_scene: String, from_descent: bool = false) -> void:
 	if not duel_scene.is_empty() and get_tree().change_scene_to_file(duel_scene) == OK:
 		expedition.enter_system(destination)
+		expedition.descent_arrival = from_descent
 
 
 func _process_transitioning(delta: float) -> void:
@@ -651,7 +658,10 @@ func _update_hud(_delta: float) -> void:
 	if dist_sun_label:
 		dist_sun_label.text = "%s: %d KM" % [_star_name, int(dist_sun)]
 	if dist_planet_label:
-		dist_planet_label.text = "%s: %d KM" % [_destination_name(_course_target), int(dist_planet)]
+		var destination := ExpeditionState.CINDER if _course_target == cinder else system_index
+		var standing: String = expedition.standing(destination)
+		var tag := " / " + ("ALLY" if standing == "allied" else "UNPROVEN") if standing != "unknown" else ""
+		dist_planet_label.text = "%s: %d KM%s" % [_destination_name(_course_target), int(dist_planet), tag]
 	var local_gravity := "SOLAR"
 	var nearest_ratio := 1.0
 	for body_data in get_system_map_data():
