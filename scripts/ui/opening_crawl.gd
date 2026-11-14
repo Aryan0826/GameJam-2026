@@ -8,22 +8,17 @@ signal intro_finished
 signal crawl_finished
 
 @export_group("Story Content")
-@export var intro_text: String = "Earth has reached the stars. Now, its borders must follow."
-@export var episode_text: String = "EPISODE I"
-@export var title_text: String = "THE CONQUEROR'S GAMBIT"
+@export var intro_text: String = "Beyond the last human star charts, a new signal waits."
+@export var episode_text: String = "THE HORIZON EXPEDITION"
+@export var title_text: String = "FIRST CONTACT"
 @export_multiline var body_text: String = (
-	"EARTH has mastered interstellar travel. A GENERAL aboard the flagship " +
-	"HORIZON leads a campaign to expand its domain, conquering planets " +
-	"in one system before moving to the next.\n\n" +
-	"As he approaches a new planetary system, its alien inhabitants " +
-	"transmit an unexpected challenge. They will settle the conflict " +
-	"on a CHESSBOARD.\n\n" +
-	"If the General wins, they will surrender their planets to Earth " +
-	"without a fight. If he loses, he must withdraw his forces " +
-	"and leave their worlds in peace.\n\n" +
-	"The terms are clear. The next chapter of Earth's expansion " +
-	"will be decided one move at a time.\n\n" +
-	"The General has arrived at a new system to conquer..."
+	"We are the crew of the HORIZON, exploring beyond the last human star charts. " +
+	"Our mission is simple: discover new worlds, make contact, and find a safe passage home.\n\n" +
+	"As we approach each planet, its inhabitants detect our signal. An envoy appears on our flight screen: " +
+	"accept their challenge, or leave orbit in peace.\n\n" +
+	"Win, and a new world welcomes us as ALLIES. Lose, and access is denied. " +
+	"We must withdraw, marked UNPROVEN until we earn their trust.\n\n" +
+	"Captain Valeria and Navigator Sol stand ready. The first transmission is coming through..."
 )
 
 @export_group("Timing & Speed")

@@ -25,8 +25,8 @@ File names describe how the game uses each clip. Edits are listed below. The Ken
 | `art/audio/effects/move.ogg` | [drop_001.ogg](https://kenney.nl/assets/interface-sounds) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Unit landing |
 | `art/audio/effects/shuffle.ogg` | [card-shuffle.ogg](https://kenney.nl/assets/casino-audio) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Ability shuffle. Trimmed to 1.25 s with a short fade. |
 | `art/audio/effects/card-reveal.ogg` | [card-place-2.ogg](https://kenney.nl/assets/casino-audio) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Ability reveal |
-| `art/audio/effects/victory.ogg` | [jingles_HIT12.ogg](https://kenney.nl/assets/music-jingles) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Pilot victory |
-| `art/audio/effects/defeat.ogg` | [jingles_HIT00.ogg](https://kenney.nl/assets/music-jingles) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Pilot defeat |
+| `art/audio/effects/victory.ogg` | [jingles_HIT12.ogg](https://kenney.nl/assets/music-jingles) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Crew victory |
+| `art/audio/effects/defeat.ogg` | [jingles_HIT00.ogg](https://kenney.nl/assets/music-jingles) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Crew defeat |
 
 ## Art and typography
 
@@ -47,7 +47,7 @@ The beveled landing pads are built with a mesh defined in `scripts/battle/board.
 
 `art/guides/kalypso-movement-guide.png` and `art/guides/kalypso-capture-guide.png` are screenshots of the actual Godot board using the credited fleet meshes and font above. Arrows and markers show all 12 legal movement destinations or both forward captures in separate teaching positions. Rebuild them with `godot --path . --script tools/render_movement_guides.gd`. No AI-generated imagery is used.
 
-`art/results/characters.png`: unmodified [Sci-Fi RogueLike Pixel Art](https://opengameart.org/content/sci-fi-roguelike-pixel-art) character sheet by Emcee Flesher, used under the offered [CC0](https://creativecommons.org/publicdomain/zero/1.0/) option. Existing crew and alien sprites are selected with atlas regions and enlarged with nearest-neighbor filtering. No AI-generated artwork. See [source details](art/results/SOURCE.md).
+`art/results/characters.png`: unmodified [Sci-Fi RogueLike Pixel Art](https://opengameart.org/content/sci-fi-roguelike-pixel-art) character sheet by Emcee Flesher, used under the offered [CC0](https://creativecommons.org/publicdomain/zero/1.0/) option. Existing crew and alien sprites are selected with atlas regions and enlarged with nearest-neighbor filtering for Captain Valeria, Navigator Sol, envoys Lyra and Vesper, and the result lineups. Hologram scanlines and result spotlights use Godot primitives. No AI-generated artwork. See [source details](art/results/SOURCE.md).
 
 ## Supplied flight artwork
 
@@ -59,3 +59,9 @@ The project received these files without a source link or separate license notic
 | `art/flight/bodies/planet2.png`, `planet3.png`, `planet4.png` | Planet sprite sheets | 50-frame strips for Ember, Cinder and Aurelia |
 | `art/flight/bodies/sun_sheet.png` | `sun.png` | 32-frame Solar Core rotation |
 | `art/flight/bodies/system_two_star.png`, `system_two_planet.png` | `4185252325 (1).png` and `4185252325.png` | Azure Reach’s cyan star and Verdant |
+
+## Descent sequence
+
+`art/descent/star-flight.ogv` adapts [StarfieldSimulation.gif](https://commons.wikimedia.org/wiki/File:StarfieldSimulation.gif) by **Jahobr**, April 20, 2017, under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The author provides the original MATLAB rendering code. The existing animation is looped, resized, and encoded as a silent Ogg Theora video. It shows forward motion through white stars on black space. It is conventional animation, not camera footage or AI generated video.
+
+`art/descent/cockpit-frame.png` adapts [Space Shuttle Atlantis OV-104 main flight deck.png](https://commons.wikimedia.org/wiki/File:Space_Shuttle_Atlantis_OV-104_main_flight_deck.png) by **DMolybdenum / Daniel Molybdenum**, December 8, 2019. The author released the panorama as a Public Domain Work on Flickr, as recorded by Wikimedia Commons. Reprojected to a centered forward perspective, darkened, desaturated, and windows manually masked. Full provenance and adaptation details: [descent source record](art/descent/SOURCE.md).
