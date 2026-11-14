@@ -61,17 +61,37 @@ Infected Trail blocks entry into the 3 × 3 area around a selected unit through 
 [color=#f8d587]CONTROLS[/color]
 Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
-const DRIFT_RULES_TEXT = """[color=#f8d587]RACE TO FIVE[/color]
-After both players act, the marked rows shift. Each gold relay occupied after the shift earns one point, then jumps to another column on the same row. Each relay can score once per round. Reach five points with a lead to win. A tie at five or more goes to another round. If no side wins by the end of round %d, the match draws.
+const DRIFT_QUICK_START = """[color=#f8d587]TAKE YOUR TURN[/color]
+Aliens and Pilots alternate one move or capture. Select one of your units, then choose a highlighted destination.
 
-[color=#f8d587]PLAN YOUR LANDING[/color]
-Row 4 shifts right and row 6 shifts left. The tiles lift and carry their units one square, wrapping around at the edge. The tiles on row 5 stay put, but its gold relay relocates after scoring too. For a relay at E4, aim for D4 so the shift carries you onto it. Hover over a highlighted move on a drift row to preview the landing.
+[color=#f8d587]WATCH THE LANES[/color]
+After both sides act, every unit on row 4 moves one tile right and every unit on row 6 moves one tile left. Both rows wrap at the edges; row 5 stays put.
 
-[color=#f8d587]TAKE ONE ACTION[/color]
-Move one tile orthogonally or one or two diagonally to an empty square. A two-tile diagonal can jump over a unit. Capture one tile diagonally forward (Aliens down, Pilots up) to disrupt a rival’s setup.
+[color=#f8d587]SCORE AND WIN[/color]
+After the shift, each occupied relay scores one point for its side, then moves to another column on its row. Your winning total is relay points plus surviving units.
 
 [color=#f8d587]CONTROLS[/color]
-Click a unit, then a highlighted destination. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. Rematches swap the opening side and alternate the Center and Split relay layouts."""
+Click a unit and a highlighted destination. Drag to rotate the board; use arrow keys and Enter to select. Esc clears a selection or closes help. Multiplayer / Computer switches Alien control on the next Alien turn."""
+
+const DRIFT_MOVEMENT = """[color=#f8d587]MOVE[/color]
+Move one tile orthogonally or diagonally. A two-tile diagonal can jump over a unit. Select a unit to see its legal destinations.
+
+[color=#f8d587]CAPTURE[/color]
+Capture one tile diagonally forward. Aliens move down; Pilots move up. Capturing removes the enemy unit.
+
+[color=#83e1fa]PLAN THE SHIFT[/color]
+On rows 4 and 6, a highlighted destination previews where your unit will land after the lane moves."""
+
+const DRIFT_SCORING = """[color=#f8d587]AFTER BOTH SIDES ACT[/color]
+Rows 4 and 6 shift, carrying their units with them. Relays score on their post-shift squares; row 5 does not move, but its relay can still score.
+
+[color=#f8d587]EARN POINTS[/color]
+Each occupied relay adds one point to its occupant’s side. A relay then relocates along the same row. Each relay can score once per round.
+
+[color=#f8d587]WIN OR DRAW[/color]
+Your total is relay points plus every unit you still have. Reach %d to win. If both sides reach the goal on the same shift, or nobody wins by round %d, the match is a draw.
+
+Rematches alternate between the Center and Split relay layouts."""
 
 @export var drift_circuit := false
 @onready var expedition: ExpeditionState = get_node("/root/Expedition")
@@ -175,9 +195,9 @@ func _build_frame() -> void:
 	for lamp in beacon_lamps:
 		lamp.visible = not drift_circuit
 	mode_button = _button(chrome, Rect2(680, 811, 95, 31), "Solo", _show_modes)
-	takeover_button = _button(chrome, Rect2(783, 811, 150, 31), "Take Over Aliens", _takeover)
-	_button(chrome, Rect2(941, 811, 77, 31), "Rules", _show_rules)
-	motion_button = _button(chrome, Rect2(1026, 811, 76, 31), "FX on", _toggle_motion)
+	takeover_button = _button(chrome, Rect2(783, 811, 150, 31), "Multiplayer" if drift_circuit else "Take Over Aliens", _takeover)
+	_button(chrome, Rect2(941, 811, 104, 31), "How to play", _show_rules)
+	motion_button = _button(chrome, Rect2(1051, 811, 76, 31), "FX on", _toggle_motion)
 	feedback = _label(chrome, Rect2(72, 812, 590, 26), "", 14, GOLD)
 	side_panel = _layer(chrome)
 	side_panel.position.y = 106
@@ -479,9 +499,12 @@ func _start(local: bool, rematch: bool = false) -> void:
 func _enter_turn() -> void:
 	legal = Rules.legal_actions(state)
 	if state.phase == "playing" and state.active == 0 and takeover_queued:
-		local_mode = true
+		if drift_circuit:
+			local_mode = not local_mode
+		else:
+			local_mode = true
 		takeover_queued = false
-		_note("Aliens are now controlled by Player 2.")
+		_note("Aliens are now controlled by Player 2." if local_mode else "Aliens are now controlled by the computer.")
 	_refresh()
 	if overlay_kind != "" or busy or handoff:
 		return
@@ -593,10 +616,13 @@ func _commit(action: Dictionary) -> void:
 
 
 func _takeover() -> void:
-	if state.phase != "playing" or local_mode or takeover_queued:
+	if state.phase != "playing" or takeover_queued or (local_mode and not drift_circuit):
 		return
 	takeover_queued = true
-	_note("Takeover queued for the next Alien turn.")
+	if drift_circuit:
+		_note("Computer control will resume on the next Alien turn." if local_mode else "Multiplayer will begin on the next Alien turn.")
+	else:
+		_note("Takeover queued for the next Alien turn.")
 	_refresh()
 
 
@@ -642,8 +668,14 @@ func _refresh() -> void:
 			flag_status = "STOLEN UNIT  /  NO SCORE"
 		status_label.text = "BEACON  %s     /     %s" % [_coord(state.flag), flag_status]
 	mode_button.text = "Local" if local_mode else "Solo"
-	takeover_button.disabled = draft or local_mode or takeover_queued or state.phase != "playing"
-	takeover_button.text = "Takeover queued" if takeover_queued else "Take Over Aliens"
+	takeover_button.disabled = draft or (local_mode and not drift_circuit) or takeover_queued or state.phase != "playing"
+	if drift_circuit:
+		if takeover_queued:
+			takeover_button.text = "Bot queued" if local_mode else "MP queued"
+		else:
+			takeover_button.text = "Computer" if local_mode else "Multiplayer"
+	else:
+		takeover_button.text = "Takeover queued" if takeover_queued else "Take Over Aliens"
 	_clear(side_panel)
 	if draft:
 		_draw_draft()
@@ -1079,12 +1111,50 @@ func _show_handoff() -> void:
 
 
 func _show_rules() -> void:
-	if not drift_circuit:
-		_show_kalypso_guide(0)
+	if drift_circuit:
+		_show_drift_guide(0)
 		return
-	var box := _modal("rules", "Drift Circuit rules", 702)
-	_rich(box, Rect2(31, 94, 621, 516), DRIFT_RULES_TEXT % Drift.ROUND_LIMIT)
-	_button(box, Rect2(31, 634, 620, 41), "Back", _close_overlay)
+	_show_kalypso_guide(0)
+
+
+func _show_drift_guide(page: int) -> void:
+	var box := _modal("rules", "Drift Circuit · How to play", 740)
+	_panel(box, Rect2(31, 89, 620, 83), Color("#192a32"), LINE, 4)
+	_label(box, Rect2(45, 94, 590, 20), "GOAL", 12, GOLD, MONO)
+	_label(box, Rect2(45, 116, 590, 50), "Reach %d total points: relay scores plus surviving units." % Drift.TOTAL_TO_WIN, 19, INK, SANS, true)
+	var tabs := ["Quick start", "Movement", "Scoring"]
+	for index in tabs.size():
+		var tab := _button(box, Rect2(31 + index * 210, 185, 200, 36), tabs[index], _show_drift_guide.bind(index), page == index)
+		tab.name = "GuideTab%d" % index
+	if page == 0:
+		_rich(box, Rect2(31, 238, 620, 418), DRIFT_QUICK_START, 18)
+	elif page == 1:
+		_rich(box, Rect2(31, 235, 620, 104), DRIFT_MOVEMENT, 17)
+		_drift_guide_lane(box, 349, 4)
+		_drift_guide_lane(box, 485, 6)
+		_rich(box, Rect2(31, 624, 620, 38), "Arrow keys move the board cursor; Enter selects. Hover over a highlighted move to preview the shift.", 14)
+	else:
+		_rich(box, Rect2(31, 238, 620, 298), DRIFT_SCORING % [Drift.TOTAL_TO_WIN, Drift.ROUND_LIMIT], 17)
+		var titles: Array[String] = ["RELAY", "FLEET", "LIMIT"]
+		var values: Array[String] = ["+1", "+1", "%d / %d" % [Drift.TOTAL_TO_WIN, Drift.ROUND_LIMIT]]
+		var details: Array[String] = ["per occupied relay", "per surviving unit", "goal / round cap"]
+		for index in titles.size():
+			var x := 31 + index * 210
+			_panel(box, Rect2(x, 550, 200, 106), Color("#192a32"), LINE, 5)
+			_label(box, Rect2(x + 12, 558, 176, 18), titles[index], 11, GOLD, MONO)
+			_label(box, Rect2(x + 12, 577, 176, 34), values[index], 25, INK, bold)
+			_label(box, Rect2(x + 12, 614, 176, 31), details[index], 13, MUTED, SANS, true)
+	_button(box, Rect2(31, 680, 620, 41), "Back to game" if not state.is_empty() else "Back", _close_overlay)
+
+
+func _drift_guide_lane(parent: Node, y: float, row: int) -> void:
+	var rightward := row == 4
+	var arrows := "A → B → C → D → E → F → G → H → I → A" if rightward else "A ← B ← C ← D ← E ← F ← G ← H ← I ← A"
+	var direction_text := "SHIFTS RIGHT · WRAPS I TO A" if rightward else "SHIFTS LEFT · WRAPS A TO I"
+	_panel(parent, Rect2(31, y, 620, 126), Color("#192a32"), LINE, 5)
+	_label(parent, Rect2(46, y + 9, 590, 18), "ROW %d  /  %s" % [row, direction_text], 12, GOLD, MONO)
+	_label(parent, Rect2(46, y + 36, 590, 30), arrows, 15, INK, MONO)
+	_label(parent, Rect2(46, y + 76, 590, 36), "Every unit on this row rides with the tiles after both sides act.", 14, MUTED, SANS, true)
 
 
 func _show_kalypso_guide(page: int) -> void:
