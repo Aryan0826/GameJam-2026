@@ -1,10 +1,13 @@
 extends RefCounted
 ## Deterministic match state and transitions. All coordinates are one-based.
 
-const SPELLS := ["shield", "blink", "sprint", "borrow_tomorrow"]
-const SPECIALS := ["infected_trail", "spy", "wormhole"]
-const MOVEMENT := ["forward", "forward", "forward", "left", "right", "wild"]
+const SPELLS := ["shield", "fracture", "teleport", "borrow_tomorrow"]
+const SPECIALS := ["infected_trail", "spy", "long_capture"]
+const BOARD_SIZE := 9
+const PAWNS_PER_SIDE := 5
+const FLAG_REPLIES := 3
 const DIRECTIONS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
+const DIAGONALS := [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
 const SIDE_NAMES := ["Aliens", "Pilots"]
 const RNG_RANGE := 2147483646
 
@@ -12,27 +15,19 @@ const RNG_RANGE := 2147483646
 static func create_match(seed_value: int, first_override: int = -1) -> Dictionary:
 	var state := {
 		"phase": "draft", "seed": seed_value, "rng": posmod(seed_value, RNG_RANGE) + 1,
-		"first": 0, "active": 0, "round": 1, "turn": 0, "flag": Vector2i.ZERO,
-		"holder": -1, "replies": 0, "portals": [], "holes": {}, "cracks": {}, "infected": {},
-		"pawns": {}, "tokens": [2, 2], "move_die": "", "special": "", "winner": -1,
+		"first": 0, "active": 0, "round": 1, "turn": 0, "flag": Vector2i(5, 5),
+		"holder": -1, "replies": 0, "holes": {}, "cracks": {}, "infected": {}, "fractures": {},
+		"pawns": {}, "dice": ["", ""], "rolls": [0, 0], "winner": -1,
 		"reason": "", "_draft": [],
 	}
-	var flag_index := _roll(state, 6)
-	var flag := Vector2i(4 + flag_index % 3, 4 if flag_index < 3 else 5)
-	state.flag = flag
-	state.portals = [Vector2i(3, flag.y), Vector2i(7, flag.y)]
 	var random_first := _roll(state, 2)
 	state.first = first_override if first_override in [0, 1] else random_first
 	for side in 2:
-		var toward_rear := -_forward(side)
-		for index in 4:
-			var id := side * 4 + index
-			var offset := Vector2i(index - 1, 2 * toward_rear)
-			if index == 3:
-				offset = Vector2i(0, 3 * toward_rear)
+		for index in PAWNS_PER_SIDE:
+			var id := side * PAWNS_PER_SIDE + index
 			state.pawns[id] = {
-				"id": id, "side": side, "pos": flag + offset, "ability": "", "charged": false,
-				"shield": false, "spy": false, "borrow": {},
+				"id": id, "side": side, "owner": side, "pos": Vector2i(3 + index, 2 if side == 0 else 8),
+				"ability": "", "charged": false, "shield": false, "spy": 0, "borrow": {},
 			}
 	return state
 
@@ -53,6 +48,8 @@ static func legal_actions(state: Dictionary) -> Array[Dictionary]:
 			continue
 		actions.append_array(_drafted_actions(state, pawn, occupancy))
 	actions.append_array(_special_actions(state, occupancy, move_actions))
+	if state.dice[side].is_empty():
+		actions.append({"kind": "roll"})
 	if actions.is_empty():
 		actions.append({"kind": "pass"})
 	return actions
@@ -70,6 +67,13 @@ static func apply_legal_action(state: Dictionary, action: Dictionary) -> Diction
 	var events: Array[Dictionary] = []
 	if next.phase == "draft":
 		_lock_draft(next, action, events)
+	elif action.kind == "roll":
+		var pip := _roll(next, 6) + 1
+		var face: String = SPECIALS[(pip - 1) % SPECIALS.size()]
+		next.dice[next.active] = face
+		next.rolls[next.active] = pip
+		_event(events, "roll", "%s rolled %d · %s." % [SIDE_NAMES[next.active], pip, face.capitalize()],
+			{"round": next.round, "special": face, "side": next.active, "pip": pip})
 	else:
 		_play_turn(next, action, events)
 	return {"state": next, "events": events, "ok": true}
@@ -81,15 +85,15 @@ static func ability_reason(state: Dictionary, pawn: Dictionary) -> String:
 	if not pawn.charged:
 		return "Charge spent"
 	if pawn.spy:
-		return "Spy disables this ability through this turn"
+		return "A stolen pawn keeps its charge for its original side."
 	if not pawn.borrow.is_empty():
 		return "This pawn owes a return"
 	if not _drafted_actions(state, pawn, _occupancy(state)).is_empty():
 		return ""
 	match pawn.ability:
 		"shield": return "Shield cannot activate on the flag"
-		"blink": return "No open landing tile within two steps"
-		"sprint": return "Sprint needs two open forward tiles"
+		"fracture": return "No intact tile available to fracture"
+		"teleport": return "No open landing tile available"
 		"borrow_tomorrow":
 			if pawn.pos == state.flag:
 				return "The borrowed pawn cannot start on the flag"
@@ -124,7 +128,7 @@ static func _occupancy(state: Dictionary) -> Dictionary:
 
 
 static func _enterable(state: Dictionary, target: Vector2i) -> bool:
-	return (target.x >= 1 and target.x <= 9 and target.y >= 1 and target.y <= 8
+	return (target.x >= 1 and target.x <= BOARD_SIZE and target.y >= 1 and target.y <= BOARD_SIZE
 		and not state.holes.has(target) and not state.infected.has(target))
 
 
@@ -132,14 +136,12 @@ static func _empty(state: Dictionary, occupancy: Dictionary, target: Vector2i) -
 	return _enterable(state, target) and not occupancy.has(target)
 
 
-static func _move(kind: String, id: int, target: Vector2i, token: bool = false) -> Dictionary:
-	return {"kind": kind, "pawn": id, "to": target, "token": token}
+static func _move(kind: String, id: int, target: Vector2i) -> Dictionary:
+	return {"kind": kind, "pawn": id, "to": target}
 
 
 static func _normal_actions(state: Dictionary, occupancy: Dictionary) -> Array[Dictionary]:
-	var rolled_steps: Array[Dictionary] = []
-	var fallback_steps: Array[Dictionary] = []
-	var extras: Array[Dictionary] = []
+	var actions: Array[Dictionary] = []
 	var side: int = state.active
 	var forward := _forward(side)
 	for id in state.pawns:
@@ -147,41 +149,32 @@ static func _normal_actions(state: Dictionary, occupancy: Dictionary) -> Array[D
 		if pawn.side != side or not pawn.borrow.is_empty():
 			continue
 		var origin: Vector2i = pawn.pos
-		for offset: Vector2i in DIRECTIONS:
+		for offset: Vector2i in DIRECTIONS + DIAGONALS:
 			var target := origin + offset
-			if not _empty(state, occupancy, target):
-				continue
-			var step := _move("step", id, target)
-			fallback_steps.append(step)
-			if _fits_die(state.move_die, offset, forward):
-				rolled_steps.append(step)
-			if offset == Vector2i(0, forward) and state.tokens[side] > 0:
-				extras.append(_move("step", id, target, true))
+			if _empty(state, occupancy, target):
+				actions.append(_move("step", id, target))
+			if offset.x != 0 and offset.y != 0:
+				target = origin + 2 * offset
+				if target != state.flag and _empty(state, occupancy, target):
+					actions.append(_move("step", id, target))
 		for dx in [-1, 1]:
 			var target := origin + Vector2i(dx, forward)
-			if (_enterable(state, target) and occupancy.has(target)
-					and state.pawns[occupancy[target]].side != side):
-				extras.append(_move("capture", id, target))
-	if rolled_steps.is_empty():
-		rolled_steps = fallback_steps
-	rolled_steps.append_array(extras)
-	return rolled_steps
+			if _enemy_at(state, occupancy, pawn, target):
+				actions.append(_move("capture", id, target))
+	return actions
 
 
-static func _fits_die(face: String, offset: Vector2i, forward: int) -> bool:
-	match face:
-		"wild": return true
-		"forward": return offset == Vector2i(0, forward)
-		"left": return offset == Vector2i(forward, 0)
-		"right": return offset == Vector2i(-forward, 0)
-	return false
+static func _enemy_at(state: Dictionary, occupancy: Dictionary, pawn: Dictionary, target: Vector2i) -> bool:
+	return (_enterable(state, target) and occupancy.has(target)
+		and state.pawns[occupancy[target]].side != pawn.side
+		and (target != state.flag or pawn.spy == 0))
 
 
 static func _draft_actions(state: Dictionary) -> Array[Dictionary]:
 	var actions: Array[Dictionary] = []
-	var start: int = state.active * 4
-	for id in range(start, start + 4):
-		for second in range(id + 1, start + 4):
+	var start: int = state.active * PAWNS_PER_SIDE
+	for id in range(start, start + PAWNS_PER_SIDE):
+		for second in range(id + 1, start + PAWNS_PER_SIDE):
 			for spell: String in SPELLS:
 				for other: String in SPELLS:
 					if spell != other:
@@ -198,18 +191,17 @@ static func _drafted_actions(state: Dictionary, pawn: Dictionary, occupancy: Dic
 		"shield":
 			if origin != state.flag:
 				actions.append(_move("shield", pawn.id, origin))
-		"blink":
-			for dy in range(-2, 3):
-				for dx in range(-2, 3):
-					var distance := absi(dx) + absi(dy)
-					var target := origin + Vector2i(dx, dy)
-					if distance > 0 and distance <= 2 and target != state.flag and _empty(state, occupancy, target):
-						actions.append(_move("blink", pawn.id, target))
-		"sprint":
-			var forward := Vector2i(0, _forward(pawn.side))
-			var target := origin + 2 * forward
-			if _empty(state, occupancy, origin + forward) and _empty(state, occupancy, target):
-				actions.append(_move("sprint", pawn.id, target))
+		"teleport", "fracture":
+			for y in range(1, BOARD_SIZE + 1):
+				for x in range(1, BOARD_SIZE + 1):
+					var target := Vector2i(x, y)
+					if target == state.flag or target in state.holes:
+						continue
+					if pawn.ability == "teleport" and not _empty(state, occupancy, target):
+						continue
+					if pawn.ability == "fracture" and target in state.fractures:
+						continue
+					actions.append(_move(pawn.ability, pawn.id, target))
 		"borrow_tomorrow":
 			if origin != state.flag:
 				return _borrow_actions(state, pawn, occupancy)
@@ -242,26 +234,28 @@ static func _borrow_actions(state: Dictionary, pawn: Dictionary, occupancy: Dict
 
 static func _special_actions(state: Dictionary, occupancy: Dictionary, normal: Array[Dictionary]) -> Array[Dictionary]:
 	var actions: Array[Dictionary] = []
-	match state.special:
+	match state.dice[state.active]:
 		"infected_trail":
 			for base in normal:
 				if base.kind == "step":
-					actions.append(_move("infected_trail", base.pawn, base.to, base.token))
+					actions.append(_move("infected_trail", base.pawn, base.to))
 		"spy":
-			for id in _spy_targets(state):
-				for base in normal:
-					var action := _move("spy", base.pawn, base.to, base.token)
-					action.mark = id
-					action.base = base.kind
-					actions.append(action)
-		"wormhole":
-			for portal: Vector2i in state.portals:
-				if not occupancy.has(portal):
+			var marks := _spy_targets(state)
+			for pawn: Dictionary in state.pawns.values():
+				if pawn.side == state.active and pawn.borrow.is_empty():
+					for id in marks:
+						var action := _move("spy", pawn.id, state.pawns[id].pos)
+						action.mark = id
+						actions.append(action)
+		"long_capture":
+			for pawn: Dictionary in state.pawns.values():
+				if pawn.side != state.active or not pawn.borrow.is_empty():
 					continue
-				var pawn: Dictionary = state.pawns[occupancy[portal]]
-				var destination: Vector2i = state.portals[1] if portal == state.portals[0] else state.portals[0]
-				if pawn.side == state.active and pawn.borrow.is_empty() and _empty(state, occupancy, destination):
-					actions.append(_move("wormhole", pawn.id, destination))
+				for offset: Vector2i in DIAGONALS:
+					for distance in [1, 2]:
+						var target: Vector2i = pawn.pos + offset * distance
+						if _enemy_at(state, occupancy, pawn, target):
+							actions.append(_move("long_capture", pawn.id, target))
 	return actions
 
 
@@ -269,7 +263,7 @@ static func _spy_targets(state: Dictionary) -> Array[int]:
 	var targets: Array[int] = []
 	for id in state.pawns:
 		var enemy: Dictionary = state.pawns[id]
-		if enemy.side == state.active:
+		if enemy.side == state.active or enemy.spy > 0:
 			continue
 		for friendly: Dictionary in state.pawns.values():
 			var offset: Vector2i = enemy.pos - friendly.pos
@@ -305,11 +299,8 @@ static func _lock_draft(state: Dictionary, action: Dictionary, events: Array[Dic
 
 
 static func _start_round(state: Dictionary, events: Array[Dictionary]) -> void:
-	state.move_die = MOVEMENT[_roll(state, MOVEMENT.size())]
-	state.special = SPECIALS[_roll(state, SPECIALS.size())] if state.round in [2, 4, 6] else ""
-	var special_text := " + %s" % String(state.special).capitalize() if not state.special.is_empty() else ""
-	_event(events, "roll", "Round %d rolled %s%s." % [state.round, String(state.move_die).capitalize(), special_text],
-		{"round": state.round, "move_die": state.move_die, "special": state.special})
+	state.dice = ["", ""]
+	state.rolls = [0, 0]
 	_warn_rim(state, events)
 	_turn_event(state, events)
 
@@ -320,16 +311,16 @@ static func _warn_rim(state: Dictionary, events: Array[Dictionary]) -> void:
 	var inset := 0 if state.round <= 3 else 1
 	var candidates: Array[Vector2i] = []
 	var pair_only: bool = state.round % 2 == 0
-	for y in range(1 + inset, 9 - inset):
-		for x in range(1 + inset, 10 - inset):
+	for y in range(1 + inset, BOARD_SIZE + 1 - inset):
+		for x in range(1 + inset, BOARD_SIZE + 1 - inset):
 			var pos := Vector2i(x, y)
-			var on_rim := x in [1 + inset, 9 - inset] or y in [1 + inset, 8 - inset]
-			if on_rim and not state.holes.has(pos) and (not pair_only or y <= 4):
+			var on_rim := x in [1 + inset, BOARD_SIZE - inset] or y in [1 + inset, BOARD_SIZE - inset]
+			if on_rim and not state.holes.has(pos) and (not pair_only or y < 5 or (y == 5 and x < 5)):
 				candidates.append(pos)
 	var warned: Array[Vector2i] = candidates
 	if pair_only:
 		var picked := candidates[_roll(state, candidates.size())]
-		warned = [picked, Vector2i(10, 9) - picked]
+		warned = [picked, Vector2i(10, 10) - picked]
 	for pos in warned:
 		state.cracks[pos] = state.round
 	_event(events, "warning", "%d cracked tiles will fall after both turns." % warned.size(), {"tiles": warned})
@@ -343,15 +334,14 @@ static func _play_turn(state: Dictionary, action: Dictionary, events: Array[Dict
 	var side: int = state.active
 	_resolve_action(state, action, events)
 	_resolve_return(state, events)
-	if state.turn == 1:
-		_collapse(state, events)
+	_collapse(state, events)
 	_check_elimination(state)
 	if state.phase == "playing" and state.holder != -1 and state.pawns[state.holder].side != side:
 		state.replies += 1
 		_flag_event(state, events)
-		if state.replies == 2:
+		if state.replies == FLAG_REPLIES:
 			_finish(state, state.pawns[state.holder].side, "flag")
-	_expire_effects(state, events)
+	_expire_effects(state, events, action)
 	if state.phase == "playing" and state.round == 8 and state.turn == 1:
 		_finish(state, -1, "round_cap")
 	if state.phase == "finished":
@@ -375,8 +365,6 @@ static func _resolve_action(state: Dictionary, action: Dictionary, events: Array
 	var pawn: Dictionary = state.pawns[action.pawn]
 	var origin: Vector2i = pawn.pos
 	var target: Vector2i = action.to
-	if action.token:
-		state.tokens[state.active] -= 1
 	if kind in SPELLS:
 		pawn.charged = false
 	if kind in SPELLS or kind in SPECIALS:
@@ -385,8 +373,11 @@ static func _resolve_action(state: Dictionary, action: Dictionary, events: Array
 	match kind:
 		"shield":
 			pawn.shield = true
-		"capture":
+		"capture", "long_capture":
 			_capture(state, pawn, target, events)
+		"fracture":
+			state.fractures[target] = _serial(state) + 1
+			_event(events, "fracture", "%s will fall after the next turn." % _tile(target), {"tiles": [target], "to": target})
 		"borrow_tomorrow":
 			_shift(state, pawn, target, "step", events)
 			_shift(state, state.pawns[action.second], action.second_to, "step", events)
@@ -395,18 +386,22 @@ static func _resolve_action(state: Dictionary, action: Dictionary, events: Array
 				{"pawn": pawn.id, "from": target, "to": origin, "due": pawn.borrow.due})
 		"infected_trail":
 			_shift(state, pawn, target, "step", events)
-			if origin != state.flag:
-				state.infected[origin] = _serial(state) + 1
-				_event(events, "infection", "%s is infected through the next enemy turn." % _tile(origin), {"tiles": [origin]})
+			var infected: Array[Vector2i] = []
+			for y in range(origin.y - 1, origin.y + 2):
+				for x in range(origin.x - 1, origin.x + 2):
+					var tile := Vector2i(x, y)
+					if tile != state.flag and tile.x in range(1, BOARD_SIZE + 1) and tile.y in range(1, BOARD_SIZE + 1) and tile not in state.holes:
+						state.infected[tile] = _serial(state) + 1
+						infected.append(tile)
+			_event(events, "infection", "The area around %s is infected through the next enemy turn." % _tile(origin), {"tiles": infected})
 		"spy":
 			var marked: Dictionary = state.pawns[action.mark]
-			marked.spy = true
-			_event(events, "spy", "Drafted ability at %s disabled for one turn." % _tile(marked.pos),
-				{"pawn": marked.id, "to": marked.pos})
-			if action.base == "capture":
-				_capture(state, pawn, target, events)
-			else:
-				_shift(state, pawn, target, "step", events)
+			marked.side = state.active
+			marked.spy = 3
+			if state.holder == marked.id:
+				_set_holder(state, -1, events)
+			_event(events, "spy", "%s took control of the pawn at %s for three turns." % [SIDE_NAMES[state.active], _tile(marked.pos)],
+				{"pawn": marked.id, "to": marked.pos, "side": marked.side})
 		_:
 			_shift(state, pawn, target, "step", events)
 
@@ -434,7 +429,7 @@ static func _shift(state: Dictionary, pawn: Dictionary, target: Vector2i, kind: 
 	fields.merge(extra)
 	_event(events, kind, message, fields)
 	if origin == state.flag or target == state.flag:
-		var holder: int = pawn.id if target == state.flag else -1
+		var holder: int = pawn.id if target == state.flag and pawn.spy == 0 else -1
 		if target == state.flag:
 			pawn.shield = false
 		_set_holder(state, holder, events)
@@ -453,14 +448,14 @@ static func _flag_event(state: Dictionary, events: Array[Dictionary]) -> void:
 	var message := "The flag is unclaimed."
 	if state.holder != -1:
 		side = state.pawns[state.holder].side
-		message = "%s flag hold: %d/2 replies." % [SIDE_NAMES[side], state.replies]
+		message = "%s flag hold: %d/%d replies." % [SIDE_NAMES[side], state.replies, FLAG_REPLIES]
 	_event(events, "flag", message, {"pawn": state.holder, "to": state.flag, "side": side, "replies": state.replies})
 
 
 static func _resolve_return(state: Dictionary, events: Array[Dictionary]) -> void:
 	for id in state.pawns.keys():
 		var pawn: Dictionary = state.pawns[id]
-		if pawn.side != state.active or pawn.borrow.is_empty() or pawn.borrow.due > _serial(state):
+		if pawn.owner != state.active or pawn.borrow.is_empty() or pawn.borrow.due > _serial(state):
 			continue
 		var origin: Vector2i = pawn.borrow.origin
 		pawn.borrow = {}
@@ -479,14 +474,20 @@ static func _resolve_return(state: Dictionary, events: Array[Dictionary]) -> voi
 
 static func _collapse(state: Dictionary, events: Array[Dictionary]) -> void:
 	var dropped: Array[Vector2i] = []
-	for tile: Vector2i in state.cracks.keys():
-		if state.cracks[tile] == state.round:
+	if state.turn == 1:
+		for tile: Vector2i in state.cracks:
+			if state.cracks[tile] == state.round:
+				dropped.append(tile)
+	for tile: Vector2i in state.fractures:
+		if state.fractures[tile] <= _serial(state) and tile not in dropped:
 			dropped.append(tile)
-			state.holes[tile] = true
-			state.cracks.erase(tile)
-			state.infected.erase(tile)
 	if dropped.is_empty():
 		return
+	for tile in dropped:
+		state.holes[tile] = true
+		state.cracks.erase(tile)
+		state.fractures.erase(tile)
+		state.infected.erase(tile)
 	var removed: Array[int] = []
 	for id in state.pawns.keys():
 		if state.pawns[id].pos in dropped:
@@ -501,22 +502,28 @@ static func _collapse(state: Dictionary, events: Array[Dictionary]) -> void:
 static func _check_elimination(state: Dictionary) -> void:
 	var alive := [false, false]
 	for pawn: Dictionary in state.pawns.values():
-		alive[pawn.side] = true
+		alive[pawn.owner] = true
 	if not alive[0] and not alive[1]:
 		_finish(state, -1, "mutual_elimination")
 	elif not alive[0] or not alive[1]:
 		_finish(state, 0 if alive[0] else 1, "elimination")
 
 
-static func _expire_effects(state: Dictionary, events: Array[Dictionary]) -> void:
+static func _expire_effects(state: Dictionary, events: Array[Dictionary], action: Dictionary) -> void:
 	for tile: Vector2i in state.infected.keys():
 		if state.infected[tile] <= _serial(state):
 			state.infected.erase(tile)
 			_event(events, "infection_expired", "Infection cleared at %s." % _tile(tile), {"tiles": [tile]})
 	for pawn: Dictionary in state.pawns.values():
-		if pawn.side == state.active and pawn.spy:
-			pawn.spy = false
-			_event(events, "spy_expired", "Spy mark cleared at %s." % _tile(pawn.pos), {"pawn": pawn.id, "to": pawn.pos})
+		if pawn.side != state.active or pawn.spy == 0 or pawn.id == action.get("mark", -1):
+			continue
+		pawn.spy -= 1
+		if pawn.spy == 0:
+			pawn.side = pawn.owner
+			_event(events, "spy_expired", "The pawn at %s returned to %s." % [_tile(pawn.pos), SIDE_NAMES[pawn.side]],
+				{"pawn": pawn.id, "to": pawn.pos, "side": pawn.side})
+			if pawn.pos == state.flag:
+				_set_holder(state, pawn.id, events)
 
 
 static func _finish(state: Dictionary, winner: int, reason: String) -> void:

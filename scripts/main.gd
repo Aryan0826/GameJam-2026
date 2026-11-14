@@ -18,34 +18,34 @@ const LINE = Color("#34445f")
 const SIDES = ["Aliens", "Pilots"]
 const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the flag."],
-	"blink": ["Blink", "Jump 1–2 tiles by Manhattan distance. Cannot land on the flag."],
-	"sprint": ["Sprint", "Move two clear tiles straight forward."],
+	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any pawn on it."],
+	"teleport": ["Teleport", "Jump to any open tile outside the flag."],
 	"borrow_tomorrow": ["Borrow Tomorrow", "Move this pawn, then a different ally. The first pawn owes a return."],
-	"infected_trail": ["Infected Trail", "Step and block the tile you leave until the enemy turn ends."],
-	"spy": ["Spy", "Mark a nearby enemy, then step or capture."],
-	"wormhole": ["Wormhole", "Jump between the two portals if the exit is clear."],
+	"infected_trail": ["Infected Trail", "Move and infect the 3 × 3 area around your starting tile through the enemy turn."],
+	"spy": ["Spy", "Take control of a nearby enemy pawn for your next three turns. It cannot score the flag."],
+	"long_capture": ["Long Capture", "Capture diagonally in any direction, from one or two squares away."],
 }
-const DRAFT_SPELLS = ["shield", "blink", "sprint", "borrow_tomorrow"]
+const DRAFT_SPELLS = Rules.SPELLS
 const IMAGE_CREDIT = "NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team"
 const IMAGE_URL = "https://esahubble.org/images/heic1509a/"
 const RULES_TEXT = """[color=#f8d587]WIN THE DUEL[/color]
-Hold the gold flag through two enemy turns with the same pawn, or remove every enemy pawn. The match draws after round 8 if neither side wins.
+Hold the center flag through three enemy turns with the same pawn, or remove every enemy pawn. The match draws after round 8 if neither side wins.
 
 [color=#f8d587]TAKE ONE ACTION[/color]
-Both sides use the same movement die. Click a pawn and a highlighted destination. Forward is down for Aliens and up for Pilots. Left and Right are from your side’s perspective. Wild allows any orthogonal step. If your entire side has no normal step on the roll, any orthogonal step is allowed.
-
-Captures are always one tile diagonally forward. Each side has two Forward tokens for one forward step per token. A token spends the whole turn. A side passes automatically if it has no legal action.
+Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a pawn or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the flag from an adjacent square or by making a capture.
 
 [color=#f8d587]WATCH THE RIM[/color]
 Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any pawn on a falling tile is removed.
 
 [color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
-Shield absorbs one capture. It disappears on flag entry. Blink jumps to a clear tile at Manhattan distance 1 or 2, excluding the flag. Sprint advances two clear tiles forward and can claim the flag.
+Shield absorbs one capture and disappears on flag entry. Teleport jumps to any empty, intact, uninfected non-flag tile. Fracture marks any intact non-flag tile to drop after the next turn, removing its occupant.
 
 Borrow Tomorrow moves its assigned pawn one orthogonal step, then moves another ally one orthogonal step. The first pawn cannot enter or leave the flag. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
 
-[color=#f8d587]SHARED SPECIAL DIE  ·  ROUNDS 2, 4, 6[/color]
-Infected Trail leaves an impassable tile through the enemy turn, unless you stepped off the flag. Spy marks an enemy within Manhattan distance 2 of any ally, then steps or captures. The marked pawn’s draft charge is disabled through its next turn. Wormhole jumps between the two purple portals when the exit is clear.
+[color=#f8d587]ROLL FOR AN ABILITY[/color]
+Each player can roll once per round before acting. Rolling is optional and does not spend the turn. Use the result this round with an eligible pawn or take a normal action.
+
+Infected Trail blocks entry into the 3 × 3 area around the pawn’s departure tile through the enemy turn, except the flag. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the flag but cannot score or capture there while stolen. Long Capture can take an enemy one or two tiles diagonally in any direction.
 
 [color=#f8d587]CONTROLS[/color]
 Click a pawn, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
@@ -74,7 +74,6 @@ var selected := -1
 var action_group := "standard"
 var first_destination := Vector2i.ZERO
 var second_pawn := -1
-var spy_mark := -1
 var assignments: Dictionary = {}
 var overlay_kind := ""
 var first_flag_round := 0
@@ -214,7 +213,7 @@ func _show_home() -> void:
 	_panel(overlay, Rect2(55, 126, 575, 560), Color(0.055, 0.078, 0.14, 0.96), LINE, 18)
 	_label(overlay, Rect2(93, 170, 497, 26), "THE FRACTURED FLAG", 15, GOLD, MONO)
 	_label(overlay, Rect2(88, 204, 521, 154), "Conqueror’s\nChess", 68, INK, bold)
-	_label(overlay, Rect2(93, 390, 465, 63), "Hold the flag through two enemy turns or eliminate the opposing pawns before the arena breaks apart.", 22, MUTED, SANS, true)
+	_label(overlay, Rect2(93, 390, 465, 63), "Hold the flag through three enemy turns or eliminate the opposing pawns before the arena breaks apart.", 22, MUTED, SANS, true)
 	_button(overlay, Rect2(93, 494, 461, 49), "Play solo", func(): _start(false), true)
 	_button(overlay, Rect2(93, 555, 220, 43), "Play local duel", func(): _start(true))
 	_button(overlay, Rect2(327, 555, 227, 43), "How to play", _show_rules)
@@ -243,7 +242,7 @@ func _start(local: bool, rematch: bool = false) -> void:
 	started_at = 0
 	finished_at = 0
 	feedback.text = ""
-	board.effects.clear()
+	board.reset_visuals()
 	board.keyboard_square = Vector2i.ZERO
 	_clear_selection()
 	_close_overlay(false)
@@ -299,7 +298,9 @@ func _commit(action: Dictionary) -> void:
 	var played_round: int = state.round
 	state = result.state
 	records.append(action.duplicate(true))
-	_clear_selection()
+	var rolled: bool = action.kind == "roll"
+	if not rolled:
+		_clear_selection()
 	if was_draft:
 		assignments.clear()
 		if state.phase == "draft" and local_mode:
@@ -317,6 +318,12 @@ func _commit(action: Dictionary) -> void:
 			if messages.size() > 12:
 				messages.pop_back()
 	legal = Rules.legal_actions(state)
+	if rolled:
+		if not local_mode and state.active == 0:
+			_schedule_action({}, 0.24 if motion else 0.10)
+		else:
+			_refresh()
+		return
 	if was_draft:
 		_enter_turn()
 		return
@@ -341,7 +348,6 @@ func _takeover() -> void:
 func _toggle_motion() -> void:
 	motion = not motion
 	board.motion = motion
-	board.effects.clear()
 	motion_button.text = "FX on" if motion else "FX off"
 
 
@@ -359,15 +365,19 @@ func _refresh() -> void:
 	board.state = state
 	board.selected = selected
 	board.second = second_pawn
-	board.marked = spy_mark
 	board.preview_to = first_destination
 	board.draft_slots = {}
 	for pawn: int in assignments:
-		board.draft_slots[pawn] = {"shield": "S", "blink": "B", "sprint": "R", "borrow_tomorrow": "T"}[assignments[pawn]]
+		board.draft_slots[pawn] = Arena.SPELL_ICON[assignments[pawn]]
 	board.targets = _targets()
+	board.sync()
 	var draft: bool = state.phase == "draft"
 	round_label.text = "PRIVATE DRAFT" if draft else "ROUND %02d / 08     ·     %s" % [state.round, "DUEL COMPLETE" if state.phase == "finished" else SIDES[state.active].to_upper() + " TO ACT"]
-	status_label.text = "FLAG  %s     /     %s" % [_coord(state.flag), "UNCLAIMED" if state.holder < 0 else "%d/2 HELD" % state.replies]
+	var flag_status := "%d/%d HELD" % [state.replies, Rules.FLAG_REPLIES] if state.holder >= 0 else "UNCLAIMED"
+	var occupant := _pawn_at(state.flag)
+	if state.holder < 0 and occupant >= 0:
+		flag_status = "STOLEN PAWN  /  NO SCORE"
+	status_label.text = "FLAG  %s     /     %s" % [_coord(state.flag), flag_status]
 	mode_button.text = "Local" if local_mode else "Solo"
 	takeover_button.disabled = draft or local_mode or takeover_queued or state.phase != "playing"
 	takeover_button.text = "Takeover queued" if takeover_queued else "Take Over Aliens"
@@ -408,38 +418,40 @@ func _draw_play() -> void:
 	_team_card(846, 148, 0)
 	_team_card(1067, 148, 1)
 	_panel(side_panel, Rect2(846, 238, 430, 108))
-	_label(side_panel, Rect2(864, 249, 180, 22), "MOVEMENT DIE", 12, MUTED, MONO)
-	_label(side_panel, Rect2(1066, 249, 194, 22), "SPECIAL DIE", 12, MUTED, MONO)
-	_label(side_panel, Rect2(863, 270, 192, 39), _die_label(), 28, INK, bold)
-	var special_name: String = SPELLS[state.special][0] if state.special != "" else "—"
-	_label(side_panel, Rect2(1065, 273, 201, 32), special_name, 23, LILAC, bold)
-	var drops := "Cracked tiles fall after both turns." if not state.cracks.is_empty() else "No tiles drop this round."
-	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() else MUTED)
+	_label(side_panel, Rect2(864, 249, 180, 22), "ABILITY DIE", 12, MUTED, MONO)
+	var face: String = state.dice[state.active]
+	var special_name: String = SPELLS[face][0] if not face.is_empty() else "Ready to roll"
+	_label(side_panel, Rect2(864, 273, 209, 32), special_name, 23, LILAC, bold)
+	var roll := _button(side_panel, Rect2(1073, 268, 185, 36), "Roll ability" if face.is_empty() else "Roll: %d" % state.rolls[state.active], _roll_ability, face.is_empty())
+	roll.disabled = busy or state.phase != "playing" or not face.is_empty() or (not local_mode and state.active == 0)
+	var drops := "Purple cracks fall after this turn." if not state.fractures.is_empty() else "Rim cracks fall after both turns."
+	if state.fractures.is_empty() and state.cracks.is_empty():
+		drops = "Optional roll. Your move is always available."
+	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() or not state.fractures.is_empty() else MUTED)
 	_panel(side_panel, Rect2(846, 359, 430, 282))
 	_label(side_panel, Rect2(864, 369, 396, 25), "ACTION", 12, MUTED, MONO)
 	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 16, INK, SANS, true)
 	if selected >= 0 and selected in state.pawns:
 		var p: Dictionary = state.pawns[selected]
 		_action_button(Rect2(864, 462, 189, 38), "Move / capture", "standard")
-		_action_button(Rect2(1062, 462, 196, 38), "Forward token", "token")
 		if p.ability != "":
 			_action_button(Rect2(864, 509, 189, 38), SPELLS[p.ability][0], "ability")
-		if state.special != "":
-			_action_button(Rect2(1062, 509, 196, 38), SPELLS[state.special][0], "effect")
-			if not _group_actions("effect_token").is_empty():
-				_action_button(Rect2(1062, 555, 196, 36), "Effect + token", "effect_token")
+		if not face.is_empty():
+			_action_button(Rect2(1062, 462, 196, 38), SPELLS[face][0], "effect")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
+		elif p.spy > 0:
+			details = "Stolen pawn · %d turns left. Cannot score or capture on the flag." % p.spy
 		elif details.is_empty() and action_group == "ability":
 			details = SPELLS[p.ability][1]
 		elif details.is_empty() and action_group.begins_with("effect"):
-			details = SPELLS[state.special][1]
+			details = SPELLS[face][1]
 		if not details.is_empty():
 			_label(side_panel, Rect2(865, 595, 387, 36), details, 13, MUTED, SANS, true)
 	else:
-		_label(side_panel, Rect2(864, 473, 394, 40), "Hold the flag through two enemy turns.", 19, GOLD, bold, true)
-		_label(side_panel, Rect2(864, 518, 390, 67), "Cracks warn of falling tiles. Purple portals connect when Wormhole is rolled.", 15, MUTED, SANS, true)
+		_label(side_panel, Rect2(864, 473, 394, 40), "Hold the flag through three enemy turns.", 19, GOLD, bold, true)
+		_label(side_panel, Rect2(864, 518, 390, 67), "Choose a pawn to see its moves. Red cracks mark the rim and purple cracks mark a fractured tile.", 15, MUTED, SANS, true)
 	_panel(side_panel, Rect2(846, 654, 430, 145))
 	_label(side_panel, Rect2(864, 665, 270, 22), "FLIGHT LOG", 12, MUTED, MONO)
 	_button(side_panel, Rect2(1162, 663, 97, 27), "View log", _show_log)
@@ -454,16 +466,28 @@ func _team_card(x: float, y: float, side: int) -> void:
 	var active: bool = state.active == side and state.phase == "playing"
 	_panel(side_panel, Rect2(x, y, 209, 78), PANEL, color if active else LINE)
 	_label(side_panel, Rect2(x + 15, y + 8, 179, 31), SIDES[side] + ("  ↓" if side == 0 else "  ↑"), 24, color, bold)
-	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), "FORWARD  %d / 2" % state.tokens[side], 13, MUTED, MONO)
+	var count := 0
+	for pawn: Dictionary in state.pawns.values():
+		if pawn.side == side:
+			count += 1
+	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), "%d PAWNS IN PLAY" % count, 13, MUTED, MONO)
 
 
-func _die_label() -> String:
-	var northward: bool = state.active == 0
-	match state.move_die:
-		"forward": return "Forward " + ("↓" if northward else "↑")
-		"left": return "Left " + ("→" if northward else "←")
-		"right": return "Right " + ("←" if northward else "→")
-		_: return "Wild  +"
+func _roll_ability() -> void:
+	if busy or {"kind": "roll"} not in legal or (not local_mode and state.active == 0):
+		return
+	board.grab_focus()
+	if motion:
+		busy = true
+		var stamp := generation
+		_refresh()
+		_note("Rolling the ability die…")
+		await get_tree().create_timer(0.28).timeout
+		if stamp != generation:
+			return
+		busy = false
+		feedback.text = ""
+	_commit({"kind": "roll"})
 
 
 func _action_hint() -> String:
@@ -478,8 +502,8 @@ func _action_hint() -> String:
 	var p: Dictionary = state.pawns[selected]
 	if not p.borrow.is_empty():
 		return "This pawn is waiting to return to its echo."
-	if action_group.begins_with("effect") and state.special == "spy" and spy_mark < 0:
-		return "Select a highlighted enemy to mark."
+	if action_group == "effect" and state.dice[state.active] == "spy":
+		return "Select a highlighted enemy pawn to take control."
 	if action_group == "ability" and p.ability == "borrow_tomorrow":
 		if first_destination == Vector2i.ZERO:
 			return "Choose where the borrowed pawn steps."
@@ -488,6 +512,8 @@ func _action_hint() -> String:
 		return "Choose where the second pawn steps to commit both moves."
 	if action_group == "ability" and p.ability == "shield":
 		return "Select the highlighted pawn again to raise its shield."
+	if action_group == "ability" and p.ability == "fracture":
+		return "Select a tile to drop after the next turn."
 	if _group_actions(action_group).is_empty():
 		return "This pawn has no legal target for the selected action."
 	return "Select a highlighted destination for %s." % _coord(p.pos)
@@ -502,7 +528,6 @@ func _set_group(group: String) -> void:
 	action_group = group
 	first_destination = Vector2i.ZERO
 	second_pawn = -1
-	spy_mark = -1
 	board.grab_focus()
 	_refresh()
 
@@ -516,16 +541,13 @@ func _group_actions(group: String) -> Array[Dictionary]:
 			continue
 		match group:
 			"standard":
-				if a.kind in ["step", "capture"] and not a.token:
-					choices.append(a)
-			"token":
-				if a.kind == "step" and a.token:
+				if a.kind in ["step", "capture"]:
 					choices.append(a)
 			"ability":
 				if a.kind == state.pawns[selected].ability:
 					choices.append(a)
-			"effect", "effect_token":
-				if a.kind == state.special and a.token == (group == "effect_token"):
+			"effect":
+				if a.kind == state.dice[state.active]:
 					choices.append(a)
 	return choices
 
@@ -536,10 +558,7 @@ func _targets() -> Dictionary:
 		return highlighted
 	for action in _group_actions(action_group):
 		if action.kind == "spy":
-			if spy_mark < 0:
-				highlighted[state.pawns[action.mark].pos] = "mark"
-			elif action.mark == spy_mark:
-				highlighted[action.to] = "capture" if action.base == "capture" else "move"
+			highlighted[action.to] = "mark"
 		elif action.kind == "borrow_tomorrow" and first_destination != Vector2i.ZERO:
 			if action.to == first_destination:
 				if second_pawn < 0:
@@ -547,7 +566,9 @@ func _targets() -> Dictionary:
 				elif action.second == second_pawn:
 					highlighted[action.second_to] = "move"
 		else:
-			highlighted[action.to] = "capture" if action.kind == "capture" else "move"
+			highlighted[action.to] = "capture" if action.kind in ["capture", "long_capture"] else "move"
+			if action.kind == "fracture":
+				highlighted[action.to] = "fracture"
 	return highlighted
 
 
@@ -567,7 +588,7 @@ func _square_pressed(square: Vector2i) -> void:
 		_clear_selection()
 		selected = id
 		if _group_actions("standard").is_empty():
-			for group: String in ["token", "ability", "effect", "effect_token"]:
+			for group: String in ["ability", "effect"]:
 				if not _group_actions(group).is_empty():
 					action_group = group
 					break
@@ -575,15 +596,6 @@ func _square_pressed(square: Vector2i) -> void:
 
 
 func _select_target(action: Dictionary, square: Vector2i, id: int) -> bool:
-	if action.kind == "spy":
-		if spy_mark < 0 and id == action.mark:
-			spy_mark = id
-			_refresh()
-			return true
-		if spy_mark >= 0 and action.mark == spy_mark and action.to == square:
-			_commit(action)
-			return true
-		return false
 	if action.kind == "borrow_tomorrow":
 		if first_destination == Vector2i.ZERO and action.to == square:
 			first_destination = square
@@ -641,7 +653,6 @@ func _clear_selection() -> void:
 	action_group = "standard"
 	first_destination = Vector2i.ZERO
 	second_pawn = -1
-	spy_mark = -1
 
 
 func _coord(p: Vector2i) -> String:
@@ -678,7 +689,7 @@ func _show_rules() -> void:
 
 func _show_credits() -> void:
 	var box := _modal("credits", "Asset credits", 495)
-	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped on screen with a dark overlay.\n\n[color=#f8d587]CHESS PIECES IN .SVG FORMAT[/color]\n[url=https://opengameart.org/content/chess-pieces-in-svg-format]femrek · pawn.svg · CC0[/url]\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
+	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped on screen with a dark overlay.\n\n[color=#f8d587]3D ARENA AND PAWNS[/color]\nGodot primitives and a revolved mesh profile built into the project.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
 	_button(box, Rect2(31, 427, 620, 41), "Back", _close_overlay)
 
 
@@ -713,7 +724,7 @@ func _copy_replay() -> void:
 		actions.append(action)
 	var end := finished_at if finished_at > 0 else Time.get_ticks_msec()
 	var replay := {
-		"seed": state.seed, "first": state.first, "actions": actions,
+		"rules_version": 2, "seed": state.seed, "first": state.first, "actions": actions,
 		"first_flag_round": first_flag_round, "result": state.reason, "winner": state.winner,
 		"elapsed_ms": end - started_at if started_at > 0 else 0,
 	}
@@ -726,7 +737,7 @@ func _show_result() -> void:
 	var title := "Draw" if state.winner < 0 else "%s win" % SIDES[state.winner]
 	var box := _modal("result", title, 342)
 	var description: String = {
-		"flag": "The flag held through two opposing turns.",
+		"flag": "The flag held through three opposing turns.",
 		"elimination": "The opposing side lost its final pawn.",
 		"mutual_elimination": "Both sides lost their final pawns.",
 		"round_cap": "Eight rounds elapsed without a winner."
@@ -782,7 +793,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		var cursor: Vector2i = board.keyboard_square
 		if cursor == Vector2i.ZERO:
 			cursor = state.pawns[selected].pos if selected in state.pawns else state.flag
-		board.keyboard_square = (cursor + direction).clamp(Vector2i.ONE, Vector2i(9, 8))
+		board.keyboard_square = (cursor + direction).clamp(Vector2i.ONE, Vector2i.ONE * Rules.BOARD_SIZE)
 		get_viewport().set_input_as_handled()
 	elif event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE] and board.keyboard_square != Vector2i.ZERO:
 		_square_pressed(board.keyboard_square)
