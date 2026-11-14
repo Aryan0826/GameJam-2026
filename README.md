@@ -4,13 +4,17 @@ A pawn-only tactics duel on a collapsing 3D orbital arena. Five pawns per side s
 
 ## Play
 
-Kalypso hosts **The Fractured Flag** and the red planet Cinder hosts **Drift Circuit**. Select **Cinder** in the flight HUD to turn on its red pointer and mark it on the minimap. Fly toward the planet and release thrust inside its capture ring to enter orbit. Press **Enter / Space** in stable orbit or wait for the descent, then choose **Accept challenge** or **Local duel**.
+Kalypso hosts **The Fractured Flag** and the red planet Cinder hosts **Drift Circuit**. Select **Cinder** in the flight HUD to turn on its red pointer and mark it on the minimap. Fly toward the planet and release thrust inside its capture ring to enter orbit. Press **Enter / Space** in stable orbit or wait for the descent to open the cockpit communication screen.
 
-Use **Return to planets** from either duel to choose another destination. **Keep playing** closes the menu. Choosing a planet ends the active match and returns the Horizon to flight near the chosen planet.
+Both games begin with an alien exchange typed directly onto the cockpit's computer display, with a blinking `_` cursor and subtle scan lines. The envoy asks why the Horizon is there, Valeria explains that the crew is looking for friends away from home, and the aliens challenge the crew to their game. Win to be welcomed as friends; lose and leave in peace. Press **Enter** to accept once the exchange finishes, or press it during the exchange to reveal the whole conversation first. **Q** declines immediately and resumes exploration outside that planet's gravity and capture boundaries. **Local duel**, **How to play**, **System map**, and **Replay prologue** sit in the bottom bar beside **Asset credits**.
+
+Use **Leave orbit** from either duel, or **Q** from the communication screen, to return directly to exploration at the same planet. Leaving an active duel ends that match. There is no destination-selection menu when quitting; choose a new course from the flight HUD after returning to exploration.
+
+During both games the cockpit shows animated reactor-output and thermal-load graphs plus ship-reserve gauges. These are procedural Godot graphics in `scripts/cockpit.gd`, with IBM Plex Mono labels; no graph image assets are imported. Their credits are listed under **Asset credits**.
 
 In Drift Circuit, the tiles on row 4 lift and slide right and those on row 6 slide left after both sides act. Pieces ride with them and wrap around the edges. Each occupied gold relay scores one point after the shift, then jumps to another column on its own row (4, 5, or 6). Add remaining units to relay points: the first side to reach 8 wins. If both sides reach 8 on the same shift, the match draws; a draw also occurs after round 12 if neither side wins.
 
-Open `project.godot` in Godot 4.7.2 Standard and press **F5**. The opening crawl leads into the solar-system flight and then the Horizon cockpit. Choose **Accept challenge** to face the Aliens or **Local duel** for two people on one device. **Replay prologue** returns to the opening crawl.
+Open `project.godot` in Godot 4.7.2 Standard and press **F5**. The opening crawl leads into the solar-system flight and then the Horizon cockpit. After the communication, press **Enter** to face the Aliens or choose **Local duel** for two people on one device. **Replay prologue** returns to the opening crawl.
 
 For the Windows build, extract the ZIP and run `ConquerorsChess.exe` beside its `ConquerorsChess.pck`.
 
@@ -26,7 +30,7 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 - **Shuffle** before moving or using a drafted ability; draw once per round. Pixel cards shuffle and flip to reveal your ability, which stays visible as a clickable card above **Finish / skip turn**. Click the card to choose a power target; the large reveal stays on screen for 3.6 seconds. **FX off** reveals it immediately. Choose a path: **Move → Use power** (both), **Move → Finish / skip turn** (move only), or **Use power → Finish / skip turn** (power only). To move, select a unit, click **Move / capture**, then a highlighted destination. To use power, click **Use power** and a highlighted target: your unit for Infected Trail, an enemy for Spy or Long Capture. The drawn card names the power.
 - In the draft, select two different pawns, assign them different abilities, and lock your choices. In local mode, pass the device when prompted.
 - **Take Over Aliens** queues the switch to a second player for the next Alien turn boundary. **Rematch** keeps the current mode, swaps the starter, and creates a new setup.
-- **Rules** shows the complete gameplay reference. **FX** toggles movement effects. **View log** can copy the match seed, starting side, committed actions, first flag round, duration, and outcome.
+- **Rules** opens Kalypso’s brief guide with the goal, quick-start steps, separate marked movement and capture screenshots, and current abilities. Drift Circuit keeps its separate rules. **FX** toggles movement effects. **View log** can copy the match seed, starting side, committed actions, first flag round, duration, and outcome.
 
 ## Project
 

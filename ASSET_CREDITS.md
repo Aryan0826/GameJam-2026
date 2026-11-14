@@ -2,6 +2,7 @@
 
 | Project file | Original asset and creator | License | In-game treatment |
 | --- | --- | --- | --- |
+| Ship telemetry in `scripts/cockpit.gd` | Original project graphics drawn with Godot primitives | Project code; no external graph image assets | Animated reactor-output and thermal-load plots, grid lines, and power/oxygen/hull reserve gauges. Labels use `art/IBMPlexMono-Regular.ttf` (SIL OFL 1.1). |
 | `art/ship.svg`, `art/thruster.svg` | User-supplied SVGs (`gemini-svg (1).svg` and `gemini-svg.svg`) | Supplied for this project; no separate license provided | Ship hull and five animated exhaust flames, shown while accelerating or entering orbit |
 | `art/planet_animation.png` | User-supplied `planet.gif` | Supplied for this project; no separate license provided | The GIF's 60 transparent frames decoded into a 10 × 6 atlas for Godot and blended for the slow 32-second rotation |
 | `art/planet2.png`, `art/planet3.png`, `art/planet4.png` | User-supplied planet sprite sheets | Supplied for this project; no separate license provided | Original 50-frame strips for Ember, Cinder, and Aurelia, each with a separate solar orbit, slow rotation, and visible gravity boundary |
@@ -15,6 +16,8 @@
 | `art/SpaceGrotesk.ttf` | [Space Grotesk](https://github.com/floriankarsten/space-grotesk) by Florian Karsten | [SIL OFL 1.1](art/OFL-SpaceGrotesk.txt) | Unmodified variable font, rendered at regular and bold weights |
 | `art/IBMPlexMono-Regular.ttf` | [IBM Plex Mono](https://github.com/IBM/plex) by IBM Corp. | [SIL OFL 1.1](art/OFL-IBMPlexMono.txt) | Unmodified regular font |
 
-The beveled landing pads are built with a mesh defined in `scripts/board.gd`. The cockpit frame, patrol silhouette, envoy portrait, chart, cracks, status markers, and movement previews are drawn with Godot primitives. A copy of the asset credits is accessible from the game's footer.
+The beveled landing pads are built with a mesh defined in `scripts/board.gd`. The cockpit frame, ship telemetry graphs and gauges, patrol silhouette, envoy portrait, chart, cracks, status markers, and movement previews are drawn with Godot primitives. A copy of the asset credits is accessible from the game's footer.
 
 The workspace retains femrek's CC0 [pawn sprite](https://opengameart.org/content/chess-pieces-in-svg-format) from the 2D release. The current release uses the 3D meshes.
+
+`art/kalypso-movement-guide.png` and `art/kalypso-capture-guide.png` are screenshots of the actual Godot board using the credited fleet meshes and font above. Arrows and markers show all 12 legal movement destinations or both forward captures in separate teaching positions. Rebuild them with `godot --path . --script tools/render_movement_guides.gd`. No AI-generated imagery is used.

@@ -7,6 +7,7 @@ const DriftBot = preload("res://scripts/drift_bot.gd")
 const Arena = preload("res://scripts/board.gd")
 const Cockpit = preload("res://scripts/cockpit.gd")
 const AbilityCards = preload("res://scripts/ability_cards.gd")
+const KalypsoGuide = preload("res://scripts/kalypso_guide.gd")
 const ExpeditionState = preload("res://scripts/expedition.gd")
 const SANS = preload("res://art/SpaceGrotesk.ttf")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
@@ -60,8 +61,8 @@ Infected Trail blocks entry into the 3 × 3 area around a selected unit through 
 [color=#f8d587]CONTROLS[/color]
 Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
-const DRIFT_RULES_TEXT = """[color=#f8d587]RACE TO EIGHT[/color]
-After both players act, the marked rows shift. Each gold relay occupied after the shift earns one point, then jumps to another column on the same row. Add your remaining units to your relay points. The first side to reach 8 wins. If both sides reach 8 on the same shift, the match draws. If no side wins by the end of round %d, the match draws.
+const DRIFT_RULES_TEXT = """[color=#f8d587]RACE TO FIVE[/color]
+After both players act, the marked rows shift. Each gold relay occupied after the shift earns one point, then jumps to another column on the same row. Each relay can score once per round. Reach five points with a lead to win. A tie at five or more goes to another round. If no side wins by the end of round %d, the match draws.
 
 [color=#f8d587]PLAN YOUR LANDING[/color]
 Row 4 shifts right and row 6 shifts left. The tiles lift and carry their units one square, wrapping around at the edge. The tiles on row 5 stay put, but its gold relay relocates after scoring too. For a relay at E4, aim for D4 so the shift carries you onto it. Hover over a highlighted move on a drift row to preview the landing.
@@ -111,6 +112,20 @@ var finished_at := 0
 var card_reveal: Control
 var shuffling := false
 var bold: FontVariation
+var _communication_tween: Tween
+var _terminal_screen: RichTextLabel
+var _terminal_messages: Array[Dictionary] = []
+var _terminal_active_line := 0
+var _terminal_characters := 0.0
+var _terminal_blink_time := 0.0
+var _encounter_options: Control
+var _telemetry_credit_label: Label
+var _communication_accept: Button
+var _communication_local: Button
+var _communication_prompt: Label
+var _communication_ready := false
+var _communication_presented := false
+var _leaving_orbit := false
 
 
 func _ready() -> void:
@@ -155,7 +170,7 @@ func _build_frame() -> void:
 	for i in Rules.FLAG_REPLIES:
 		beacon_lamps.append(_panel(chrome, Rect2(965 + 25 * i, 212, 18, 8), Color("#26313b"), LINE, 1))
 	_button(chrome, Rect2(1130, 198, 144, 31), "System map", _show_map)
-	_button(chrome, Rect2(1130, 159, 144, 31), "Return to planets", _show_departure)
+	_button(chrome, Rect2(1130, 159, 144, 31), "Leave orbit", _leave_current_orbit)
 	beacon_label.visible = not drift_circuit
 	for lamp in beacon_lamps:
 		lamp.visible = not drift_circuit
@@ -167,10 +182,16 @@ func _build_frame() -> void:
 	side_panel = _layer(chrome)
 	side_panel.position.y = 106
 	side_panel.scale.y = 0.86
-	_label(self, Rect2(48, 831, 780, 16), IMAGE_CREDIT, 10, MUTED)
+	_telemetry_credit_label = _label(self, Rect2(48, 831, 590, 16), "SHIP GRAPHS: GODOT PRIMITIVES / IBM PLEX MONO", 10, MUTED)
 	feedback.position.y = 808
 	feedback.size.y = 19
 	_button(self, Rect2(1146, 811, 128, 31), "Asset credits", _show_credits)
+	_encounter_options = _layer(self)
+	_label(_encounter_options, Rect2(48, 815, 480, 22), "HORIZON / COMMUNICATION TERMINAL", 12, Color("#7ab594"), MONO)
+	_communication_local = _button(_encounter_options, Rect2(542, 811, 132, 31), "Local duel", _accept_challenge.bind(true))
+	_button(_encounter_options, Rect2(684, 811, 132, 31), "How to play", _show_rules)
+	_button(_encounter_options, Rect2(826, 811, 132, 31), "System map", _show_map)
+	_button(_encounter_options, Rect2(968, 811, 168, 31), "Replay prologue", _show_story)
 	card_reveal = AbilityCards.new()
 	_place(chrome, card_reveal, Rect2(178, 328, 500, 344))
 	card_reveal.hide()
@@ -248,6 +269,10 @@ func _button(parent: Node, rect: Rect2, title: String, callback: Callable, accen
 
 
 func _clear(layer: Node) -> void:
+	if layer == overlay:
+		_stop_communication()
+		if _encounter_options != null:
+			_encounter_options.hide()
 	for child in layer.get_children():
 		layer.remove_child(child)
 		child.queue_free()
@@ -255,30 +280,155 @@ func _clear(layer: Node) -> void:
 
 func _show_home() -> void:
 	chrome.hide()
-	cockpit.mode = "approach"
+	cockpit.mode = "terminal"
 	cockpit.clearance = ""
 	_clear(overlay)
 	overlay_kind = "home"
-	_panel(overlay, Rect2(65, 117, 508, 576), Color(0.027, 0.060, 0.10, 0.96), LINE, 12)
+	_encounter_options.show()
+	_telemetry_credit_label.hide()
 	var system_data: Dictionary = expedition.current_system_data()
-	_label(overlay, Rect2(94, 140, 445, 24), "ORBIT / %s" % system_data.planet_name, 13, SOUTH, MONO)
-	_label(overlay, Rect2(91, 179, 440, 118), "Drift\nCircuit" if drift_circuit else "Conqueror’s\nChess", 53, INK, bold)
-	var head := Cockpit.new()
-	head.envoy = true
-	head.motion = false
-	_place(overlay, head, Rect2(95, 325, 78, 68))
-	_label(overlay, Rect2(188, 322, 354, 21), "ALIEN ENVOY", 13, GOLD, MONO)
-	var transmission := "“Commander Valeria, the Horizon has reached our arena. Win the trial and we will stand with Kalypso. Lose, and your crew is ours.”"
-	if drift_circuit:
-		transmission = "“Welcome to %s, Commander. Ride the shifting lanes and hold our relays after the board moves.”" % str(system_data.planet_name).capitalize()
-	_label(overlay, Rect2(188, 349, 354, 95), transmission, 20, INK, SANS, true)
-	_button(overlay, Rect2(94, 476, 448, 49), "Accept challenge", func(): _start(false), true)
-	_button(overlay, Rect2(94, 540, 215, 43), "Local duel", func(): _start(true))
-	_button(overlay, Rect2(324, 540, 218, 43), "How to play", _show_rules)
-	_button(overlay, Rect2(94, 597, 215, 38), "System map", _show_map)
-	_button(overlay, Rect2(324, 597, 218, 38), "Return to planets", _show_departure)
-	_button(overlay, Rect2(94, 644, 448, 32), "Replay prologue", _show_story)
-	_label(overlay, Rect2(728, 553, 420, 29), "HORIZON  /  APPROACH LOCKED", 14, GOLD, MONO)
+	var planet_name := str(system_data.planet_name).capitalize()
+	var game_name := "Drift Circuit" if drift_circuit else "Conqueror’s Chess"
+	_label(overlay, Rect2(128, 58, 720, 24), "HORIZON // SHIP COMMUNICATIONS", 14, Color("#8effb2"), MONO)
+	var orbit_status := _label(overlay, Rect2(848, 58, 344, 24), "ORBIT / %s" % system_data.planet_name, 13, Color("#75ad83"), MONO)
+	orbit_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_label(overlay, Rect2(128, 90, 1064, 28), "%s / INCOMING TRANSMISSION" % game_name.to_upper(), 19, Color("#a6efc2"), MONO)
+	_terminal_screen = RichTextLabel.new()
+	_terminal_screen.bbcode_enabled = true
+	_terminal_screen.scroll_active = false
+	_terminal_screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_terminal_screen.add_theme_font_override("normal_font", MONO)
+	_terminal_screen.add_theme_font_size_override("normal_font_size", 18)
+	_terminal_screen.add_theme_color_override("default_color", Color("#b3f4c7"))
+	_terminal_screen.add_theme_constant_override("line_separation", 2)
+	_place(overlay, _terminal_screen, Rect2(128, 142, 1064, 312))
+	_terminal_messages = [
+		{"speaker": "ALIEN ENVOY", "color": "#a0edb4", "text": "Horizon, you have entered %s's orbit. Why have you come here?" % planet_name},
+		{"speaker": "HORIZON / VALERIA", "color": "#a6dfff", "text": "We are looking for friends away from home. We come in peace."},
+		{"speaker": "ALIEN ENVOY", "color": "#a0edb4", "text": "Then face us in %s. Win, and we will welcome you as friends. Lose, and you must leave our orbit in peace." % game_name},
+	]
+	_terminal_active_line = 0
+	_terminal_characters = 0.0
+	_terminal_blink_time = 0.0
+	_communication_prompt = _label(overlay, Rect2(128, 467, 1064, 22), "", 14, Color("#75ad83"), MONO)
+	_communication_accept = _terminal_action(Rect2(128, 506, 512, 32), "[ENTER] REVEAL TRANSMISSION", _advance_communication)
+	_terminal_action(Rect2(680, 506, 512, 32), "[Q] LEAVE ORBIT", _leave_planet_orbit)
+	_label(overlay, Rect2(128, 554, 1064, 18), "HORIZON / ORBIT LINK OPEN", 11, Color("#518368"), MONO)
+	_communication_accept.disabled = false
+	_communication_local.disabled = true
+	if _communication_presented:
+		_finish_communication()
+	else:
+		_communication_presented = true
+		_communication_tween = create_tween()
+		_communication_tween.tween_interval(0.2)
+		for i in _terminal_messages.size():
+			var message: String = _terminal_messages[i].text
+			_communication_tween.tween_callback(_begin_terminal_message.bind(i))
+			_communication_tween.tween_property(self, "_terminal_characters", float(message.length()), clampf(message.length() / 50.0, 0.75, 3.2)).from(0.0)
+			_communication_tween.tween_interval(0.25)
+		_communication_tween.tween_callback(_finish_communication)
+	_render_terminal()
+
+
+func _terminal_action(rect: Rect2, title: String, callback: Callable) -> Button:
+	var button := Button.new()
+	button.text = title
+	button.flat = true
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_override("font", MONO)
+	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_color_override("font_color", Color("#8effb2"))
+	button.add_theme_color_override("font_hover_color", Color("#e1ffeb"))
+	button.add_theme_color_override("font_disabled_color", Color("#3d6a50"))
+	for style_name in ["normal", "hover", "pressed", "disabled"]:
+		button.add_theme_stylebox_override(style_name, StyleBoxEmpty.new())
+	_place(overlay, button, rect)
+	button.pressed.connect(callback)
+	return button
+
+
+func _begin_terminal_message(index: int) -> void:
+	_terminal_active_line = index
+	_terminal_characters = 0.0
+
+
+func _process(delta: float) -> void:
+	if overlay_kind == "home":
+		_terminal_blink_time = fposmod(_terminal_blink_time + delta, 1.0)
+		_render_terminal()
+
+
+func _render_terminal() -> void:
+	var cursor := "_" if _terminal_blink_time < 0.55 else " "
+	var transcript := ""
+	for i in _terminal_messages.size():
+		if not _communication_ready and i > _terminal_active_line:
+			break
+		var message: Dictionary = _terminal_messages[i]
+		var full_text: String = message.text
+		var visible_text := full_text
+		if not _communication_ready and i == _terminal_active_line:
+			visible_text = full_text.substr(0, int(_terminal_characters)) + cursor
+		transcript += "[color=%s]%s >\n%s[/color]\n\n" % [message.color, message.speaker, visible_text]
+	if _communication_ready:
+		transcript += "[color=#8effb2]AWAITING COMMAND > %s[/color]" % cursor
+	if _terminal_screen.text != transcript:
+		_terminal_screen.text = transcript
+
+
+func _stop_communication() -> void:
+	if _communication_tween != null:
+		_communication_tween.kill()
+		_communication_tween = null
+	_communication_ready = false
+
+
+func _finish_communication() -> void:
+	if overlay_kind != "home":
+		return
+	_stop_communication()
+	_communication_ready = true
+	_communication_accept.text = "[ENTER] ACCEPT CHALLENGE"
+	_communication_accept.disabled = false
+	_communication_local.disabled = false
+	_communication_prompt.text = ""
+	_render_terminal()
+
+
+func _accept_challenge(local: bool = false) -> void:
+	if overlay_kind != "home" or not _communication_ready or busy:
+		return
+	_start(local)
+
+
+func _leave_planet_orbit() -> void:
+	if overlay_kind != "home" or busy:
+		return
+	_leave_current_orbit()
+
+
+func _advance_communication() -> void:
+	if overlay_kind != "home" or busy:
+		return
+	if _communication_ready:
+		_accept_challenge()
+	else:
+		_finish_communication()
+
+
+func _input(event: InputEvent) -> void:
+	if overlay_kind != "home" or busy or not event is InputEventKey:
+		return
+	if not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_Q:
+		get_viewport().set_input_as_handled()
+		_leave_planet_orbit()
+	elif event.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		get_viewport().set_input_as_handled()
+		_advance_communication()
 
 
 func _show_story() -> void:
@@ -312,6 +462,7 @@ func _start(local: bool, rematch: bool = false) -> void:
 	finished_at = 0
 	feedback.text = ""
 	cockpit.mode = "trial"
+	_telemetry_credit_label.show()
 	cockpit.clearance = ""
 	cockpit.alert = 0.0
 	board.reset_visuals()
@@ -924,18 +1075,54 @@ func _show_handoff() -> void:
 		handoff = false
 		chrome.show()
 		_close_overlay(), true)
-	_button(box, Rect2(31, 247, 620, 41), "Return to planets", _show_departure)
+	_button(box, Rect2(31, 247, 620, 41), "Leave orbit", _leave_current_orbit)
 
 
 func _show_rules() -> void:
-	var box := _modal("rules", "Drift Circuit rules" if drift_circuit else "How to play", 702)
-	_rich(box, Rect2(31, 94, 621, 516), DRIFT_RULES_TEXT % Drift.ROUND_LIMIT if drift_circuit else RULES_TEXT)
+	if not drift_circuit:
+		_show_kalypso_guide(0)
+		return
+	var box := _modal("rules", "Drift Circuit rules", 702)
+	_rich(box, Rect2(31, 94, 621, 516), DRIFT_RULES_TEXT % Drift.ROUND_LIMIT)
 	_button(box, Rect2(31, 634, 620, 41), "Back", _close_overlay)
+
+
+func _show_kalypso_guide(page: int) -> void:
+	var box := _modal("rules", "Kalypso · How to play", 740)
+	_panel(box, Rect2(31, 89, 620, 83), Color("#192a32"), LINE, 4)
+	_label(box, Rect2(45, 94, 590, 20), "GOAL", 12, GOLD, MONO)
+	_label(box, Rect2(45, 116, 590, 50), KalypsoGuide.OBJECTIVE, 19, INK, SANS, true)
+	var tabs := ["Quick start", "Moves", "Abilities"]
+	for index in tabs.size():
+		var tab := _button(box, Rect2(31 + index * 210, 185, 200, 36), tabs[index], _show_kalypso_guide.bind(index), page == index)
+		tab.name = "GuideTab%d" % index
+	if page == 0:
+		_rich(box, Rect2(31, 238, 620, 418), KalypsoGuide.QUICK_START, 18)
+	elif page == 1:
+		var examples := [
+			["MOVE", "res://art/kalypso-movement-guide.png", KalypsoGuide.MOVEMENT],
+			["CAPTURE", "res://art/kalypso-capture-guide.png", KalypsoGuide.CAPTURES],
+		]
+		for index in examples.size():
+			var x := 31 + index * 320
+			_label(box, Rect2(x, 235, 300, 24), examples[index][0], 15, SOUTH if index == 0 else NORTH, MONO)
+			var screenshot := TextureRect.new()
+			screenshot.name = "MovementScreenshot" if index == 0 else "CaptureScreenshot"
+			screenshot.texture = load(examples[index][1])
+			screenshot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			screenshot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			screenshot.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			_place(box, screenshot, Rect2(x, 266, 300, 259))
+			_rich(box, Rect2(x, 535, 300, 91), examples[index][2], 16)
+		_rich(box, Rect2(31, 632, 620, 38), "Enter the flag from an adjacent tile or by capture. Click a ship to see legal targets; drag the board to rotate.", 14)
+	else:
+		_rich(box, Rect2(31, 238, 620, 425), KalypsoGuide.ABILITIES, 17)
+	_button(box, Rect2(31, 680, 620, 41), "Back to game" if not state.is_empty() else "Back", _close_overlay)
 
 
 func _show_credits() -> void:
 	var box := _modal("credits", "Asset credits", 495)
-	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]COCKPIT AND SYSTEM[/color]\n[url=https://kenney.nl/assets/space-kit]Space Kit · Kenney · CC0[/url]\n[url=https://github.com/halfmage/pixelarticons/tree/v1.8.1]Pixelarticons · Gerrit Halfmann · MIT[/url]\n[url=https://opengameart.org/content/spaceship-interior-0]Spaceship Interior · cheerful sprite · CC0[/url]\n[url=https://screamingbrainstudios.itch.io/tiny-planet-pack]Tiny Planet Pack · Screaming Brain Studios · CC0[/url]\n\n[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped and tinted.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
+	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]COCKPIT AND SYSTEM[/color]\n[url=https://kenney.nl/assets/space-kit]Space Kit · Kenney · CC0[/url]\n[url=https://opengameart.org/content/spaceship-interior-0]Spaceship Interior · cheerful sprite · CC0[/url]\n[url=https://screamingbrainstudios.itch.io/tiny-planet-pack]Tiny Planet Pack · Screaming Brain Studios · CC0[/url]\n\n[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped and tinted.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
 	_button(box, Rect2(31, 427, 620, 41), "Back", _close_overlay)
 
 
@@ -949,21 +1136,20 @@ func _show_map() -> void:
 	_button(box, Rect2(31, 365, 620, 41), "Back to cockpit", _close_overlay)
 
 
-func _show_departure() -> void:
-	var box := _modal("departure", "Return to planets", 330)
-	var in_match: bool = not state.is_empty() and state.phase != "finished"
-	var message := "Leaving ends this match. Choose a planet to approach." if in_match else "Choose a planet to approach."
-	var note := _label(box, Rect2(31, 89, 620, 53), message, 19, MUTED, SANS, true)
-	_button(box, Rect2(31, 157, 302, 46), "Kalypso · Fractured Flag", _depart.bind(0, note))
-	_button(box, Rect2(348, 157, 303, 46), "Cinder · Drift Circuit", _depart.bind(ExpeditionState.CINDER, note), true)
-	_button(box, Rect2(31, 247, 620, 43), "Keep playing" if in_match else "Back", _close_overlay)
-
-
-func _depart(index: int, note: Label) -> void:
-	if expedition.fly_to(index, true) == OK:
+func _leave_current_orbit() -> void:
+	if _leaving_orbit:
+		return
+	_leaving_orbit = true
+	if expedition.leave_orbit() == OK:
 		generation += 1
+		busy = true
+		_stop_communication()
 	else:
-		note.text = "Could not open the planetary flight scene."
+		_leaving_orbit = false
+		if overlay_kind == "home":
+			_communication_prompt.text = "Unable to return to flight. Please try again."
+		else:
+			_note("Could not leave the current planet's orbit.")
 
 
 func _show_modes() -> void:
@@ -1024,19 +1210,16 @@ func _show_result() -> void:
 	expedition.record_battle(int(state.winner))
 	var next_available := expedition.has_next_system()
 	var title := "Trial unresolved"
-	var outcome := "The Horizon remains in orbit pending a decision."
+	var outcome := "The trial ends in a draw. You may try again or return to exploration."
+	cockpit.clearance = ""
 	match state.winner:
 		1:
 			title = "Alliance secured"
-			outcome = "The envoy opened a landing corridor for the Horizon."
+			outcome = "The people of %s welcome the Horizon as friends. A landing corridor is open." % str(expedition.current_system_data().planet_name).capitalize()
 			cockpit.clearance = "land"
 		0:
-			title = "Horizon detained"
-			outcome = "The envoy has dispatched a patrol to take custody."
-			cockpit.clearance = "detained"
-			if next_available:
-				title = "Trial lost"
-			outcome = "The fleet refused an alliance. The Horizon can withdraw to Cinder."
+			title = "Challenge lost"
+			outcome = "The envoy asks the Horizon to leave orbit in peace. You can explore another planet or try again."
 	if drift_circuit:
 		title = "Circuit drawn" if state.winner < 0 else "%s win the circuit" % SIDES[state.winner]
 		outcome = "Aliens %d vs Pilots %d" % [_drift_total(0), _drift_total(1)]
@@ -1056,6 +1239,8 @@ func _show_result() -> void:
 		"drift_tie": "Both sides reached 8 on the same shift.",
 		"drift_limit": "Twelve rounds elapsed without a winner."
 	}.get(state.reason, "")
+	if drift_circuit:
+		description = "Aliens %d / Pilots %d. " % state.drift.scores + description
 	_label(box, Rect2(31, 86, 620, 62), outcome, 21, INK, SANS, true)
 	_label(box, Rect2(31, 146, 620, 53), description, 17, MUTED, SANS, true)
 	var rematch_y := 311 if next_available else 252
@@ -1079,12 +1264,12 @@ func _travel_to_next_system() -> void:
 		_note("Could not set course for Cinder.")
 
 
-func _rich(parent: Node, rect: Rect2, value: String) -> void:
+func _rich(parent: Node, rect: Rect2, value: String, px: int = 18) -> void:
 	var rich := RichTextLabel.new()
 	rich.bbcode_enabled = true
 	rich.text = value
 	rich.add_theme_font_override("normal_font", SANS)
-	rich.add_theme_font_size_override("normal_font_size", 18)
+	rich.add_theme_font_size_override("normal_font_size", px)
 	rich.add_theme_color_override("default_color", INK)
 	rich.meta_clicked.connect(func(url): OS.shell_open(str(url)))
 	_place(parent, rich, rect)
@@ -1113,7 +1298,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_clear_selection()
 			_refresh()
 		elif overlay_kind in ["", "handoff"]:
-			_show_departure()
+			_leave_current_orbit()
 		return
 	if overlay_kind != "" or state.is_empty():
 		return
