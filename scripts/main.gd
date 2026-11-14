@@ -21,7 +21,7 @@ const SPELLS = {
 	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any pawn on it."],
 	"teleport": ["Teleport", "Jump to any open tile outside the flag."],
 	"borrow_tomorrow": ["Borrow Tomorrow", "Move this pawn, then a different ally. The first pawn owes a return."],
-	"infected_trail": ["Infected Trail", "Move and infect the 3 × 3 area around your starting tile through the enemy turn."],
+	"infected_trail": ["Infected Trail", "Infect the 3 × 3 area around your move’s starting tile through the enemy turn."],
 	"spy": ["Spy", "Take control of a nearby enemy pawn for your next three turns. It cannot score the flag."],
 	"long_capture": ["Long Capture", "Capture diagonally in any direction, from one or two squares away."],
 }
@@ -43,9 +43,9 @@ Shield absorbs one capture and disappears on flag entry. Teleport jumps to any e
 Borrow Tomorrow moves its assigned pawn one orthogonal step, then moves another ally one orthogonal step. The first pawn cannot enter or leave the flag. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
 
 [color=#f8d587]ROLL FOR AN ABILITY[/color]
-Each player can roll once per round before acting. Rolling is optional and does not spend the turn. Use the result this round with an eligible pawn or take a normal action.
+Each player can roll once per round before acting. Rolling is optional and does not spend the turn. After rolling, take a normal move and optionally use the rolled power as part of that turn, or take a normal move alone.
 
-Infected Trail blocks entry into the 3 × 3 area around the pawn’s departure tile through the enemy turn, except the flag. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the flag but cannot score or capture there while stolen. Long Capture can take an enemy one or two tiles diagonally in any direction.
+Infected Trail infects the 3 × 3 area around the normal move’s starting tile through the enemy turn, except the flag. Spy takes control of an enemy within two orthogonal steps of any ally after the move. It returns after three of your subsequent turns. It may stand on the flag but cannot score or capture there while stolen. Long Capture lets one of your pawns capture an enemy one or two tiles diagonally in any direction after your normal move.
 
 [color=#f8d587]CONTROLS[/color]
 Click a pawn, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
@@ -74,6 +74,7 @@ var selected := -1
 var action_group := "standard"
 var first_destination := Vector2i.ZERO
 var second_pawn := -1
+var pending_move: Dictionary = {}
 var assignments: Dictionary = {}
 var overlay_kind := ""
 var first_flag_round := 0
@@ -437,7 +438,7 @@ func _draw_play() -> void:
 		if p.ability != "":
 			_action_button(Rect2(864, 509, 189, 38), SPELLS[p.ability][0], "ability")
 		if not face.is_empty():
-			_action_button(Rect2(1062, 462, 196, 38), SPELLS[face][0], "effect")
+			_action_button(Rect2(1062, 462, 196, 38), "Move + " + SPELLS[face][0], "combo")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
@@ -445,7 +446,7 @@ func _draw_play() -> void:
 			details = "Stolen pawn · %d turns left. Cannot score or capture on the flag." % p.spy
 		elif details.is_empty() and action_group == "ability":
 			details = SPELLS[p.ability][1]
-		elif details.is_empty() and action_group.begins_with("effect"):
+		elif details.is_empty() and action_group == "combo":
 			details = SPELLS[face][1]
 		if not details.is_empty():
 			_label(side_panel, Rect2(865, 595, 387, 36), details, 13, MUTED, SANS, true)
@@ -502,8 +503,14 @@ func _action_hint() -> String:
 	var p: Dictionary = state.pawns[selected]
 	if not p.borrow.is_empty():
 		return "This pawn is waiting to return to its echo."
-	if action_group == "effect" and state.dice[state.active] == "spy":
-		return "Select a highlighted enemy pawn to take control."
+	if action_group == "combo":
+		if pending_move.is_empty():
+			return "Choose a normal move to use the rolled power."
+		match state.dice[state.active]:
+			"spy":
+				return "Select a highlighted enemy pawn to take control."
+			"long_capture":
+				return "Choose a pawn, then a highlighted capture target." if second_pawn < 0 else "Select a highlighted long-capture target."
 	if action_group == "ability" and p.ability == "borrow_tomorrow":
 		if first_destination == Vector2i.ZERO:
 			return "Choose where the borrowed pawn steps."
@@ -528,6 +535,7 @@ func _set_group(group: String) -> void:
 	action_group = group
 	first_destination = Vector2i.ZERO
 	second_pawn = -1
+	pending_move = {}
 	board.grab_focus()
 	_refresh()
 
@@ -537,17 +545,19 @@ func _group_actions(group: String) -> Array[Dictionary]:
 	if selected < 0 or selected not in state.pawns:
 		return choices
 	for a in legal:
-		if a.get("pawn", -1) != selected:
-			continue
 		match group:
 			"standard":
-				if a.kind in ["step", "capture"]:
+				if a.get("pawn", -1) == selected and a.kind in ["step", "capture"]:
 					choices.append(a)
 			"ability":
-				if a.kind == state.pawns[selected].ability:
+				if a.get("pawn", -1) == selected and a.kind == state.pawns[selected].ability:
 					choices.append(a)
-			"effect":
-				if a.kind == state.dice[state.active]:
+			"combo":
+				if a.kind == "combined" and a.move.pawn == selected:
+					if not pending_move.is_empty() and a.move != pending_move:
+						continue
+					if second_pawn >= 0 and a.power.kind == "long_capture" and a.power.pawn != second_pawn:
+						continue
 					choices.append(a)
 	return choices
 
@@ -557,8 +567,15 @@ func _targets() -> Dictionary:
 	if busy or state.phase != "playing" or selected < 0:
 		return highlighted
 	for action in _group_actions(action_group):
-		if action.kind == "spy":
-			highlighted[action.to] = "mark"
+		if action.kind == "combined" and action_group == "combo":
+			if pending_move.is_empty():
+				highlighted[action.move.to] = "capture" if action.move.kind == "capture" else "move"
+			elif action.power.kind == "spy":
+				highlighted[state.pawns[action.power.mark].pos] = "mark"
+			elif action.power.kind == "long_capture" and second_pawn < 0:
+				highlighted[state.pawns[action.power.pawn].pos] = "mark"
+			elif action.power.kind == "long_capture":
+				highlighted[action.power.to] = "capture"
 		elif action.kind == "borrow_tomorrow" and first_destination != Vector2i.ZERO:
 			if action.to == first_destination:
 				if second_pawn < 0:
@@ -582,13 +599,37 @@ func _square_pressed(square: Vector2i) -> void:
 			_refresh()
 		return
 	for action in _group_actions(action_group):
+		if action.kind == "combined" and action_group == "combo":
+			if pending_move.is_empty() and action.move.to == square:
+				if action.power.kind == "infected_trail":
+					_commit(action)
+				else:
+					pending_move = action.move.duplicate(true)
+					second_pawn = -1
+					_refresh()
+				return
+			if not pending_move.is_empty():
+				if action.power.kind == "spy" and state.pawns[action.power.mark].pos == square:
+					_commit(action)
+					return
+				if action.power.kind == "long_capture":
+					if second_pawn < 0 and id == action.power.pawn:
+						second_pawn = id
+						_refresh()
+						return
+					if second_pawn >= 0 and action.power.pawn == second_pawn and action.power.to == square:
+						_commit(action)
+						return
+			continue
 		if _select_target(action, square, id):
 			return
+	if not pending_move.is_empty():
+		return
 	if id >= 0 and state.pawns[id].side == state.active:
 		_clear_selection()
 		selected = id
 		if _group_actions("standard").is_empty():
-			for group: String in ["ability", "effect"]:
+			for group: String in ["ability", "combo"]:
 				if not _group_actions(group).is_empty():
 					action_group = group
 					break
@@ -653,6 +694,7 @@ func _clear_selection() -> void:
 	action_group = "standard"
 	first_destination = Vector2i.ZERO
 	second_pawn = -1
+	pending_move = {}
 
 
 func _coord(p: Vector2i) -> String:
