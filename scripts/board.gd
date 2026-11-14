@@ -36,6 +36,7 @@ var power := 1.0
 var viewport_3d: SubViewport
 var world: Node3D
 var camera: Camera3D
+var coordinate_mask := Rect2()
 var camera_yaw := 0.0
 var camera_pitch := 0.0
 var camera_distance := 0.0
@@ -515,8 +516,8 @@ func _draw() -> void:
 		draw_line(Vector2(67, size.y * power), Vector2(size.x - 67, size.y * power), Color(0.40, 1.0, 0.93, (1.0 - power) * 0.8), 3)
 	var column_offset := -1.12 if state.has("drift") else -0.76
 	for i in range(1, Rules.BOARD_SIZE + 1):
-		_text(_project_world(_world_at(Vector2i(i, 1)) + Vector3(0, 0, column_offset)) + Vector2(-4, 1), char(64 + i), 12)
-		_text(_project_world(_world_at(Vector2i(1, i)) + Vector3(-0.90, 0, 0)) + Vector2(-4, 4), str(i), 12)
+		_coordinate_text(_project_world(_world_at(Vector2i(i, 1)) + Vector3(0, 0, column_offset)) + Vector2(-4, 1), char(64 + i), 12)
+		_coordinate_text(_project_world(_world_at(Vector2i(1, i)) + Vector3(-0.90, 0, 0)) + Vector2(-4, 4), str(i), 12)
 	for square: Vector2i in tiles:
 		_pad_lights(square)
 	if state.has("drift"):
@@ -647,6 +648,21 @@ func _badge(point: Vector2, title: String, color: Color) -> void:
 	draw_rect(Rect2(point - Vector2.ONE * 7, Vector2.ONE * 15), Color("#16192a"))
 	draw_rect(Rect2(point - Vector2.ONE * 7, Vector2.ONE * 15), color, false, 1)
 	_text(point + Vector2(-3, 4), title, 10, color)
+
+
+func set_coordinate_mask(rect: Rect2) -> void:
+	if coordinate_mask == rect:
+		return
+	coordinate_mask = rect
+	queue_redraw()
+
+
+func _coordinate_text(point: Vector2, title: String, px: int) -> void:
+	var extent := MONO.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, px)
+	var bounds := Rect2(point - Vector2(0, MONO.get_ascent(px)), extent)
+	if coordinate_mask.has_area() and coordinate_mask.intersects(bounds):
+		return
+	_text(point, title, px)
 
 
 func _text(point: Vector2, title: String, px: int, color: Color = Color("#b7c6e3")) -> void:

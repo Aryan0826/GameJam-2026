@@ -8,25 +8,27 @@ signal intro_finished
 signal crawl_finished
 
 @export_group("Story Content")
-@export var intro_text: String = "A short time ago in a star system far, far away..."
+@export var intro_text: String = "Earth has reached the stars. Now, its borders must follow."
 @export var episode_text: String = "EPISODE I"
-@export var title_text: String = "THE FRACTURED FLAG"
+@export var title_text: String = "THE CONQUEROR'S GAMBIT"
 @export_multiline var body_text: String = (
-	"The scientists of planet KALYPSO have achieved the impossible: " +
-	"the secret of interstellar travel has finally been unlocked.\n\n" +
-	"With their homeworld's ancient energy reserves depleted, " +
-	"COMMANDER VALERIA is chosen to helm the flagship HORIZON " +
-	"on humanity's first deep space expedition.\n\n" +
-	"Entering uncharted space, the expedition discovers a collapsing " +
-	"orbital arena and encounters an enigmatic ALIEN FLEET.\n\n" +
-	"To forge a vital alliance and ensure their people's survival, " +
-	"the Commander must now take the board, hold the fractured flag, " +
-	"and emerge victorious...."
+	"EARTH has mastered interstellar travel. A GENERAL aboard the flagship " +
+	"HORIZON leads a campaign to expand its domain, conquering planets " +
+	"in one system before moving to the next.\n\n" +
+	"As he approaches a new planetary system, its alien inhabitants " +
+	"transmit an unexpected challenge. They will settle the conflict " +
+	"on a CHESSBOARD.\n\n" +
+	"If the General wins, they will surrender their planets to Earth " +
+	"without a fight. If he loses, he must withdraw his forces " +
+	"and leave their worlds in peace.\n\n" +
+	"The terms are clear. The next chapter of Earth's expansion " +
+	"will be decided one move at a time.\n\n" +
+	"The General has arrived at a new system to conquer..."
 )
 
 @export_group("Timing & Speed")
-## Duration in seconds for the yellow text crawl itself (runs for a full 20s on its own).
-@export var crawl_duration: float = 20.0
+## Duration in seconds for the yellow text crawl itself.
+@export var crawl_duration: float = 45.0
 ## Duration for the cyan intro text before disappearing. Set to 0 to skip intro.
 @export var intro_duration: float = 2.5
 
@@ -41,12 +43,13 @@ signal crawl_finished
 @export_file("*.tscn") var next_scene_path: String = "res://scenes/solar_system.tscn"
 @export var allow_skip: bool = true
 @export var allow_speedup: bool = true
-@export var speedup_multiplier: float = 2.5
+@export var speedup_multiplier: float = 8.0
 
 @export_group("Audio")
 @export var music_stream: AudioStream
 
 # Node references
+@onready var soundtrack: Node = get_node("/root/Soundtrack")
 @onready var intro_label: Label = $IntroContainer/IntroLabel
 @onready var intro_container: Control = $IntroContainer
 @onready var crawl_viewport_container: SubViewportContainer = $CrawlViewportContainer
@@ -88,8 +91,12 @@ func _ready() -> void:
 
 	# Play audio if provided
 	if music_stream and music_player:
+		soundtrack.stop_music()
 		music_player.stream = music_stream
+		music_player.bus = &"Music"
 		music_player.play()
+	else:
+		soundtrack.music("flight")
 
 	if intro_duration > 0.0:
 		_start_intro_sequence()
@@ -143,7 +150,7 @@ func _process(delta: float) -> void:
 	if _is_completed:
 		return
 
-	# Fast-forward speedup multiplier if holding Space or Up
+	# Hold Space or Up to speed up the text; release to return to normal speed.
 	var current_speed: float = 1.0
 	if allow_speedup and (
 		Input.is_action_pressed("ui_select") or
@@ -152,7 +159,7 @@ func _process(delta: float) -> void:
 	):
 		current_speed = speedup_multiplier
 
-	# Advance crawl progression for the full 20 seconds on its own
+	# Advance the crawl over its configured duration.
 	if _is_crawl_active:
 		_elapsed_time += delta * current_speed
 		var progress: float = clampf(_elapsed_time / maxf(1.0, crawl_duration), 0.0, 1.0)

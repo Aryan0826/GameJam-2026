@@ -7,7 +7,7 @@ Give two ships different one-use abilities. Lock your draft.
 
 [color=#83e1fa]YOUR TURN[/color]
 1. [b]Shuffle[/b] to reveal your power card.
-2. Click a ship, then a highlighted tile. A drafted ability can replace the move.
+2. Select a ship. Its hologram lets you choose a normal move or its one-use ability. Then click a highlighted target.
 3. Click your [b]power card[/b], then a highlighted target to use it.
 4. Click [b]Finish / skip turn[/b] to pass control.
 
