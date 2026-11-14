@@ -27,7 +27,7 @@ const ALIEN_GREEN = Color("#9cff83")
 const ALIEN_DIM = Color("#75ad83")
 const ALIEN_PANEL = Color("#0c1c15")
 const ALIEN_LINE = Color("#3b7950")
-const SIDES = ["Aliens", "Pilots"]
+const SIDES = ["Aliens", "Crew"]
 const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the beacon."],
 	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any unit on it."],
@@ -46,7 +46,7 @@ Hold the center beacon through three enemy turns with the same unit, or remove e
 [color=#f8d587]TAKE YOUR TURN[/color]
 Shuffle first. Then choose one path: Move → Use power; Move → Finish turn; or Use power → Finish turn. A drafted ability counts as your move. Finish / skip turn is available at any time.
 
-Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the beacon from an adjacent square or by making a capture.
+Move one tile orthogonally or one or two diagonally in any direction. A two tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Crew. Enter the beacon from an adjacent square or by making a capture.
 
 [color=#f8d587]WATCH THE RIM[/color]
 Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any unit on a falling tile is removed.
@@ -65,7 +65,7 @@ Infected Trail blocks entry into the 3 × 3 area around a selected unit through 
 Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
 const DRIFT_QUICK_START = """[color=#f8d587]TAKE YOUR TURN[/color]
-Aliens and Pilots alternate one move or capture. Select one of your units, then choose a highlighted destination.
+Aliens and Crew alternate one move or capture. Select one of your units, then choose a highlighted destination.
 
 [color=#f8d587]WATCH THE LANES[/color]
 After both sides act, every unit on row 4 moves one tile right and every unit on row 6 moves one tile left. Both rows wrap at the edges; row 5 stays put.
@@ -77,10 +77,10 @@ After the shift, each occupied relay scores one point for its side, then moves t
 Click a unit and a highlighted destination. Drag to rotate the board; use arrow keys and Enter to select. Esc clears a selection or closes help. Multiplayer / Computer switches Alien control on the next Alien turn."""
 
 const DRIFT_MOVEMENT = """[color=#f8d587]MOVE[/color]
-Move one tile orthogonally or diagonally. A two-tile diagonal can jump over a unit. Select a unit to see its legal destinations.
+Move one tile orthogonally or diagonally. A two tile diagonal can jump over a unit. Select a unit to see its legal destinations.
 
 [color=#f8d587]CAPTURE[/color]
-Capture one tile diagonally forward. Aliens move down; Pilots move up. Capturing removes the enemy unit.
+Capture one tile diagonally forward. Aliens move down; Crew move up. Capturing removes the enemy unit.
 
 [color=#83e1fa]PLAN THE SHIFT[/color]
 On rows 4 and 6, a highlighted destination previews where your unit will land after the lane moves."""
@@ -202,7 +202,7 @@ func _build_frame() -> void:
 	board.gui_input.connect(func(event: InputEvent):
 		if event is InputEventKey:
 			_unhandled_key_input(event))
-	_label(chrome, Rect2(66, 42, 490, 46), "Drift Circuit" if drift_circuit else "Conqueror’s Chess", 36, INK, bold)
+	_label(chrome, Rect2(66, 42, 490, 46), "Drift Circuit" if drift_circuit else "The Fractured Flag", 36, INK, bold)
 	round_label = _label(chrome, Rect2(69, 91, 440, 23), "", 14, SOUTH, MONO)
 	_panel(chrome, Rect2(66, 124, 482, 87), Color(0.035, 0.068, 0.11, 0.95), LINE, 5)
 	var head := Cockpit.new()
@@ -1354,7 +1354,7 @@ func _drift_guide_lane(parent: Node, y: float, row: int) -> void:
 
 
 func _show_kalypso_guide(page: int) -> void:
-	var box := _modal("rules", "Kalypso · How to play", 740)
+	var box := _modal("rules", "The Fractured Flag · How to play", 740)
 	_panel(box, Rect2(31, 89, 620, 83), Color("#192a32"), LINE, 4)
 	_label(box, Rect2(45, 94, 590, 20), "GOAL", 12, GOLD, MONO)
 	_label(box, Rect2(45, 116, 590, 50), KalypsoGuide.OBJECTIVE, 19, INK, SANS, true)

@@ -8,7 +8,7 @@ const PAWNS_PER_SIDE := 5
 const FLAG_REPLIES := 3
 const DIRECTIONS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
 const DIAGONALS := [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
-const SIDE_NAMES := ["Aliens", "Pilots"]
+const SIDE_NAMES := ["Aliens", "Crew"]
 const RNG_RANGE := 2147483646
 const Drift = preload("res://scripts/rules/drift.gd")
 
@@ -139,7 +139,7 @@ static func _play_drift_turn(state: Dictionary, action: Dictionary, events: Arra
 	if report:
 		if not relocations.is_empty():
 			_event(events, "relay_relocated", "Relays moved · %s." % " / ".join(relocations))
-		_event(events, "drift_score", "Rows shifted · Aliens +%d / Pilots +%d." % points)
+		_event(events, "drift_score", "Rows shifted · Aliens +%d / Crew +%d." % points)
 
 	var totals := [state.drift.scores[0], state.drift.scores[1]]
 	for pawn: Dictionary in state.pawns.values():
