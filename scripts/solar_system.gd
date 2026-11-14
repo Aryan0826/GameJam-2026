@@ -157,12 +157,23 @@ func _ready() -> void:
 	ship_node.rotation = (planet_node.position - ship_node.position).angle()
 	_ship_velocity = Vector2.from_angle(ship_node.rotation) * 180.0
 	var arrival := expedition.take_approach()
+	var departure := expedition.take_departure()
 	_track_course(cinder if arrival == ExpeditionState.CINDER else planet_node)
-	if arrival == system_index or (system_index == 0 and arrival == ExpeditionState.CINDER):
+	if departure >= 0:
+		var body: Node2D = cinder if departure == ExpeditionState.CINDER else planet_node
+		_track_course(body)
+		var gravity_radius: float = cinder.gravity_influence_radius if body == cinder else planet_gravity_influence_radius
+		var capture_radius: float = cinder.capture_radius if body == cinder else planet_capture_radius
+		var outward := (body.position - sun_node.position).normalized()
+		ship_node.position = body.position + outward * (maxf(gravity_radius, capture_radius) + 280.0)
+		ship_node.rotation = outward.angle()
+		_ship_velocity = _destination_velocity(body) + outward * 180.0
+	elif arrival == system_index or (system_index == 0 and arrival == ExpeditionState.CINDER):
 		var radius := _stable_radius(_course_target)
 		ship_node.position = _course_target.position + Vector2.LEFT * (radius + 32.0)
 		ship_node.rotation = Vector2.UP.angle()
 		_ship_velocity = _destination_velocity(_course_target) + Vector2.UP * radius * planet_orbit_rot_speed
+	ship_node.velocity = _ship_velocity
 	$HUDLayer/HUD/Destinations/Routes/Kalypso.pressed.connect(_set_course.bind(0))
 	$HUDLayer/HUD/Destinations/Routes/Cinder.pressed.connect(_set_course.bind(ExpeditionState.CINDER))
 	if system_index != 0:
