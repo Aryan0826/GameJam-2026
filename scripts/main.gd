@@ -7,6 +7,7 @@ const DriftBot = preload("res://scripts/drift_bot.gd")
 const Arena = preload("res://scripts/board.gd")
 const Cockpit = preload("res://scripts/cockpit.gd")
 const AbilityCards = preload("res://scripts/ability_cards.gd")
+const AbilityHologram = preload("res://scripts/ability_hologram.gd")
 const KalypsoGuide = preload("res://scripts/kalypso_guide.gd")
 const RESULT_CHARACTERS = preload("res://art/results/characters.png")
 const ExpeditionState = preload("res://scripts/expedition.gd")
@@ -101,6 +102,7 @@ var state: Dictionary = {}
 var legal: Array[Dictionary] = []
 var records: Array[Dictionary] = []
 var messages: Array[String] = []
+var ability_hologram: Control
 var board: Control
 var cockpit: Control
 var chrome: Control
@@ -169,7 +171,6 @@ func _build_frame() -> void:
 	_panel(chrome, Rect2(42, 231, 775, 565), Color("#364451"), Color("#657782"), 12)
 	_panel(chrome, Rect2(51, 239, 757, 549), Color("#142530"), Color("#588590"), 8)
 	_panel(chrome, Rect2(58, 247, 743, 533), Color("#091924"), Color("#237285"), 4)
-	_label(chrome, Rect2(71, 253, 305, 23), "TACTICAL PROJECTION", 13, SOUTH, MONO)
 	status_label = _label(chrome, Rect2(363, 253, 420, 23), "", 13, GOLD, MONO)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	board = Arena.new()
@@ -216,6 +217,9 @@ func _build_frame() -> void:
 	card_reveal = AbilityCards.new()
 	_place(chrome, card_reveal, Rect2(178, 328, 500, 344))
 	card_reveal.hide()
+	ability_hologram = AbilityHologram.new()
+	_place(chrome, ability_hologram, Rect2(board.position, board.size))
+	ability_hologram.action_chosen.connect(_choose_hologram_action)
 	overlay = _layer(self)
 
 
@@ -376,6 +380,8 @@ func _begin_terminal_message(index: int) -> void:
 
 
 func _process(delta: float) -> void:
+	if is_instance_valid(ability_hologram) and not _can_show_ability_hologram():
+		ability_hologram.hide()
 	if overlay_kind == "home":
 		_terminal_blink_time = fposmod(_terminal_blink_time + delta, 1.0)
 		_render_terminal()
@@ -684,6 +690,60 @@ func _refresh() -> void:
 		_draw_drift_play()
 	else:
 		_draw_play()
+	_sync_ability_hologram()
+
+
+func _can_show_ability_hologram() -> bool:
+	if drift_circuit or state.is_empty() or state.phase != "playing" or selected not in state.pawns:
+		return false
+	if busy or handoff or overlay_kind != "" or not board.is_visible_in_tree() or (not local_mode and state.active == 0):
+		return false
+	var pawn: Dictionary = state.pawns[selected]
+	return pawn.side == state.active and pawn.ability in DRAFT_SPELLS and pawn.charged and pawn.spy == 0
+
+
+func _sync_ability_hologram() -> void:
+	if not _can_show_ability_hologram():
+		ability_hologram.hide()
+		return
+	var pawn: Dictionary = state.pawns[selected]
+	var reason := Rules.ability_reason(state, pawn)
+	var status := "READY / ONE USE / REPLACES MOVE"
+	if state.dice[state.active].is_empty():
+		reason = "Shuffle first to unlock your move and this ability."
+		status = "SHUFFLE FIRST"
+	elif state.turn_power_used:
+		reason = "Your actions are complete. Finish your turn."
+		status = "FINISH YOUR TURN"
+	elif state.turn_move:
+		reason = "You already used your move this turn."
+		status = "MOVE ALREADY PLAYED"
+	elif not reason.is_empty():
+		status = "UNAVAILABLE"
+	var title: String = SPELLS[pawn.ability][0]
+	var caption := "Use " + title
+	if pawn.ability == "fracture": caption = "Use Fracture"
+	if pawn.ability == "borrow_tomorrow": caption = "Use Borrow"
+	var hint := "Choose a landing tile"
+	if pawn.ability == "shield": hint = "Click this ship to raise its shield"
+	elif pawn.ability == "fracture": hint = "Choose a tile to fracture"
+	elif pawn.ability == "borrow_tomorrow":
+		if first_destination == Vector2i.ZERO: hint = "Choose the first ship’s step"
+		elif second_pawn < 0: hint = "Choose a second ship"
+		else: hint = "Choose the second ship’s step"
+	ability_hologram.configure({
+		"board": board, "square": pawn.pos, "title": title, "motion": motion,
+		"status": status, "description": reason if not reason.is_empty() else SPELLS[pawn.ability][1],
+		"hint": hint, "targeting": action_group == "ability" and reason.is_empty(),
+		"can_move": not _group_actions("standard").is_empty(), "can_use": not _group_actions("ability").is_empty(),
+		"group": action_group, "button": caption,
+	})
+
+
+func _choose_hologram_action(group: String) -> void:
+	if not _can_show_ability_hologram() or group not in ["standard", "ability"] or _group_actions(group).is_empty():
+		return
+	_set_group(group)
 
 
 func _update_transmission() -> void:
