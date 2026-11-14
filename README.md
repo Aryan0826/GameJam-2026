@@ -23,9 +23,9 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 - After the Kalypso battle, choose **Travel to Cinder** or **Withdraw to Cinder** to return to flight near the red planet. **Rematch** stays at the current planet. **Replay prologue** restarts the journey.
 - Click a pawn, choose an action in the right panel if needed, and click a highlighted target. The arrow keys move the board cursor, Enter selects, and Esc clears the selection.
 - Click and drag on the board to rotate the camera horizontally and tilt it vertically. Release without dragging to select a pawn or target.
-- **Roll ability** before moving or using a drafted ability; roll once per round. Choose a path: **Move → Use power** (both), **Move → Finish / skip turn** (move only), or **Use power → Finish / skip turn** (power only). To move, select a unit, click **Move / capture**, then a highlighted destination. To use power, click **Use power** and a highlighted target: your unit for Infected Trail, an enemy for Spy or Long Capture. The die panel names the power.
+- **Shuffle** before moving or using a drafted ability; draw once per round. Pixel cards shuffle and flip to reveal your ability, which stays visible as a clickable card above **Finish / skip turn**. Click the card to choose a power target; the large reveal stays on screen for 3.6 seconds. **FX off** reveals it immediately. Choose a path: **Move → Use power** (both), **Move → Finish / skip turn** (move only), or **Use power → Finish / skip turn** (power only). To move, select a unit, click **Move / capture**, then a highlighted destination. To use power, click **Use power** and a highlighted target: your unit for Infected Trail, an enemy for Spy or Long Capture. The drawn card names the power.
 - In the draft, select two different pawns, assign them different abilities, and lock your choices. In local mode, pass the device when prompted.
-- **Take Over Aliens** queues the switch to a second player for the next Alien turn boundary. **Rematch** keeps the current mode, swaps the starter, and rolls a new setup.
+- **Take Over Aliens** queues the switch to a second player for the next Alien turn boundary. **Rematch** keeps the current mode, swaps the starter, and creates a new setup.
 - **Rules** shows the complete gameplay reference. **FX** toggles movement effects. **View log** can copy the match seed, starting side, committed actions, first flag round, duration, and outcome.
 
 ## Project
@@ -34,12 +34,12 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 - `scripts/board.gd` renders the landing pads, survey rovers, and interceptors from a low perspective camera and maps pointer input to the grid.
 - `scripts/cockpit.gd` draws the windshield, envoy comms, and orbital map.
 - `scripts/rules.gd` implements the seeded state machine and validates the full legal action list.
-- `scripts/bot.gd` chooses from that same list using the visible board and roll.
+- `scripts/bot.gd` chooses from that same list using the visible board and drawn ability.
 - `tests/rules_test.gd` covers rules, spell interactions, deterministic replay, and bot behavior.
 
 The revised rules allow one orthogonal step or one or two diagonal steps in any direction. A two-square diagonal can jump blockers. Regular captures are one square diagonally forward. A distant entry onto the flag requires a capture. Fracture and Teleport are drafted abilities alongside Shield and Borrow Tomorrow.
 
-The six-sided die gives equal odds to Infected Trail, Spy, and Long Capture. Use the power separately from a normal move or use it alone: Infection covers a selected unit's tile and its 3 × 3 neighborhood except the flag; Spy can control an enemy within two orthogonal steps of an ally; Long Capture lets one of your pawns capture one or two squares diagonally in any direction. Spy's control lasts three subsequent turns of the caster. While stolen, a pawn can stand on the flag without scoring and cannot capture a pawn on it. The browser build uses Godot’s Compatibility renderer.
+The ability deck gives equal odds to Infected Trail, Spy, and Long Capture. Each shuffle is an independent draw; cards are not removed from the deck. Use the power separately from a normal move or use it alone: Infection covers a selected unit's tile and its 3 × 3 neighborhood except the flag; Spy can control an enemy within two orthogonal steps of an ally; Long Capture lets one of your pawns capture one or two squares diagonally in any direction. Spy's control lasts three subsequent turns of the caster. While stolen, a pawn can stand on the flag without scoring and cannot capture a pawn on it. The browser build uses Godot’s Compatibility renderer.
 
 ## Build and verify
 
@@ -52,6 +52,10 @@ godot --headless --path . --export-release Web ../output/web/index.html
 godot --headless --path . --export-release Windows ../output/windows/ConquerorsChess.exe
 ```
 
-The rules suite covers gameplay transitions, rolled powers, deterministic replays, and bot choices. Chrome verification covered private local drafts, manual rolling and reroll prevention, Teleport, Fracture, a win after three flag replies, rematch, solo drafting, and resizing to 850 × 550. The Windows release started successfully with its Compatibility renderer. Human match pacing remains open.
+The rules suite covers gameplay transitions, rolled powers, deterministic replays, and bot choices. Chrome verification covered private local drafts, ability draws and repeat-draw prevention, Teleport, Fracture, a win after three flag replies, rematch, solo drafting, and resizing to 850 × 550. The Windows release started successfully with its Compatibility renderer. Human match pacing remains open.
 
 See [Asset credits](ASSET_CREDITS.md) for every imported asset, its creator, source, and license.
+
+The custom ability cards use existing MIT-licensed [Pixelarticons 1.8.1](https://github.com/halfmage/pixelarticons/tree/v1.8.1) artwork by Gerrit Halfmann: a green bug for Infected Trail, a purple eye for Spy, an orange target for Long Capture, and a shared shield back. Nearest-neighbor filtering keeps the icons crisp. Card frames, names, and short descriptions are drawn in Godot. No AI-generated artwork is used for cards. The internal `roll` replay action is retained for compatibility with existing matches.
+
+Card shuffle regression checks: `godot --headless --path . --script tests/card_shuffle_test.gd`. Covers reveal timing, duplicate-click prevention, deterministic outcomes, reduced motion, match cancellation, the solo opponent, clicking the persistent card to highlight targets, and disabling used cards.

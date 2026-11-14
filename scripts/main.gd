@@ -6,6 +6,7 @@ const Drift = preload("res://scripts/drift.gd")
 const DriftBot = preload("res://scripts/drift_bot.gd")
 const Arena = preload("res://scripts/board.gd")
 const Cockpit = preload("res://scripts/cockpit.gd")
+const AbilityCards = preload("res://scripts/ability_cards.gd")
 const ExpeditionState = preload("res://scripts/expedition.gd")
 const SANS = preload("res://art/SpaceGrotesk.ttf")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
@@ -39,7 +40,7 @@ const RULES_TEXT = """[color=#f8d587]WIN THE DUEL[/color]
 Hold the center beacon through three enemy turns with the same unit, or remove every enemy unit. The match draws after round 8 if neither side wins.
 
 [color=#f8d587]TAKE YOUR TURN[/color]
-Roll first. Then choose one path: Move → Use power; Move → Finish turn; or Use power → Finish turn. A drafted ability counts as your move. Finish / skip turn is available at any time.
+Shuffle first. Then choose one path: Move → Use power; Move → Finish turn; or Use power → Finish turn. A drafted ability counts as your move. Finish / skip turn is available at any time.
 
 Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the beacon from an adjacent square or by making a capture.
 
@@ -51,8 +52,8 @@ Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any
 
 Borrow Tomorrow moves its assigned unit one orthogonal step, then moves another ally one orthogonal step. The first unit cannot enter or leave the beacon. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
 
-[color=#f8d587]ROLL FOR AN ABILITY[/color]
-Roll once per round before moving or using a drafted ability. After rolling, the die panel shows your special power. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
+[color=#f8d587]SHUFFLE FOR AN ABILITY[/color]
+Shuffle once per round before moving or using a drafted ability. The cards shuffle, then flip to reveal your special power. Each of the three powers has an equal chance. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
 
 Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
 
@@ -107,6 +108,8 @@ var overlay_kind := ""
 var first_flag_round := 0
 var started_at := 0
 var finished_at := 0
+var card_reveal: Control
+var shuffling := false
 var bold: FontVariation
 
 
@@ -168,6 +171,9 @@ func _build_frame() -> void:
 	feedback.position.y = 808
 	feedback.size.y = 19
 	_button(self, Rect2(1146, 811, 128, 31), "Asset credits", _show_credits)
+	card_reveal = AbilityCards.new()
+	_place(chrome, card_reveal, Rect2(178, 328, 500, 344))
+	card_reveal.hide()
 	overlay = _layer(self)
 
 
@@ -282,6 +288,8 @@ func _show_story() -> void:
 
 func _start(local: bool, rematch: bool = false) -> void:
 	generation += 1
+	shuffling = false
+	card_reveal.hide()
 	busy = false
 	local_mode = local
 	takeover_queued = false
@@ -356,8 +364,22 @@ func _schedule_action(action: Dictionary, delay: float) -> void:
 func _commit(action: Dictionary) -> void:
 	if busy or action.is_empty():
 		return
+	var stamp := generation
+	if action.kind == "roll":
+		busy = true
+		shuffling = motion
+		if motion:
+			card_reveal.start_shuffle()
+		_refresh()
+		if motion:
+			await get_tree().create_timer(AbilityCards.SHUFFLE_TIME + AbilityCards.FLIP_TIME / 2).timeout
+			if stamp != generation:
+				return
 	var result := Rules.apply_action(state, action)
 	if not result.ok:
+		busy = false
+		shuffling = false
+		card_reveal.hide()
 		_note("That action is no longer available.")
 		_refresh()
 		return
@@ -384,11 +406,21 @@ func _commit(action: Dictionary) -> void:
 		if first_flag_round == 0 and event.kind == "flag" and event.get("pawn", -1) >= 0:
 			first_flag_round = played_round
 		if event.kind not in ["turn", "draft_lock", "drift_move"]:
-			messages.push_front(event.text.replace("Pawns", "Units").replace("pawns", "units").replace("Pawn", "Unit").replace("pawn", "unit").replace("flag", "beacon"))
+			var event_text: String = "%s drew %s." % [SIDES[event.side], SPELLS[event.special][0]] if event.kind == "roll" else event.text
+			messages.push_front(event_text.replace("Pawns", "Units").replace("pawns", "units").replace("Pawn", "Unit").replace("pawn", "unit").replace("flag", "beacon"))
 			if messages.size() > 12:
 				messages.pop_back()
 	legal = Rules.legal_actions(state)
 	if rolled:
+		shuffling = false
+		card_reveal.reveal(state.dice[state.active])
+		_refresh()
+		if card_reveal.visible:
+			await get_tree().create_timer(AbilityCards.FLIP_TIME / 2 + AbilityCards.REVEAL_HOLD).timeout
+			if stamp != generation:
+				return
+		card_reveal.hide()
+		busy = false
 		if not local_mode and state.active == 0:
 			_schedule_action({}, 0.24 if motion else 0.10)
 		else:
@@ -399,7 +431,6 @@ func _commit(action: Dictionary) -> void:
 		return
 	busy = true
 	_refresh()
-	var stamp := generation
 	var turn_delay := 0.65 if motion else 0.10
 	if motion and shifting:
 		turn_delay = Arena.DRIFT_DELAY + Arena.DRIFT_DURATION + 0.15
@@ -524,24 +555,30 @@ func _draw_play() -> void:
 	_team_card(846, 148, 0)
 	_team_card(1067, 148, 1)
 	_panel(side_panel, Rect2(846, 238, 430, 108))
-	_label(side_panel, Rect2(864, 249, 180, 22), "ABILITY DIE", 12, MUTED, MONO)
 	var face: String = state.dice[state.active]
-	var special_name: String = SPELLS[face][0] if not face.is_empty() else "Ready to roll"
-	_label(side_panel, Rect2(864, 273, 209, 32), special_name, 23, LILAC, bold)
-	var roll := _button(side_panel, Rect2(1073, 268, 185, 36), "Roll ability" if face.is_empty() else "Roll: %d" % state.rolls[state.active], _roll_ability, face.is_empty())
-	roll.disabled = busy or state.phase != "playing" or not face.is_empty() or (not local_mode and state.active == 0)
+	var deck := AbilityCards.new()
+	deck.compact = true
+	deck.face = face
+	deck.shuffling = shuffling
+	_place(side_panel, deck, Rect2(851, 242, 80, 69))
+	_label(side_panel, Rect2(936, 246, 175, 20), "ABILITY DECK", 12, MUTED, MONO)
+	var special_name: String = SPELLS[face][0] if not face.is_empty() else ("Shuffling…" if shuffling else "Ready to shuffle")
+	_label(side_panel, Rect2(936, 271, 190, 29), special_name, 18, AbilityCards.POWERS[face].color if face in AbilityCards.POWERS else LILAC, MONO)
+	var shuffle := _button(side_panel, Rect2(1130, 258, 128, 38), "Card drawn" if not face.is_empty() else ("Shuffling…" if shuffling else "Shuffle"), _shuffle_ability, face.is_empty())
+	shuffle.tooltip_text = SPELLS[face][1] if not face.is_empty() else "Shuffle once to draw your ability card."
+	shuffle.disabled = busy or state.phase != "playing" or not face.is_empty() or (not local_mode and state.active == 0)
 	var drops := "Purple cracks fall after this turn." if not state.fractures.is_empty() else "Rim cracks fall after both turns."
 	if state.fractures.is_empty() and state.cracks.is_empty():
-		drops = "Roll before moving. Skip turn is always available."
+		drops = "Shuffle before moving. Skip turn is always available." if face.is_empty() else "Card ready. Move, use power, or finish your turn."
 	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() or not state.fractures.is_empty() else MUTED)
 	_panel(side_panel, Rect2(846, 359, 430, 225))
 	_label(side_panel, Rect2(864, 369, 396, 25), "TURN CHOICES", 12, MUTED, MONO)
-	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 15, INK, SANS, true)
+	_label(side_panel, Rect2(864, 396, 218, 80), _action_hint(), 14, INK, SANS, true)
 	if selected >= 0 and selected in state.pawns:
 		var p: Dictionary = state.pawns[selected]
-		_action_button(Rect2(864, 462, 189, 38), "Move / capture", "standard")
+		_action_button(Rect2(864, 480, 189, 38), "Move / capture", "standard")
 		if p.ability != "":
-			_action_button(Rect2(864, 507, 189, 36), SPELLS[p.ability][0], "ability")
+			_action_button(Rect2(864, 524, 189, 36), SPELLS[p.ability][0], "ability")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
@@ -552,14 +589,53 @@ func _draw_play() -> void:
 		elif details.is_empty() and action_group == "power" and not face.is_empty():
 			details = SPELLS[face][1]
 		if not details.is_empty():
-			_label(side_panel, Rect2(864, 546, 394, 35), details, 13, MUTED, SANS, true)
+			var detail_label := _label(side_panel, Rect2(864, 562, 218, 20), details, 12, MUTED)
+			detail_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			detail_label.tooltip_text = details
+			detail_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	else:
-		_label(side_panel, Rect2(864, 510, 394, 70), "For a move, select a unit first. For power, click Use power, then choose a highlighted target.", 15, MUTED, SANS, true)
+		_label(side_panel, Rect2(864, 510, 188, 70), "Select a unit to move. Click your card for power targets.", 15, MUTED, SANS, true)
 	if not face.is_empty():
-		_action_button(Rect2(1062, 462, 196, 38), "Use power", "power")
+		_draw_power_card(face)
 	_draw_flight_log()
 	var skip := _button(side_panel, Rect2(846, 744, 430, 42), "Finish / skip turn", _skip_turn)
+	skip.name = "FinishTurnButton"
 	skip.disabled = busy or state.phase != "playing" or (not local_mode and state.active == 0)
+
+
+func _draw_power_card(face: String) -> void:
+	var available := not _group_actions("power").is_empty()
+	var card := _button(side_panel, Rect2(1100, 386, 156, 194), "Use power", _select_power_card)
+	card.name = "PowerCardButton"
+	card.disabled = busy or not available or state.phase != "playing" or (not local_mode and state.active == 0)
+	card.tooltip_text = SPELLS[face][0] + " · " + SPELLS[face][1]
+	var tone: Color = AbilityCards.POWERS[face].color
+	for appearance in ["normal", "disabled", "pressed", "hover"]:
+		var highlighted: bool = appearance == "hover" or appearance == "pressed" or (action_group == "power" and appearance == "normal")
+		var fill := Color(tone, 0.08) if highlighted else Color.TRANSPARENT
+		card.add_theme_stylebox_override(appearance, _style(fill, tone if highlighted else Color.TRANSPARENT, 0))
+	for appearance in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_disabled_color", "font_focus_color"]:
+		card.add_theme_color_override(appearance, Color.TRANSPARENT)
+	card.add_theme_stylebox_override("focus", _style(Color.TRANSPARENT, SOUTH, 0))
+	var view := AbilityCards.new()
+	view.docked = true
+	view.face = face
+	view.action_label = "Choose target" if action_group == "power" else "Use power"
+	if state.turn_power_used:
+		view.action_label = "Power used"
+	elif busy:
+		view.action_label = "Revealing…" if card_reveal.visible else "Please wait…"
+	elif not local_mode and state.active == 0:
+		view.action_label = "Opponent's card"
+	elif not available:
+		view.action_label = "No legal targets"
+	_place(card, view, Rect2(Vector2.ZERO, card.size))
+
+
+func _select_power_card() -> void:
+	if busy or state.phase != "playing" or _group_actions("power").is_empty() or (not local_mode and state.active == 0):
+		return
+	_set_group("power")
 
 
 func _draw_drift_play() -> void:
@@ -604,20 +680,10 @@ func _team_card(x: float, y: float, side: int) -> void:
 	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), summary, 13, MUTED, MONO)
 
 
-func _roll_ability() -> void:
+func _shuffle_ability() -> void:
 	if busy or {"kind": "roll"} not in legal or (not local_mode and state.active == 0):
 		return
 	board.grab_focus()
-	if motion:
-		busy = true
-		var stamp := generation
-		_refresh()
-		_note("Rolling the ability die…")
-		await get_tree().create_timer(0.28).timeout
-		if stamp != generation:
-			return
-		busy = false
-		feedback.text = ""
 	_commit({"kind": "roll"})
 
 
@@ -633,13 +699,17 @@ func _action_hint() -> String:
 	if busy:
 		if drift_circuit and board.shift_tween:
 			return "Rows 4 and 6 are shifting."
+		if shuffling:
+			return "Shuffling the ability cards…"
+		if card_reveal.visible:
+			return "Your ability card is ready."
 		if not local_mode and state.active == 0:
 			return "Aliens are taking their turn."
 		return "Resolving the turn."
 	if drift_circuit:
 		return "Select a highlighted move or capture." if selected >= 0 else "Select one of your units to see its legal moves."
 	if state.dice[state.active].is_empty():
-		return "Step 1: Roll the die. Or finish / skip to pass without acting."
+		return "Step 1: Shuffle the ability cards. Or finish / skip to pass without acting."
 	if state.turn_power_used:
 		return "Move + power complete. Finish your turn." if state.turn_move else "Power-only path complete. Finish your turn."
 	if action_group == "power":
@@ -859,7 +929,7 @@ func _show_rules() -> void:
 
 func _show_credits() -> void:
 	var box := _modal("credits", "Asset credits", 495)
-	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]COCKPIT AND SYSTEM[/color]\n[url=https://kenney.nl/assets/space-kit]Space Kit · Kenney · CC0[/url]\n[url=https://opengameart.org/content/spaceship-interior-0]Spaceship Interior · cheerful sprite · CC0[/url]\n[url=https://screamingbrainstudios.itch.io/tiny-planet-pack]Tiny Planet Pack · Screaming Brain Studios · CC0[/url]\n\n[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped and tinted.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
+	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]COCKPIT AND SYSTEM[/color]\n[url=https://kenney.nl/assets/space-kit]Space Kit · Kenney · CC0[/url]\n[url=https://github.com/halfmage/pixelarticons/tree/v1.8.1]Pixelarticons · Gerrit Halfmann · MIT[/url]\n[url=https://opengameart.org/content/spaceship-interior-0]Spaceship Interior · cheerful sprite · CC0[/url]\n[url=https://screamingbrainstudios.itch.io/tiny-planet-pack]Tiny Planet Pack · Screaming Brain Studios · CC0[/url]\n\n[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped and tinted.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
 	_button(box, Rect2(31, 427, 620, 41), "Back", _close_overlay)
 
 
