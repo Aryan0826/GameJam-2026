@@ -32,6 +32,15 @@ func _press(node: Node, text: String) -> bool:
 	return false
 
 
+func _has_label(node: Node, text: String) -> bool:
+	if node is Label and node.text == text:
+		return true
+	for child in node.get_children():
+		if _has_label(child, text):
+			return true
+	return false
+
+
 func _await_scene(path: String, timeout_ms: int = 9000) -> bool:
 	var deadline := Time.get_ticks_msec() + timeout_ms
 	while Time.get_ticks_msec() < deadline:
@@ -59,15 +68,21 @@ func _check_rules() -> void:
 	state.pawns[0].pos = Vector2i(1, 3)
 	state.pawns[1].pos = Vector2i(9, 4)
 	state.pawns[5].pos = Vector2i(8, 7)
-	state.drift.scores = [4, 2]
+	state.drift.scores = [5, 2]
 	var first := {"kind": "step", "pawn": 0, "to": Vector2i(1, 4)}
 	var reply := {"kind": "step", "pawn": 5, "to": Vector2i(9, 6)}
 	state = Rules.apply_action(state, first).state
-	_check(state.active == 1 and state.drift.scores == [4, 2], "The opening move does not trigger the shift.")
+	_check(state.active == 1 and state.drift.scores == [5, 2], "The opening move does not trigger the shift.")
 	state = Rules.apply_action(state, reply).state
 	_check(state.pawns[1].pos == Vector2i(1, 4) and state.pawns[5].pos == Vector2i(8, 6), "Pieces on the drift lanes move in opposite directions and wrap.")
-	_check(state.phase == "finished" and state.winner == 0 and state.drift.scores == [5, 3], "The second move shifts both lanes and scores each claimed relay once.")
+	_check(state.phase == "finished" and state.winner == 0 and state.drift.scores == [6, 3], "Relay points and remaining units combine to meet the winning total.")
 	_check(state.drift.relays == [Vector2i(6, 4), Vector2i(5, 5), Vector2i(3, 6)], "Claimed relays jump across their own rows. The unclaimed relay stays put.")
+
+	state = _safe_drift_round([4, 6])
+	_check(state.phase == "finished" and state.winner == 0 and state.drift.scores == [4, 6],
+		"A side reaches 8 with remaining units and wins while behind on relay points.")
+	state = _safe_drift_round([4, 7])
+	_check(state.phase == "finished" and state.winner == -1, "Both sides reaching 8 on the same shift draws.")
 
 	state = Rules.create_drift_match(32, 0, Drift.CENTER, 0)
 	state.pawns[0].pos = Vector2i(1, 3)
@@ -139,6 +154,10 @@ func _check_travel() -> void:
 	_check(duel.drift_circuit and duel.expedition.current_system_data().planet_name == "CINDER", "Cinder descent opens Drift Circuit with Cinder as the destination.")
 	_check(_press(duel, "Local duel"), "Cinder offers local play.")
 	_check(duel.state.has("drift") and duel.board.relay_nodes.size() == 3, "The local match has the relay board.")
+	_check(_has_label(duel.side_panel, "0 PTS  /  5 UNITS") and _has_label(duel.side_panel, "Points + units = 8 to win."),
+		"Drift Circuit shows separate points and unit counts with the concise win condition.")
+	_check(not _has_label(duel.side_panel, "RELAY LAYOUT") and not _has_label(duel.side_panel, "5 / 8 TOTAL"),
+		"Drift Circuit hides the relay-layout panel and combined progress count.")
 	await _check_lift_and_shift(duel)
 	duel._start(true)
 	duel._commit(duel.legal[0])
@@ -161,6 +180,21 @@ func _check_travel() -> void:
 	while not duel.records.any(func(action): return action.get("pawn", 5) < 5) and Time.get_ticks_msec() < deadline:
 		await process_frame
 	_check(duel.records.any(func(action): return action.get("pawn", 5) < 5), "The live solo scene completes an Alien move.")
+
+
+func _safe_drift_round(scores: Array) -> Dictionary:
+	var state := Rules.create_drift_match(32, 0, Drift.CENTER, 0)
+	for id in state.pawns.keys():
+		if id not in [0, 1, 2, 3, 5]:
+			state.pawns.erase(id)
+	state.pawns[0].pos = Vector2i(1, 2)
+	state.pawns[1].pos = Vector2i(3, 2)
+	state.pawns[2].pos = Vector2i(5, 2)
+	state.pawns[3].pos = Vector2i(7, 2)
+	state.pawns[5].pos = Vector2i(9, 8)
+	state.drift.scores = scores.duplicate()
+	state = Rules.apply_action(state, {"kind": "step", "pawn": 0, "to": Vector2i(1, 3)}).state
+	return Rules.apply_action(state, {"kind": "step", "pawn": 5, "to": Vector2i(9, 7)}).state
 
 
 func _check_lift_and_shift(duel: Control) -> void:
