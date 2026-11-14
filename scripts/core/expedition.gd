@@ -29,6 +29,9 @@ var current_system: int = 0
 var battle_outcomes: Dictionary = {}
 var approach_system := -1
 var departure_system := -1
+var encounters_seen: Dictionary = {}
+var planet_standings: Dictionary = {}
+var descent_arrival := false
 
 
 func enter_system(index: int) -> void:
@@ -77,6 +80,25 @@ func take_approach() -> int:
 
 func record_battle(winner: int) -> void:
 	battle_outcomes[current_system] = winner
+	# Friendly rematches cannot revoke an earned alliance. A draw changes nothing.
+	if winner == 1:
+		planet_standings[current_system] = "allied"
+	elif winner == 0 and standing(current_system) != "allied":
+		planet_standings[current_system] = "unproven"
+
+
+func standing(index: int) -> String:
+	return str(planet_standings.get(index, "unknown"))
+
+
+func all_allied() -> bool:
+	return standing(0) == "allied" and standing(CINDER) == "allied"
+
+
+func take_descent_arrival() -> bool:
+	var arriving := descent_arrival
+	descent_arrival = false
+	return arriving
 
 
 func reset_journey() -> void:
@@ -84,3 +106,6 @@ func reset_journey() -> void:
 	approach_system = -1
 	battle_outcomes.clear()
 	departure_system = -1
+	encounters_seen.clear()
+	planet_standings.clear()
+	descent_arrival = false
