@@ -1,11 +1,10 @@
 extends RefCounted
 ## Board geometry for Drift Circuit. Relays move after a claim.
 
-const POINTS_TO_WIN := 5
+const TOTAL_TO_WIN := 8
 const ROUND_LIMIT := 12
 const CENTER := 0
 const SPLIT := 1
-const LAYOUT_NAMES := ["Center relay", "Split relays"]
 
 
 static func relays(layout: int, mirrored: bool) -> Array[Vector2i]:

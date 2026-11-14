@@ -12,7 +12,7 @@ Use **Leave orbit** from either duel, or **Q** from the communication screen, to
 
 During both games the cockpit shows animated reactor-output and thermal-load graphs plus ship-reserve gauges. These are procedural Godot graphics in `scripts/cockpit.gd`, with IBM Plex Mono labels; no graph image assets are imported. Their credits are listed under **Asset credits**.
 
-In Drift Circuit, the tiles on row 4 lift and slide right and those on row 6 slide left after both sides act. Pieces ride with them and wrap around the edges. Each occupied gold relay scores one point after the shift, then jumps to another column on its own row (4, 5, or 6). Reach five points with a lead to win, with a draw after round 12 if neither side wins.
+In Drift Circuit, the tiles on row 4 lift and slide right and those on row 6 slide left after both sides act. Pieces ride with them and wrap around the edges. Each occupied gold relay scores one point after the shift, then jumps to another column on its own row (4, 5, or 6). Add remaining units to relay points: the first side to reach 8 wins. If both sides reach 8 on the same shift, the match draws; a draw also occurs after round 12 if neither side wins.
 
 Open `project.godot` in Godot 4.7.2 Standard and press **F5**. The opening crawl leads into the solar-system flight and then the Horizon cockpit. After the communication, press **Enter** to face the Aliens or choose **Local duel** for two people on one device. **Replay prologue** returns to the opening crawl.
 
@@ -22,9 +22,11 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 
 ## Controls
 
+- Adjust **Music** and **Effects** separately on the title screen. Press **M** at any time to mute or unmute the mix. **FX** in the cockpit controls visual motion.
+
 - During solar-system flight, hold **W / Up** to accelerate; the ship coasts on release. Exhaust runs while accelerating and during automatic orbit entry. Hold **Shift / Space** while accelerating to boost, **A / D** or **Left / Right** to steer, and **S / Down** to brake. Descent begins after **2 seconds** in stable orbit.
 - The rocket begins in open space with a wide camera view. The planets orbit the sun in this order: Ember, Kalypso (home), Cinder, and Aurelia. Their separate orbits and colored gravity boundaries appear on the minimap. The gravity indicator identifies the local planetary well.
-- After the Kalypso battle, choose **Travel to Cinder** or **Withdraw to Cinder** to return to flight near the red planet. **Rematch** stays at the current planet. **Replay prologue** restarts the journey.
+- After the Kalypso battle, choose **Return to flight** to resume flying near Kalypso. Choose a destination from the flight HUD. **Rematch** stays at the current planet. **Replay prologue** restarts the journey.
 - Click a pawn, choose an action in the right panel if needed, and click a highlighted target. The arrow keys move the board cursor, Enter selects, and Esc clears the selection.
 - Click and drag on the board to rotate the camera horizontally and tilt it vertically. Release without dragging to select a pawn or target.
 - **Shuffle** before moving or using a drafted ability; draw once per round. Pixel cards shuffle and flip to reveal your ability, which stays visible as a clickable card above **Finish / skip turn**. Click the card to choose a power target; the large reveal stays on screen for 3.6 seconds. **FX off** reveals it immediately. Choose a path: **Move → Use power** (both), **Move → Finish / skip turn** (move only), or **Use power → Finish / skip turn** (power only). To move, select a unit, click **Move / capture**, then a highlighted destination. To use power, click **Use power** and a highlighted target: your unit for Infected Trail, an enemy for Spy or Long Capture. The drawn card names the power.

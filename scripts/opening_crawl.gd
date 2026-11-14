@@ -49,6 +49,7 @@ signal crawl_finished
 @export var music_stream: AudioStream
 
 # Node references
+@onready var soundtrack: Node = get_node("/root/Soundtrack")
 @onready var intro_label: Label = $IntroContainer/IntroLabel
 @onready var intro_container: Control = $IntroContainer
 @onready var crawl_viewport_container: SubViewportContainer = $CrawlViewportContainer
@@ -90,8 +91,12 @@ func _ready() -> void:
 
 	# Play audio if provided
 	if music_stream and music_player:
+		soundtrack.stop_music()
 		music_player.stream = music_stream
+		music_player.bus = &"Music"
 		music_player.play()
+	else:
+		soundtrack.music("flight")
 
 	if intro_duration > 0.0:
 		_start_intro_sequence()

@@ -66,6 +66,7 @@ enum ShipState {
 @export var ship_brake_power: float = 320.0 # retro-thrusters
 
 # Node references
+@onready var soundtrack: Node = get_node("/root/Soundtrack")
 @onready var expedition: ExpeditionState = get_node("/root/Expedition")
 @onready var sun_node: Node2D = $World/Sun
 @onready var sun_sprite: Sprite2D = $World/Sun/SunSprite
@@ -116,9 +117,13 @@ var _star_name: String = "SOLAR CORE"
 var _star_color: Color = Color(1.0, 0.85, 0.2)
 var _course_target: Node2D
 var _orbit_target: Node2D
+var _engine_sound: AudioStreamPlayer
 
 
 func _ready() -> void:
+	soundtrack.music("flight")
+	_engine_sound = soundtrack.flight_engine(self)
+	orbit_entered.connect(soundtrack.cue.bind("confirm"))
 	expedition.enter_system(system_index)
 	var system_data: Dictionary = expedition.current_system_data()
 	_planet_name = system_data.planet_name
@@ -209,6 +214,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_update_thrusters(delta)
+	_update_engine_audio(delta)
 	_sun_anim_time = fposmod(_sun_anim_time + delta, sun_rotation_duration)
 	_planet_anim_time = fposmod(_planet_anim_time + delta, planet_rotation_duration)
 	_update_body_rotation(sun_sprite, _sun_anim_time / sun_rotation_duration)
@@ -234,6 +240,24 @@ func _process(delta: float) -> void:
 		minimap.queue_redraw()
 
 	_update_hud(delta)
+
+
+func _update_engine_audio(delta: float) -> void:
+	var thrusting := _state == ShipState.FREE_FLIGHT and _is_accelerating()
+	var boosting := thrusting and (Input.is_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_SPACE))
+	var level := -60.0
+	var pitch := 0.85
+	if _state == ShipState.PULLING_TO_ORBIT:
+		level = -21.0
+	elif thrusting:
+		level = lerpf(-25.0, -12.0 if boosting else -17.0, _throttle)
+		pitch = 1.22 if boosting else lerpf(0.87, 1.04, _throttle)
+	if level > -60.0 and not _engine_sound.playing:
+		_engine_sound.play()
+	_engine_sound.volume_db = move_toward(_engine_sound.volume_db, level, 90.0 * delta)
+	_engine_sound.pitch_scale = move_toward(_engine_sound.pitch_scale, pitch, 1.6 * delta)
+	if _engine_sound.playing and _engine_sound.volume_db <= -59.5 and level == -60.0:
+		_engine_sound.stop()
 
 
 func _update_body_rotation(sprite: Sprite2D, progress: float) -> void:
@@ -563,6 +587,7 @@ func _break_orbit() -> void:
 func _set_course(index: int) -> void:
 	if _state == ShipState.TRANSITIONING:
 		return
+	soundtrack.cue("select")
 	if system_index == 0:
 		var body: Node2D = cinder if index == ExpeditionState.CINDER else planet_node
 		if _state != ShipState.FREE_FLIGHT and _orbit_target != body:
@@ -583,6 +608,7 @@ func _trigger_game_transition() -> void:
 	if _state == ShipState.TRANSITIONING:
 		return
 	_state = ShipState.TRANSITIONING
+	soundtrack.cue("descent")
 	var destination := ExpeditionState.CINDER if _orbit_target == cinder else system_index
 	var duel_scene := "res://scenes/drift_circuit.tscn" if _orbit_target == cinder else next_scene_path
 	destinations.hide()
