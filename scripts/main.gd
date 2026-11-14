@@ -51,6 +51,7 @@ Move one tile orthogonally or one or two diagonally to an empty square. A two-ti
 Click a unit, then a highlighted destination. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. Rematches swap the opening side and alternate the Center and Split relay layouts."""
 
 @export var drift_circuit := false
+@onready var soundtrack: Node = get_node("/root/Soundtrack")
 @onready var expedition: ExpeditionState = get_node("/root/Expedition")
 
 var state: Dictionary = {}
@@ -106,6 +107,7 @@ var _leaving_orbit := false
 
 
 func _ready() -> void:
+	soundtrack.music("arena")
 	if not drift_circuit:
 		expedition.enter_system(0)
 	elif expedition.current_system == 0:
@@ -241,6 +243,7 @@ func _button(parent: Node, rect: Rect2, title: String, callback: Callable, accen
 	button.add_theme_color_override("font_hover_color", INK)
 	button.add_theme_color_override("font_disabled_color", Color("#78869f"))
 	_place(parent, button, rect)
+	button.pressed.connect(soundtrack.cue.bind("click"))
 	button.pressed.connect(callback)
 	return button
 
@@ -303,6 +306,7 @@ func _show_home() -> void:
 			var message: String = _terminal_messages[i].text
 			_communication_tween.tween_callback(_begin_terminal_message.bind(i))
 			_communication_tween.tween_property(self, "_terminal_characters", float(message.length()), clampf(message.length() / 50.0, 0.75, 3.2)).from(0.0)
+			_communication_tween.tween_callback(_stop_typing_audio)
 			_communication_tween.tween_interval(0.25)
 		_communication_tween.tween_callback(_finish_communication)
 	_render_terminal()
@@ -329,6 +333,7 @@ func _terminal_action(rect: Rect2, title: String, callback: Callable) -> Button:
 func _begin_terminal_message(index: int) -> void:
 	_terminal_active_line = index
 	_terminal_characters = 0.0
+	soundtrack.cue("transmission")
 
 
 func _process(delta: float) -> void:
@@ -356,10 +361,20 @@ func _render_terminal() -> void:
 
 
 func _stop_communication() -> void:
+	_stop_typing_audio()
 	if _communication_tween != null:
 		_communication_tween.kill()
 		_communication_tween = null
 	_communication_ready = false
+
+
+func _stop_typing_audio() -> void:
+	soundtrack.stop_cue("transmission")
+
+
+func _exit_tree() -> void:
+	_stop_typing_audio()
+	soundtrack.stop_cue("shuffle")
 
 
 func _finish_communication() -> void:
@@ -377,6 +392,7 @@ func _finish_communication() -> void:
 func _accept_challenge(local: bool = false) -> void:
 	if overlay_kind != "home" or not _communication_ready or busy:
 		return
+	soundtrack.cue("confirm")
 	_start(local)
 
 
@@ -415,6 +431,7 @@ func _show_story() -> void:
 
 func _start(local: bool, rematch: bool = false) -> void:
 	generation += 1
+	soundtrack.stop_cue("shuffle")
 	shuffling = false
 	card_reveal.hide()
 	busy = false
@@ -497,12 +514,14 @@ func _commit(action: Dictionary) -> void:
 		busy = true
 		shuffling = motion
 		if motion:
+			soundtrack.cue("shuffle")
 			card_reveal.start_shuffle()
 		_refresh()
 		if motion:
 			await get_tree().create_timer(AbilityCards.SHUFFLE_TIME + AbilityCards.FLIP_TIME / 2).timeout
 			if stamp != generation:
 				return
+			soundtrack.stop_cue("shuffle")
 	var result := Rules.apply_action(state, action)
 	if not result.ok:
 		busy = false
@@ -528,6 +547,7 @@ func _commit(action: Dictionary) -> void:
 	elif state.phase == "finished":
 		finished_at = Time.get_ticks_msec()
 	board.show_events(result.events)
+	_play_action_audio(result.events)
 	for event: Dictionary in result.events:
 		if event.kind == "collapse":
 			cockpit.alert = 0.7
@@ -541,6 +561,7 @@ func _commit(action: Dictionary) -> void:
 	legal = Rules.legal_actions(state)
 	if rolled:
 		shuffling = false
+		soundtrack.cue("card_reveal")
 		card_reveal.reveal(state.dice[state.active])
 		_refresh()
 		if card_reveal.visible:
@@ -567,6 +588,54 @@ func _commit(action: Dictionary) -> void:
 		return
 	busy = false
 	_enter_turn()
+
+
+func _play_action_audio(events: Array) -> void:
+	var cues := {}
+	for event: Dictionary in events:
+		match event.kind:
+			"step", "returned":
+				cues["move"] = 0.26 if motion else 0.0
+			"capture":
+				cues["capture"] = 0.20 if motion else 0.0
+			"shield_break":
+				cues["shield"] = 0.0
+			"warning", "draft_reveal":
+				cues["confirm"] = 0.0
+			"collapse", "return_failed":
+				cues["collapse"] = 0.0
+			"spy":
+				cues["spy"] = 0.0
+			"infection":
+				cues["infection"] = 0.0
+			"ability":
+				if event.ability in ["teleport", "shield"]:
+					cues[event.ability] = 0.0
+				elif event.ability in ["fracture", "borrow_tomorrow"]:
+					cues["confirm"] = 0.0
+			"flag":
+				if event.pawn >= 0:
+					cues["relay"] = 0.25 if motion else 0.0
+			"drift_score":
+				cues["lane_shift"] = Arena.DRIFT_DELAY if motion else 0.0
+			"relay_relocated":
+				cues["relay"] = Arena.DRIFT_DELAY + Arena.DRIFT_DURATION if motion else 0.0
+			"result":
+				var result_cue := "confirm" if event.side < 0 else ("victory" if event.side == 1 else "defeat")
+				cues[result_cue] = 0.98 if drift_circuit and motion else 0.0
+	if "teleport" in cues:
+		cues.erase("move")
+	for cue: String in cues:
+		var delay: float = cues[cue]
+		if delay > 0.0:
+			var stamp := generation
+			var tween := create_tween()
+			tween.tween_interval(delay)
+			tween.tween_callback(func():
+				if stamp == generation:
+					soundtrack.cue(cue))
+		else:
+			soundtrack.cue(cue)
 
 
 func _takeover() -> void:
@@ -940,6 +1009,7 @@ func _square_pressed(square: Vector2i) -> void:
 	var id := _pawn_at(square)
 	if state.phase == "draft":
 		if id >= 0 and state.pawns[id].side == state.active:
+			soundtrack.cue("select")
 			selected = id
 			_refresh()
 		return
@@ -947,6 +1017,7 @@ func _square_pressed(square: Vector2i) -> void:
 		if _select_target(action, square, id):
 			return
 	if id >= 0 and state.pawns[id].side == state.active:
+		soundtrack.cue("select")
 		_clear_selection()
 		selected = id
 		if _group_actions("standard").is_empty():
@@ -1093,8 +1164,10 @@ func _show_kalypso_guide(page: int) -> void:
 
 func _show_credits() -> void:
 	var box := _modal("credits", "Asset credits", 495)
-	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]COCKPIT AND SYSTEM[/color]\n[url=https://kenney.nl/assets/space-kit]Space Kit · Kenney · CC0[/url]\n[url=https://opengameart.org/content/spaceship-interior-0]Spaceship Interior · cheerful sprite · CC0[/url]\n[url=https://screamingbrainstudios.itch.io/tiny-planet-pack]Tiny Planet Pack · Screaming Brain Studios · CC0[/url]\n\n[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped and tinted.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
+	var audio_list := _rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]COCKPIT AND SYSTEM[/color]\n[url=https://kenney.nl/assets/space-kit]Space Kit · Kenney · CC0[/url]\n[url=https://opengameart.org/content/spaceship-interior-0]Spaceship Interior · cheerful sprite · CC0[/url]\n[url=https://screamingbrainstudios.itch.io/tiny-planet-pack]Tiny Planet Pack · Screaming Brain Studios · CC0[/url]\n\n[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped and tinted.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
 	_button(box, Rect2(31, 427, 620, 41), "Back", _close_overlay)
+	audio_list.append_text("\n\n[color=#f8d587]AUDIO[/color]\n[url=https://opengameart.org/content/another-space-background-track]Observing the Star · yd · CC0[/url]\n[url=https://opengameart.org/content/background-space-track]My Very Own Dead Ship · yd · CC0[/url]\n[url=https://kenney.nl/assets/sci-fi-sounds]Sci-fi Sounds[/url], [url=https://kenney.nl/assets/interface-sounds]Interface Sounds[/url], [url=https://kenney.nl/assets/casino-audio]Casino Audio[/url] and [url=https://kenney.nl/assets/music-jingles]Music Jingles[/url] · Kenney · CC0.")
+	audio_list.append_text("\n[url=https://opengameart.org/content/bubbling-acid]Bubbling Acid · spookymodem · CC BY 3.0[/url] (trimmed and faded)\nRocket thrust · supplied MP3 · trimmed and looped")
 
 
 func _show_map() -> void:
@@ -1235,7 +1308,7 @@ func _travel_to_next_system() -> void:
 		_note("Could not set course for Cinder.")
 
 
-func _rich(parent: Node, rect: Rect2, value: String, px: int = 18) -> void:
+func _rich(parent: Node, rect: Rect2, value: String, px: int = 18) -> RichTextLabel:
 	var rich := RichTextLabel.new()
 	rich.bbcode_enabled = true
 	rich.text = value
@@ -1244,6 +1317,7 @@ func _rich(parent: Node, rect: Rect2, value: String, px: int = 18) -> void:
 	rich.add_theme_color_override("default_color", INK)
 	rich.meta_clicked.connect(func(url): OS.shell_open(str(url)))
 	_place(parent, rich, rect)
+	return rich
 
 
 func _close_overlay(resume: bool = true) -> void:
