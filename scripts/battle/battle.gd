@@ -155,7 +155,7 @@ var _contact_progress: Label
 var _result_story: Array[Dictionary] = []
 var _result_line := 0
 var _result_recorded_state: Dictionary = {}
-var _result_was_allied := false
+var _result_previous_standing := "unknown"
 var _result_quote: Label
 var _result_speaker: Label
 var _result_portrait: Control
@@ -361,7 +361,7 @@ func _show_home() -> void:
 	_terminal_screen.clip_contents = true
 	_terminal_screen.finished.connect(_place_communication_action)
 	_place(overlay, _terminal_screen, Rect2(400, 155, 792, 225))
-	_terminal_messages = Story.encounter(system, expedition.standing(system), expedition.encounters_seen.has(system))
+	_terminal_messages = Story.encounter(system, expedition.standing(system), expedition.encounters_seen.has(system), expedition.evil_captain)
 	expedition.encounters_seen[system] = true
 	_terminal_active_line = 0
 	_terminal_characters = 0.0
@@ -374,7 +374,12 @@ func _show_home() -> void:
 	_communication_accept.add_theme_stylebox_override("hover", _style(Color("#1d4b36"), Color("#8effb2"), 4))
 	_communication_accept.add_theme_stylebox_override("pressed", _style(Color("#285d44"), Color("#c7ffdc"), 4))
 	_terminal_action(Rect2(790, 506, 402, 32), "[Q] LEAVE ORBIT", _leave_planet_orbit)
-	_label(overlay, Rect2(128, 554, 1064, 18), "HORIZON / PEACEFUL CONTACT / NO LANDING WITHOUT CLEARANCE", 11, Color("#518368"), MONO)
+	var mission := "HORIZON / CONQUEST COMMAND / SURRENDER OR FACE THE FLEET" if expedition.evil_captain else "HORIZON / PEACEFUL CONTACT / NO LANDING WITHOUT CLEARANCE"
+	if expedition.evil_captain and standing == "free":
+		mission = "HORIZON / PEACE PACT / THIS WORLD REMAINS FREE"
+	elif expedition.evil_captain and standing == "captured":
+		mission = "HORIZON / CONQUEST COMMAND / PLANET UNDER OUR CONTROL"
+	_label(overlay, Rect2(128, 554, 1064, 18), mission, 11, Color("#518368"), MONO)
 	_communication_local.disabled = true
 	if _communication_presented:
 		_finish_communication()
@@ -433,7 +438,12 @@ func _render_terminal() -> void:
 	var heading: String = message.speaker
 	if _communication_ready:
 		heading = "DEPARTURE CONFIRMED" if _communication_departing else "CHALLENGE BRIEFING"
-		visible_text = "Return to flight. You can come back whenever your crew is ready." if _communication_departing else Story.terms(expedition.current_system)
+		visible_text = "Return to flight. You can come back whenever your crew is ready." if _communication_departing else Story.terms(expedition.current_system, expedition.evil_captain, expedition.standing(expedition.current_system))
+		if _communication_departing and expedition.evil_captain:
+			match expedition.standing(expedition.current_system):
+				"free": visible_text = "Return to flight. Our pact stands: this world remains free."
+				"captured": visible_text = "Return to flight. This world remains under our command."
+				_: visible_text = "Return to flight. No challenge fought; no planet captured."
 		if not _communication_departing and expedition.standing(expedition.current_system) == "allied":
 			visible_text = "Friendly rematch. Your alliance is secure, whatever the result.\n\n" + ("Reach 8 total: relay points + surviving ships." if drift_circuit else "Hold the flag through 3 enemy turns, or eliminate their fleet.")
 	var transcript := "[font_size=15][color=%s]%s[/color][/font_size]\n\n%s" % [message.color, heading, visible_text]
@@ -477,6 +487,8 @@ func _finish_communication() -> void:
 	_communication_local.disabled = _communication_departing
 	_communication_skip.hide()
 	_communication_prompt.text = "No penalty for declining. The invitation remains open." if _communication_departing else "Your choice, Captain."
+	if _communication_departing and expedition.evil_captain:
+		_communication_prompt.text = "Channel closed. No change to this world's fate."
 	_contact_progress.text = "CHANNEL / STANDBY"
 	_render_terminal()
 
@@ -495,7 +507,7 @@ func _leave_planet_orbit() -> void:
 		_leave_current_orbit()
 		return
 	_communication_departing = true
-	_terminal_messages = Story.departure(expedition.current_system)
+	_terminal_messages = Story.departure(expedition.current_system, expedition.evil_captain, expedition.standing(expedition.current_system))
 	_communication_skip.show()
 	_communication_skip.text = "Skip farewell »"
 	_communication_accept.text = "[ENTER] CONTINUE"
@@ -536,7 +548,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _show_story() -> void:
-	expedition.reset_journey()
+	expedition.reset_journey(expedition.evil_captain)
 	get_tree().change_scene_to_file("res://scenes/opening_crawl.tscn")
 
 
@@ -1450,13 +1462,14 @@ func _show_result() -> void:
 	if state.is_empty() or state.phase != "finished":
 		return
 	if not is_same(state, _result_recorded_state):
-		_result_was_allied = expedition.standing(expedition.current_system) == "allied"
+		_result_previous_standing = expedition.standing(expedition.current_system)
 		_result_recorded_state = state
 		expedition.record_battle(int(state.winner))
-	_show_story_result(_result_was_allied)
+	_show_story_result(_result_previous_standing)
 
 
-func _show_story_result(already_allied: bool) -> void:
+func _show_story_result(previous_standing: String) -> void:
+	var already_allied := previous_standing == "allied"
 	var won: bool = state.winner == 1
 	var lost: bool = state.winner == 0
 	var tone := Color("#8ae0a4") if won else (NORTH if lost else GOLD)
@@ -1467,6 +1480,14 @@ func _show_story_result(already_allied: bool) -> void:
 	var outcome := "ALLIANCE SECURED / " + ("NAVIGATION NETWORK OPEN" if drift_circuit else "LANDING CLEARANCE GRANTED") if won else "UNPROVEN / " + ("NETWORK ACCESS DENIED" if drift_circuit else "LANDING CLEARANCE DENIED") if lost else "INVITATION OPEN / TRY AGAIN ANYTIME"
 	if already_allied:
 		outcome = "FRIENDLY REMATCH / YOUR ALLIANCE STANDS"
+	if expedition.evil_captain:
+		match expedition.standing(expedition.current_system):
+			"captured":
+				outcome = "REMATCH COMPLETE / PLANET REMAINS CAPTURED" if previous_standing == "captured" else "SURRENDER ACCEPTED / PLANET CAPTURED"
+			"free":
+				outcome = "PEACE PACT HONORED / PLANET REMAINS FREE" if previous_standing == "free" else "CONQUEST HALTED / WITHDRAW AND LEAVE IN PEACE"
+			_:
+				outcome = "NO SURRENDER / CHALLENGE UNDECIDED"
 	var description := "The challenge is complete."
 	match state.reason:
 		"flag":
@@ -1485,7 +1506,7 @@ func _show_story_result(already_allied: bool) -> void:
 			description = "Neither side won within 12 rounds."
 	if local_mode and state.winner >= 0 and not drift_circuit:
 		description = "%s held the flag through 3 enemy turns." % SIDES[state.winner] if state.reason == "flag" else "%s eliminated the opposing fleet." % SIDES[state.winner]
-	cockpit.clearance = "land" if expedition.standing(expedition.current_system) == "allied" else ""
+	cockpit.clearance = "land" if expedition.is_secured(expedition.current_system) else ""
 	_clear(overlay)
 	overlay_kind = "result"
 	var dim := ColorRect.new()
@@ -1523,9 +1544,9 @@ func _show_story_result(already_allied: bool) -> void:
 	_result_speaker = _label(box, Rect2(148, 370, 550, 22), "", 12, tone, MONO)
 	_result_quote = _label(box, Rect2(148, 400, 540, 70), "", 19, INK, SANS, true)
 	_result_next = _button(box, Rect2(705, 395, 70, 50), "Next ›", _advance_result_story)
-	_result_story = Story.result(expedition.current_system, int(state.winner), already_allied)
-	if expedition.all_allied() and won:
-		_result_story.append_array(Story.epilogue(expedition.current_system))
+	_result_story = Story.result(expedition.current_system, int(state.winner), previous_standing, expedition.evil_captain)
+	if expedition.all_secured() and won:
+		_result_story.append_array(Story.epilogue(expedition.current_system, expedition.evil_captain))
 	_result_line = 0
 	_render_result_story()
 	_label(box, Rect2(32, 491, 756, 20), "HOW IT ENDED", 11, MUTED, MONO)
@@ -1533,7 +1554,12 @@ func _show_story_result(already_allied: bool) -> void:
 	var round_text := _label(box, Rect2(32, 555, 132, 22), "ROUND %02d" % state.round, 13, GOLD, MONO)
 	round_text.name = "ResultRound"
 	var progress := "2 ALLIANCES / THE EXPEDITION CONTINUES" if expedition.all_allied() else "Trust earned. Fly on, or play again." if won or already_allied else "Withdraw and retry. Your journey continues." if lost else "No standing lost. Your journey continues."
-	_label(box, Rect2(183, 555, 605, 25), progress, 13, tone if expedition.all_allied() else MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	if expedition.evil_captain:
+		match expedition.standing(expedition.current_system):
+			"captured": progress = "2 WORLDS CAPTURED / THE CONQUEST CONTINUES" if expedition.all_secured() else "World captured. The next system awaits."
+			"free": progress = "World remains free. Honor the peace pact."
+			_: progress = "No surrender. The challenge remains open."
+	_label(box, Rect2(183, 555, 605, 25), progress, 13, tone if expedition.all_secured() else MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var flight := _button(box, Rect2(32, 604, 756, 44), "Return to flight", _leave_current_orbit)
 	flight.name = "ReturnToFlightButton"
 	flight.tooltip_text = "Resume flying near " + planet.capitalize() + "."
@@ -1543,7 +1569,7 @@ func _show_story_result(already_allied: bool) -> void:
 	flight.add_theme_stylebox_override("pressed", _style(fill.lightened(0.24), tone, 4))
 	_button(box, Rect2(32, 664, 370, 42), "Rematch", func(): _start(local_mode, true))
 	_button(box, Rect2(418, 664, 370, 42), "View board", func(): _close_overlay(false))
-	_label(box, Rect2(32, 722, 756, 18), "HORIZON / EXPLORATION LOG / " + planet, 11, MUTED, MONO)
+	_label(box, Rect2(32, 722, 756, 18), ("HORIZON / CONQUEST LOG / " if expedition.evil_captain else "HORIZON / EXPLORATION LOG / ") + planet, 11, MUTED, MONO)
 
 
 func _advance_result_story() -> void:

@@ -32,6 +32,7 @@ var departure_system := -1
 var encounters_seen: Dictionary = {}
 var planet_standings: Dictionary = {}
 var descent_arrival := false
+var evil_captain := false
 
 
 func enter_system(index: int) -> void:
@@ -80,6 +81,16 @@ func take_approach() -> int:
 
 func record_battle(winner: int) -> void:
 	battle_outcomes[current_system] = winner
+	if evil_captain:
+		# A decisive challenge settles the planet's fate for this expedition.
+		# Rematches honor both surrender and the promise to leave a free world in peace.
+		if standing(current_system) in ["captured", "free"]:
+			return
+		if winner == 1:
+			planet_standings[current_system] = "captured"
+		elif winner == 0:
+			planet_standings[current_system] = "free"
+		return
 	# Friendly rematches cannot revoke an earned alliance. A draw changes nothing.
 	if winner == 1:
 		planet_standings[current_system] = "allied"
@@ -95,13 +106,31 @@ func all_allied() -> bool:
 	return standing(0) == "allied" and standing(CINDER) == "allied"
 
 
+func is_secured(index: int) -> bool:
+	return standing(index) == ("captured" if evil_captain else "allied")
+
+
+func all_secured() -> bool:
+	return is_secured(0) and is_secured(CINDER)
+
+
+func standing_label(index: int) -> String:
+	match standing(index):
+		"allied": return "Ally"
+		"unproven": return "Unproven"
+		"captured": return "Captured"
+		"free": return "Free"
+	return ""
+
+
 func take_descent_arrival() -> bool:
 	var arriving := descent_arrival
 	descent_arrival = false
 	return arriving
 
 
-func reset_journey() -> void:
+func reset_journey(as_evil_captain: bool = false) -> void:
+	evil_captain = as_evil_captain
 	current_system = 0
 	approach_system = -1
 	battle_outcomes.clear()

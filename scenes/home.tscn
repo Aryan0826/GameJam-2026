@@ -244,5 +244,87 @@ theme_override_font_sizes/font_size = 13
 text = "UP / DOWN TO CHOOSE   /   LEFT / RIGHT TO ADJUST   /   M TO MUTE"
 horizontal_alignment = 1
 
+[node name="CaptainChoice" type="CenterContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="CaptainChoice"]
+custom_minimum_size = Vector2(640, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_exit")
+
+[node name="Margin" type="MarginContainer" parent="CaptainChoice/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 32
+
+[node name="Content" type="VBoxContainer" parent="CaptainChoice/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Eyebrow" type="Label" parent="CaptainChoice/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.514, 0.882, 0.98, 1)
+theme_override_fonts/font = ExtResource("4_mono")
+theme_override_font_sizes/font_size = 14
+text = "HORIZON / CAPTAIN'S ORDERS"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="CaptainChoice/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Choose your captain"
+horizontal_alignment = 1
+
+[node name="Good" type="Button" parent="CaptainChoice/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 62)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+focus_neighbor_top = NodePath("../Back")
+focus_neighbor_bottom = NodePath("../Evil")
+theme_override_styles/normal = SubResource("StyleBox_explore")
+text = "Good · Ally captain"
+
+[node name="GoodStory" type="Label" parent="CaptainChoice/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.667, 0.722, 0.82, 1)
+theme_override_font_sizes/font_size = 18
+text = "Explore new worlds. Earn the aliens' trust and alliance."
+horizontal_alignment = 1
+
+[node name="Evil" type="Button" parent="CaptainChoice/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 62)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+focus_neighbor_top = NodePath("../Good")
+focus_neighbor_bottom = NodePath("../Back")
+text = "Evil · Conqueror captain"
+
+[node name="EvilStory" type="Label" parent="CaptainChoice/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.667, 0.722, 0.82, 1)
+theme_override_font_sizes/font_size = 18
+text = "Demand surrender. Win to capture their worlds.\nLose, and leave them in peace."
+horizontal_alignment = 1
+
+[node name="Back" type="Button" parent="CaptainChoice/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+focus_neighbor_top = NodePath("../Evil")
+focus_neighbor_bottom = NodePath("../Good")
+theme_override_font_sizes/font_size = 18
+text = "Back"
+
 [connection signal="pressed" from="Menu/Content/Actions/Explore" to="." method="_explore"]
 [connection signal="pressed" from="Menu/Content/Actions/Exit" to="." method="_exit"]
+[connection signal="pressed" from="CaptainChoice/Panel/Margin/Content/Good" to="." method="_choose_captain" binds= [false]]
+[connection signal="pressed" from="CaptainChoice/Panel/Margin/Content/Evil" to="." method="_choose_captain" binds= [true]]
+[connection signal="pressed" from="CaptainChoice/Panel/Margin/Content/Back" to="." method="_cancel_choice"]

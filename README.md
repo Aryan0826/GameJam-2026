@@ -9,7 +9,7 @@ Lead the Horizon crew as Captain Valeria, explore a solar system, and answer ali
 
 ## Start the game
 
-Open [project.godot](project.godot) in **Godot 4.7.2 Standard** and press **F5**. Choose **Explore** on the title screen. Press **Enter** or **Esc** to skip the prologue, or hold **Space** to speed it up.
+Open [project.godot](project.godot) in **Godot 4.7.2 Standard** and press **F5**. Choose **Explore** on the title screen, then choose **Good · Ally captain** or **Evil · Conqueror captain**. **Back** or **Esc** returns to the title menu. Press **Enter** or **Esc** to skip the prologue, or hold **Space** to speed it up.
 
 For a quick playtest, open [Fractured Flag](scenes/fractured_flag.tscn) or [Drift Circuit](scenes/drift_circuit.tscn) in Godot and press **F6**.
 
@@ -28,6 +28,10 @@ Captain Valeria and Navigator Sol seek peaceful contact. Kalypso’s envoy Lyra 
 Win to earn the planet’s alliance. Kalypso grants landing clearance; Cinder opens its navigation network. Lose and you are marked **Unproven**, with access denied until a successful retry. Declining or drawing applies no new penalty. Return visits use shorter dialogue, and friendly rematches cannot revoke an alliance. Standings last for the current expedition; **Replay prologue** starts a new one. Winning both planets unlocks the expedition epilogue.
 
 Each result shows a crew or alien lineup under a colored spotlight, a short exchange (**Next** to read more), the round, and how the match ended. **Return to flight** resumes exploration near the same planet. **Rematch** and **View board** remain available.
+
+Choose **Evil** to lead the same crew on a conquest of planets beyond Earth's solar system. The prologue, envoy transmissions, briefings, results, and flight standings follow that choice; the UI, controls, and game rules stay the same. The captain demands that each world kneel or face annihilation. Its envoy proposes a game: win to accept their surrender and mark the planet **Captured**; lose to withdraw and leave it **Free**. A draw or declined challenge leaves its fate undecided. Later rematches honor both surrender and the promise of peace. Capturing both worlds unlocks the conquest epilogue. **Replay prologue** starts a fresh journey with the same captain path.
+
+Check both captain paths with `godot --headless --path . --script tests/captain_path_test.gd`. To capture the actual choice and conquest screens, omit `--headless` and append `-- /absolute/output/folder`.
 
 ## Board controls
 

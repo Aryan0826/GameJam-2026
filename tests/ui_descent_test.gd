@@ -45,7 +45,7 @@ func _run() -> void:
 		var text := _texts(game)
 		_check(text.contains("DRIFT CIRCUIT" if system == 2 else "THE FRACTURED FLAG") and not text.contains("Conqueror"), "The planet uses its README game name")
 		_check(not text.contains("Pilot"), "Crew replaces Pilots throughout the UI")
-		for line in Story.encounter(system, "unknown", false) + Story.result(system, 0, false):
+		for line in Story.encounter(system, "unknown", false) + Story.result(system, 0, "unknown"):
 			_check(not line.text.contains("—") and not line.text.contains("–"), "Story statements contain no dash punctuation")
 		for index in game._terminal_messages.size():
 			game._begin_terminal_message(index)

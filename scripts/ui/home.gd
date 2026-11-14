@@ -10,8 +10,13 @@ const STORY_SCENE := "res://scenes/opening_crawl.tscn"
 @onready var status_label: Label = $Menu/Content/Status
 @onready var music_slider: HSlider = $Menu/Content/Audio/Music
 @onready var effects_slider: HSlider = $Menu/Content/Audio/Effects
+@onready var captain_choice: CenterContainer = $CaptainChoice
+@onready var good_button: Button = $CaptainChoice/Panel/Margin/Content/Good
+@onready var evil_button: Button = $CaptainChoice/Panel/Margin/Content/Evil
+@onready var back_button: Button = $CaptainChoice/Panel/Margin/Content/Back
 
 var _starting := false
+var _choosing := false
 
 
 func _ready() -> void:
@@ -28,22 +33,52 @@ func _connect_volume(slider: HSlider, bus: String) -> void:
 
 
 func _explore() -> void:
-	if _starting:
+	if _starting or _choosing:
 		return
 	soundtrack.music("flight")
 	soundtrack.cue("click")
 	soundtrack.save_volumes()
+	_choosing = true
+	$Menu.hide()
+	$Controls.hide()
+	captain_choice.show()
+	good_button.grab_focus()
+
+
+func _choose_captain(evil: bool) -> void:
+	if _starting or not _choosing:
+		return
+	soundtrack.cue("confirm")
 	_starting = true
-	explore_button.disabled = true
-	exit_button.disabled = true
-	expedition.reset_journey()
+	good_button.disabled = true
+	evil_button.disabled = true
+	back_button.disabled = true
+	expedition.reset_journey(evil)
 	var scene_error := get_tree().change_scene_to_file(STORY_SCENE)
 	if scene_error != OK:
 		_starting = false
-		explore_button.disabled = false
-		exit_button.disabled = false
+		good_button.disabled = false
+		evil_button.disabled = false
+		back_button.disabled = false
+		_cancel_choice()
 		status_label.text = "Unable to start the expedition. Please try again."
-		explore_button.grab_focus()
+
+
+func _cancel_choice() -> void:
+	if _starting or not _choosing:
+		return
+	soundtrack.cue("click")
+	_choosing = false
+	captain_choice.hide()
+	$Menu.show()
+	$Controls.show()
+	explore_button.grab_focus()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _choosing and not _starting and event.is_action_pressed("ui_cancel"):
+		_cancel_choice()
+		get_viewport().set_input_as_handled()
 
 
 func _exit() -> void:

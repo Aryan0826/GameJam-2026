@@ -61,6 +61,20 @@ var _is_completed: bool = false
 
 
 func _ready() -> void:
+	if get_node("/root/Expedition").evil_captain:
+		intro_text = "Beyond Earth's sun, new worlds will kneel."
+		episode_text = "THE HORIZON CONQUEST"
+		title_text = "WORLDS WILL KNEEL"
+		body_text = (
+			"The captains of Earth have set out to conquer the planets of other solar systems. " +
+			"Captain Valeria commands the HORIZON, leading a fleet beyond the last human star charts.\n\n" +
+			"At every inhabited world, our demand is the same: KNEEL, OR BE ANNIHILATED. " +
+			"Yet the alien envoys offer another way to decide their fate: a game of command.\n\n" +
+			"If we win, they surrender their planets and their people to our fleet. " +
+			"If we lose, we must withdraw and leave them in peace. A captain's word binds even a conqueror.\n\n" +
+			"Navigator Sol plots the first approach. Weapons stand ready. " +
+			"The first world is hailing us. Our conquest begins..."
+		)
 	# Populate text fields
 	if intro_label:
 		intro_label.text = intro_text

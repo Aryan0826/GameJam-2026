@@ -607,10 +607,10 @@ func _track_course(body: Node2D) -> void:
 	$HUDLayer/HUD/Radar/PlanetPointer/TagLabel.text = name
 	$HUDLayer/HUD/Destinations/Routes/Label.text = "COURSE / " + name
 	for route in [{"node": "Kalypso", "system": 0}, {"node": "Cinder", "system": ExpeditionState.CINDER}]:
-		var standing: String = expedition.standing(route.system)
+		var standing: String = expedition.standing_label(route.system)
 		var caption: String = route.node
-		if standing != "unknown":
-			caption += " · " + ("Ally" if standing == "allied" else "Unproven")
+		if not standing.is_empty():
+			caption += " · " + standing
 		get_node("HUDLayer/HUD/Destinations/Routes/" + route.node).text = caption
 
 
@@ -671,8 +671,8 @@ func _update_hud(_delta: float) -> void:
 		dist_sun_label.text = "%s: %d KM" % [_star_name, int(dist_sun)]
 	if dist_planet_label:
 		var destination := ExpeditionState.CINDER if _course_target == cinder else system_index
-		var standing: String = expedition.standing(destination)
-		var tag := " / " + ("ALLY" if standing == "allied" else "UNPROVEN") if standing != "unknown" else ""
+		var standing: String = expedition.standing_label(destination)
+		var tag := " / " + standing.to_upper() if not standing.is_empty() else ""
 		dist_planet_label.text = "%s: %d KM%s" % [_destination_name(_course_target), int(dist_planet), tag]
 	var local_gravity := "SOLAR"
 	var nearest_ratio := 1.0
