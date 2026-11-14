@@ -38,6 +38,29 @@ const SPELLS = {
 const DRAFT_SPELLS = Rules.SPELLS
 const IMAGE_CREDIT = "NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team"
 const IMAGE_URL = "https://esahubble.org/images/heic1509a/"
+const RULES_TEXT = """[color=#f8d587]WIN THE DUEL[/color]
+Hold the center beacon through three enemy turns with the same unit, or remove every enemy unit. The match draws after round 8 if neither side wins.
+
+[color=#f8d587]TAKE YOUR TURN[/color]
+Shuffle first. Then choose one path: Move → Use power; Move → Finish turn; or Use power → Finish turn. A drafted ability counts as your move. Finish / skip turn is available at any time.
+
+Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the beacon from an adjacent square or by making a capture.
+
+[color=#f8d587]WATCH THE RIM[/color]
+Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any unit on a falling tile is removed.
+
+[color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
+Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant.
+
+Borrow Tomorrow moves its assigned unit one orthogonal step, then moves another ally one orthogonal step. The first unit cannot enter or leave the beacon. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
+
+[color=#f8d587]SHUFFLE FOR AN ABILITY[/color]
+Shuffle once per round before moving or using a drafted ability. The cards shuffle, then flip to reveal your special power. Each of the three powers has an equal chance. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
+
+Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
+
+[color=#f8d587]CONTROLS[/color]
+Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
 const DRIFT_RULES_TEXT = """[color=#f8d587]RACE TO FIVE[/color]
 After both players act, the marked rows shift. Each gold relay occupied after the shift earns one point, then jumps to another column on the same row. Each relay can score once per round. Reach five points with a lead to win. A tie at five or more goes to another round. If no side wins by the end of round %d, the match draws.
@@ -771,12 +794,10 @@ func _draw_drift_play() -> void:
 	_team_card(846, 148, 0)
 	_team_card(1067, 148, 1)
 	_panel(side_panel, Rect2(846, 238, 430, 108))
-	_label(side_panel, Rect2(864, 249, 230, 22), "RELAY LAYOUT", 12, LILAC, MONO)
-	_label(side_panel, Rect2(864, 273, 390, 32), Drift.LAYOUT_NAMES[state.drift.layout], 23, INK, bold)
-	_label(side_panel, Rect2(864, 310, 390, 25), "ROW 4 →   /   ROW 6 ←   AFTER BOTH TURNS", 13, LILAC, MONO)
+	_label(side_panel, Rect2(864, 249, 394, 22), "WIN CONDITION", 12, LILAC, MONO)
+	_label(side_panel, Rect2(864, 273, 394, 32), "Points + units = 8 to win.", 21, GOLD, bold)
 	_panel(side_panel, Rect2(846, 359, 430, 225))
-	_label(side_panel, Rect2(864, 371, 394, 37), "Reach five points with the lead.", 21, GOLD, bold)
-	_label(side_panel, Rect2(864, 419, 394, 56), _action_hint(), 16, INK, SANS, true)
+	_label(side_panel, Rect2(864, 371, 394, 56), _action_hint(), 16, INK, SANS, true)
 	_label(side_panel, Rect2(864, 488, 390, 70), "Claimed relays jump to a new square on the same row. Hover over a highlighted move to preview its landing.", 16, MUTED, SANS, true)
 	_draw_flight_log()
 
@@ -807,6 +828,14 @@ func _team_card(x: float, y: float, side: int) -> void:
 			count += 1
 	var summary := "%d PTS  /  %d UNITS" % [state.drift.scores[side], count] if drift_circuit else "%d UNITS IN PLAY" % count
 	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), summary, 13, MUTED, MONO)
+
+
+func _drift_total(side: int) -> int:
+	var total: int = state.drift.scores[side]
+	for pawn: Dictionary in state.pawns.values():
+		if pawn.side == side:
+			total += 1
+	return total
 
 
 func _shuffle_ability() -> void:
@@ -1197,6 +1226,7 @@ func _show_result() -> void:
 			outcome = "The envoy asks the Horizon to leave orbit in peace. You can explore another planet or try again."
 	if drift_circuit:
 		title = "Circuit drawn" if state.winner < 0 else "%s win the circuit" % SIDES[state.winner]
+		outcome = "Aliens %d vs Pilots %d" % [_drift_total(0), _drift_total(1)]
 	_clear(overlay)
 	overlay_kind = "result"
 	var dim := ColorRect.new()
@@ -1209,23 +1239,22 @@ func _show_result() -> void:
 		"elimination": "The opposing side lost its final unit.",
 		"mutual_elimination": "Both sides lost their final units.",
 		"round_cap": "Eight rounds elapsed without a winner.",
-		"relays": "The winning score was reached after the final shift.",
+		"relays": "The winning total was reached after the final shift.",
+		"drift_tie": "Both sides reached 8 on the same shift.",
 		"drift_limit": "Twelve rounds elapsed without a winner."
 	}.get(state.reason, "")
 	if drift_circuit:
 		description = "Aliens %d / Pilots %d. " % state.drift.scores + description
 	_label(box, Rect2(31, 86, 620, 62), outcome, 21, INK, SANS, true)
 	_label(box, Rect2(31, 146, 620, 53), description, 17, MUTED, SANS, true)
-	_label(box, Rect2(31, 209, 620, 25), "ROUND %02d   /   SEED %d" % [state.round, state.seed], 14, GOLD, MONO)
 	var rematch_y := 311 if next_available else 252
 	var footer_y := rematch_y + 59
 	if next_available:
 		var travel_title := "%s to %s" % ["Withdraw" if state.winner == 0 else "Travel", expedition.next_system_name()]
 		_button(box, Rect2(31, 252, 620, 46), travel_title, _travel_to_next_system, true)
 	_button(box, Rect2(31, rematch_y, 620, 46), "Rematch", func(): _start(local_mode, true), not next_available)
-	_button(box, Rect2(31, footer_y, 302, 41), "View board", func(): _close_overlay(false))
-	_button(box, Rect2(348, footer_y, 303, 41), "Copy replay data", _copy_replay)
-	_button(box, Rect2(31, footer_y + 57, 620, 41), "Leave orbit", _leave_current_orbit)
+	_button(box, Rect2(31, footer_y, 620, 41), "View board", func(): _close_overlay(false))
+	_button(box, Rect2(31, footer_y + 57, 620, 41), "Return to planets", _leave_current_orbit)
 
 
 func _show_kalypso_result() -> void:
