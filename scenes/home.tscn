@@ -1,0 +1,211 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/home.gd" id="1_home"]
+[ext_resource type="Shader" path="res://shaders/starfield.gdshader" id="2_starfield"]
+[ext_resource type="FontFile" path="res://art/SpaceGrotesk.ttf" id="3_sans"]
+[ext_resource type="FontFile" path="res://art/IBMPlexMono-Regular.ttf" id="4_mono"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_stars"]
+shader = ExtResource("2_starfield")
+shader_parameter/background_color = Color(0.012, 0.02, 0.04, 1)
+shader_parameter/drift_speed = 0.003
+shader_parameter/twinkle_speed = 1.2
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_explore"]
+bg_color = Color(0.165, 0.157, 0.314, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.725, 0.616, 0.992, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_exit"]
+bg_color = Color(0.106, 0.149, 0.235, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.239, 0.357, 0.408, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_hover"]
+bg_color = Color(0.2, 0.24, 0.35, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.514, 0.882, 0.98, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_pressed"]
+bg_color = Color(0.24, 0.27, 0.38, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.973, 0.835, 0.529, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_focus"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.514, 0.882, 0.98, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_disabled"]
+bg_color = Color(0.078, 0.114, 0.18, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="Theme" id="Theme_menu"]
+default_font = ExtResource("3_sans")
+default_font_size = 20
+Button/colors/font_color = Color(0.953, 0.961, 1, 1)
+Button/colors/font_hover_color = Color(0.953, 0.961, 1, 1)
+Button/colors/font_pressed_color = Color(0.953, 0.961, 1, 1)
+Button/colors/font_focus_color = Color(0.953, 0.961, 1, 1)
+Button/colors/font_disabled_color = Color(0.47, 0.53, 0.62, 1)
+Button/font_sizes/font_size = 23
+Button/styles/normal = SubResource("StyleBox_exit")
+Button/styles/hover = SubResource("StyleBox_hover")
+Button/styles/pressed = SubResource("StyleBox_pressed")
+Button/styles/focus = SubResource("StyleBox_focus")
+Button/styles/disabled = SubResource("StyleBox_disabled")
+
+[node name="Home" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_menu")
+script = ExtResource("1_home")
+
+[node name="Starfield" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_stars")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.012, 0.02, 0.04, 0.35)
+
+[node name="Menu" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Content" type="VBoxContainer" parent="Menu"]
+custom_minimum_size = Vector2(620, 0)
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="Eyebrow" type="Label" parent="Menu/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.514, 0.882, 0.98, 1)
+theme_override_fonts/font = ExtResource("4_mono")
+theme_override_font_sizes/font_size = 15
+text = "HORIZON / DEEP SPACE EXPEDITION"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="Menu/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.953, 0.961, 1, 1)
+theme_override_font_sizes/font_size = 56
+text = "Conqueror's Chess"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Menu/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.667, 0.722, 0.82, 1)
+theme_override_font_sizes/font_size = 20
+text = "Beyond home, new worlds await."
+horizontal_alignment = 1
+
+[node name="Actions" type="VBoxContainer" parent="Menu/Content"]
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 16
+
+[node name="Explore" type="Button" parent="Menu/Content/Actions"]
+custom_minimum_size = Vector2(340, 62)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+focus_neighbor_top = NodePath("../Exit")
+focus_neighbor_bottom = NodePath("../Exit")
+theme_override_styles/normal = SubResource("StyleBox_explore")
+text = "Explore"
+
+[node name="Exit" type="Button" parent="Menu/Content/Actions"]
+custom_minimum_size = Vector2(340, 62)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+focus_neighbor_top = NodePath("../Explore")
+focus_neighbor_bottom = NodePath("../Explore")
+text = "Exit"
+
+[node name="Status" type="Label" parent="Menu/Content"]
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.973, 0.835, 0.529, 1)
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+
+[node name="Controls" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -60.0
+offset_bottom = -28.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.667, 0.722, 0.82, 1)
+theme_override_fonts/font = ExtResource("4_mono")
+theme_override_font_sizes/font_size = 13
+text = "UP / DOWN TO CHOOSE   /   ENTER TO SELECT"
+horizontal_alignment = 1
+
+[connection signal="pressed" from="Menu/Content/Actions/Explore" to="." method="_explore"]
+[connection signal="pressed" from="Menu/Content/Actions/Exit" to="." method="_exit"]

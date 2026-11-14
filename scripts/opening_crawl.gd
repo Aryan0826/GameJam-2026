@@ -143,15 +143,6 @@ func _process(delta: float) -> void:
 	if _is_completed:
 		return
 
-	# Handle skip input
-	if allow_skip and (
-		Input.is_action_just_pressed("ui_cancel") or
-		Input.is_key_pressed(KEY_ESCAPE) or
-		Input.is_key_pressed(KEY_ENTER)
-	):
-		_finish_crawl()
-		return
-
 	# Fast-forward speedup multiplier if holding Space or Up
 	var current_speed: float = 1.0
 	if allow_speedup and (
@@ -177,7 +168,7 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _is_completed:
 		return
-	if allow_skip and event is InputEventKey and event.is_pressed():
+	if allow_skip and event is InputEventKey and event.is_pressed() and not event.echo:
 		if event.keycode == KEY_ESCAPE or event.keycode == KEY_ENTER:
 			_finish_crawl()
 
