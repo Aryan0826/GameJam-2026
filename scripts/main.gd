@@ -185,6 +185,15 @@ func _build_frame() -> void:
 	feedback.position.y = 808
 	feedback.size.y = 19
 	_button(self, Rect2(1146, 811, 128, 31), "Asset credits", _show_credits)
+	_encounter_options = _layer(self)
+	_label(_encounter_options, Rect2(48, 815, 480, 22), "HORIZON / COMMUNICATION TERMINAL", 12, Color("#7ab594"), MONO)
+	_communication_local = _button(_encounter_options, Rect2(542, 811, 132, 31), "Local duel", _accept_challenge.bind(true))
+	_button(_encounter_options, Rect2(684, 811, 132, 31), "How to play", _show_rules)
+	_button(_encounter_options, Rect2(826, 811, 132, 31), "System map", _show_map)
+	_button(_encounter_options, Rect2(968, 811, 168, 31), "Replay prologue", _show_story)
+	card_reveal = AbilityCards.new()
+	_place(chrome, card_reveal, Rect2(178, 328, 500, 344))
+	card_reveal.hide()
 	overlay = _layer(self)
 
 
