@@ -16,7 +16,7 @@ const LILAC = Color("#bd9dff")
 const DRIFT_ARROW = Color("#8dffe9")
 const DRIFT_DELAY := 0.26
 const DRIFT_DURATION := 0.58
-const SPELL_ICON = {"shield": "S", "fracture": "F", "teleport": "P", "borrow_tomorrow": "T"}
+const SPELL_ICON = {"shield": "S", "fracture": "F", "teleport": "P"}
 const TOP := 0.14
 const CAMERA_TARGET := Vector3(0, -0.38, 0.28)
 const DRAG_THRESHOLD := 6.0
@@ -25,8 +25,6 @@ const ORBIT_SENSITIVITY := 0.006
 var state: Dictionary = {}
 var targets: Dictionary = {}
 var selected := -1
-var second := -1
-var preview_to := Vector2i.ZERO
 var keyboard_square := Vector2i.ZERO
 var hover := Vector2i.ZERO
 var motion := true
@@ -312,7 +310,7 @@ func show_events(events: Array) -> void:
 			shift_pending = true
 		elif event.kind == "ability" and event.ability == "teleport":
 			teleported[event.pawn] = true
-		elif event.kind in ["step", "capture", "returned", "drift_move"]:
+		elif event.kind in ["step", "capture", "drift_move"]:
 			var landing := event.duplicate()
 			landing.teleport = event.pawn in teleported
 			if event.pawn not in landings:
@@ -543,9 +541,6 @@ func _draw() -> void:
 			_:
 				draw_circle(point, 7, SOUTH, false, 2, true)
 				draw_circle(point, 3, SOUTH, true, -1, true)
-	if preview_to != Vector2i.ZERO and selected in state.pawns:
-		draw_dashed_line(_project(state.pawns[selected].pos), _project(preview_to), LILAC, 2, 5)
-		draw_circle(_project(preview_to), 15, LILAC, false, 2, true)
 	for pawn: Dictionary in state.pawns.values():
 		_pawn_status(pawn)
 	if state.holder in state.pawns:
@@ -589,7 +584,7 @@ func _pawn_status(pawn: Dictionary) -> void:
 		at = pieces[pawn.id].position
 	draw_line(_project_world(at + Vector3(-0.24, 0, 0.40)), _project_world(at + Vector3(0.24, 0, 0.40)),
 		team.darkened(0.32) if state.phase == "draft" and pawn.side != state.active else team, 1.7, true)
-	if pawn.id in [selected, second]:
+	if pawn.id == selected:
 		_outline(pawn.pos, team)
 	var marker := _project_world(_world_at(pawn.pos) + Vector3(0.36, 0.12, -0.32))
 	if pawn.id in draft_slots:
@@ -602,11 +597,6 @@ func _pawn_status(pawn: Dictionary) -> void:
 		draw_arc(foot + Vector2(0, -13), 23, 0, TAU, 35, SOUTH, 2, true)
 	if pawn.spy > 0:
 		_badge(_project_world(_world_at(pawn.pos) + Vector3(-0.36, 0.12, -0.32)), str(pawn.spy), GOLD)
-	if not pawn.borrow.is_empty():
-		var origin := _project(pawn.borrow.origin)
-		draw_dashed_line(origin, foot, LILAC, 1.8, 5)
-		draw_arc(origin, 15, 0, TAU, 25, LILAC, 1.5, true)
-		_text(origin + Vector2(-12, 4), "ECHO", 10, LILAC)
 
 
 func _outline(square: Vector2i, color: Color) -> void:

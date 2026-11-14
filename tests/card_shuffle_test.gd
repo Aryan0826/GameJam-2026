@@ -23,7 +23,7 @@ func _check(condition: bool, message: String) -> void:
 func _opening() -> Dictionary:
 	var state := Rules.create_match(7, 1)
 	state = Rules.apply_action(state, {"kind": "draft", "pawns": [0, 1], "spells": ["teleport", "fracture"]}).state
-	return Rules.apply_action(state, {"kind": "draft", "pawns": [5, 6], "spells": ["shield", "borrow_tomorrow"]}).state
+	return Rules.apply_action(state, {"kind": "draft", "pawns": [5, 6], "spells": ["shield", "teleport"]}).state
 
 
 func _setup(game: Control) -> void:

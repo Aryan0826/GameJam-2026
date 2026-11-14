@@ -9,7 +9,8 @@ const Cockpit = preload("res://scripts/battle/cockpit.gd")
 const AbilityCards = preload("res://scripts/battle/ability_cards.gd")
 const AbilityHologram = preload("res://scripts/battle/ability_hologram.gd")
 const KalypsoGuide = preload("res://scripts/battle/kalypso_guide.gd")
-const RESULT_CHARACTERS = preload("res://art/results/characters.png")
+const Story = preload("res://scripts/core/expedition_story.gd")
+const StoryArt = preload("res://scripts/battle/story_art.gd")
 const ExpeditionState = preload("res://scripts/core/expedition.gd")
 const SANS = preload("res://art/fonts/SpaceGrotesk.ttf")
 const MONO = preload("res://art/fonts/IBMPlexMono-Regular.ttf")
@@ -26,12 +27,11 @@ const ALIEN_GREEN = Color("#9cff83")
 const ALIEN_DIM = Color("#75ad83")
 const ALIEN_PANEL = Color("#0c1c15")
 const ALIEN_LINE = Color("#3b7950")
-const SIDES = ["Aliens", "Pilots"]
+const SIDES = ["Aliens", "Crew"]
 const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the beacon."],
 	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any unit on it."],
 	"teleport": ["Teleport", "Jump to any open tile outside the beacon."],
-	"borrow_tomorrow": ["Borrow Tomorrow", "Move this unit, then a different ally. The first unit owes a return."],
 	"infected_trail": ["Infected Trail", "Infect the 3 × 3 area around a selected unit through the enemy turn."],
 	"spy": ["Spy", "Take control of a nearby enemy unit for your next three turns. It cannot score the beacon."],
 	"long_capture": ["Long Capture", "Capture diagonally in any direction, from one or two squares away."],
@@ -45,15 +45,13 @@ Hold the center beacon through three enemy turns with the same unit, or remove e
 [color=#f8d587]TAKE YOUR TURN[/color]
 Shuffle first. Then choose one path: Move → Use power; Move → Finish turn; or Use power → Finish turn. A drafted ability counts as your move. Finish / skip turn is available at any time.
 
-Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the beacon from an adjacent square or by making a capture.
+Move one tile orthogonally or one or two diagonally in any direction. A two tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Crew. Enter the beacon from an adjacent square or by making a capture.
 
 [color=#f8d587]WATCH THE RIM[/color]
 Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any unit on a falling tile is removed.
 
 [color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
 Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant.
-
-Borrow Tomorrow moves its assigned unit one orthogonal step, then moves another ally one orthogonal step. The first unit cannot enter or leave the beacon. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
 
 [color=#f8d587]SHUFFLE FOR AN ABILITY[/color]
 Shuffle once per round before moving or using a drafted ability. The cards shuffle, then flip to reveal your special power. Each of the three powers has an equal chance. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
@@ -64,7 +62,7 @@ Infected Trail blocks entry into the 3 × 3 area around a selected unit through 
 Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
 const DRIFT_QUICK_START = """[color=#f8d587]TAKE YOUR TURN[/color]
-Aliens and Pilots alternate one move or capture. Select one of your units, then choose a highlighted destination.
+Aliens and Crew alternate one move or capture. Select one of your units, then choose a highlighted destination.
 
 [color=#f8d587]WATCH THE LANES[/color]
 After both sides act, every unit on row 4 moves one tile right and every unit on row 6 moves one tile left. Both rows wrap at the edges; row 5 stays put.
@@ -76,10 +74,10 @@ After the shift, each occupied relay scores one point for its side, then moves t
 Click a unit and a highlighted destination. Drag to rotate the board; use arrow keys and Enter to select. Esc clears a selection or closes help. Multiplayer / Computer switches Alien control on the next Alien turn."""
 
 const DRIFT_MOVEMENT = """[color=#f8d587]MOVE[/color]
-Move one tile orthogonally or diagonally. A two-tile diagonal can jump over a unit. Select a unit to see its legal destinations.
+Move one tile orthogonally or diagonally. A two tile diagonal can jump over a unit. Select a unit to see its legal destinations.
 
 [color=#f8d587]CAPTURE[/color]
-Capture one tile diagonally forward. Aliens move down; Pilots move up. Capturing removes the enemy unit.
+Capture one tile diagonally forward. Aliens move down; Crew move up. Capturing removes the enemy unit.
 
 [color=#83e1fa]PLAN THE SHIFT[/color]
 On rows 4 and 6, a highlighted destination previews where your unit will land after the lane moves."""
@@ -126,8 +124,6 @@ var busy := false
 var generation := 0
 var selected := -1
 var action_group := "standard"
-var first_destination := Vector2i.ZERO
-var second_pawn := -1
 var assignments: Dictionary = {}
 var overlay_kind := ""
 var first_flag_round := 0
@@ -141,7 +137,6 @@ var _terminal_screen: RichTextLabel
 var _terminal_messages: Array[Dictionary] = []
 var _terminal_active_line := 0
 var _terminal_characters := 0.0
-var _terminal_blink_time := 0.0
 var _encounter_options: Control
 var _telemetry_credit_label: Label
 var _communication_accept: Button
@@ -150,6 +145,19 @@ var _communication_prompt: Label
 var _communication_ready := false
 var _communication_presented := false
 var _leaving_orbit := false
+var _communication_departing := false
+var _communication_skip: Button
+var _contact_art: Control
+var _contact_name: Label
+var _contact_progress: Label
+var _result_story: Array[Dictionary] = []
+var _result_line := 0
+var _result_recorded_state: Dictionary = {}
+var _result_was_allied := false
+var _result_quote: Label
+var _result_speaker: Label
+var _result_portrait: Control
+var _result_next: Button
 
 
 func _ready() -> void:
@@ -163,6 +171,14 @@ func _ready() -> void:
 	bold.variation_opentype = { TextServerManager.get_primary_interface().name_to_tag("wght"): 700 }
 	_build_frame()
 	_show_home()
+	if expedition.take_descent_arrival():
+		var arrival := ColorRect.new()
+		arrival.name = "DescentArrivalHologram"
+		arrival.color = Color(0.015, 0.065, 0.085)
+		_place(self, arrival, Rect2(0, 0, 1320, 850))
+		var reveal := create_tween()
+		reveal.tween_property(arrival, "modulate:a", 0.0, 0.55)
+		reveal.tween_callback(arrival.queue_free)
 
 
 func _build_frame() -> void:
@@ -181,7 +197,7 @@ func _build_frame() -> void:
 	board.gui_input.connect(func(event: InputEvent):
 		if event is InputEventKey:
 			_unhandled_key_input(event))
-	_label(chrome, Rect2(66, 42, 490, 46), "Drift Circuit" if drift_circuit else "Conqueror’s Chess", 36, INK, bold)
+	_label(chrome, Rect2(66, 42, 490, 46), "Drift Circuit" if drift_circuit else "The Fractured Flag", 36, INK, bold)
 	round_label = _label(chrome, Rect2(69, 91, 440, 23), "", 14, SOUTH, MONO)
 	_panel(chrome, Rect2(66, 124, 482, 87), Color(0.035, 0.068, 0.11, 0.95), LINE, 5)
 	var head := Cockpit.new()
@@ -312,51 +328,57 @@ func _show_home() -> void:
 	cockpit.clearance = ""
 	_clear(overlay)
 	overlay_kind = "home"
+	_communication_departing = false
 	_encounter_options.show()
 	_telemetry_credit_label.hide()
 	var system_data: Dictionary = expedition.current_system_data()
-	var planet_name := str(system_data.planet_name).capitalize()
-	var game_name := "Drift Circuit" if drift_circuit else "Conqueror’s Chess"
+	var system: int = expedition.current_system
+	var game_name := "Drift Circuit" if drift_circuit else "The Fractured Flag"
 	_label(overlay, Rect2(128, 58, 720, 24), "HORIZON // SHIP COMMUNICATIONS", 14, Color("#8effb2"), MONO)
-	var orbit_status := _label(overlay, Rect2(848, 58, 344, 24), "ORBIT / %s" % system_data.planet_name, 13, Color("#75ad83"), MONO)
+	var standing: String = expedition.standing(system)
+	var status := standing.to_upper() if standing != "unknown" else "INVITATION OPEN" if expedition.encounters_seen.has(system) else "FIRST CONTACT"
+	var orbit_status := _label(overlay, Rect2(810, 58, 382, 24), "%s / %s" % [system_data.planet_name, status], 13, Color("#75ad83"), MONO)
 	orbit_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_label(overlay, Rect2(128, 90, 1064, 28), "%s / INCOMING TRANSMISSION" % game_name.to_upper(), 19, Color("#a6efc2"), MONO)
+	_label(overlay, Rect2(128, 90, 850, 28), game_name.to_upper() + " / OPEN CHANNEL", 19, Color("#a6efc2"), MONO)
+	_communication_skip = _terminal_action(Rect2(1020, 90, 172, 30), "Skip story »", _finish_communication)
+	_contact_art = StoryArt.new()
+	_contact_art.cinder = drift_circuit
+	_contact_art.motion = motion
+	_contact_art.name = "ContactPortrait"
+	_place(overlay, _contact_art, Rect2(128, 148, 224, 240))
+	_contact_name = _label(overlay, Rect2(128, 401, 240, 24), "HOLOGRAPHIC LINK", 12, SOUTH, MONO)
+	_contact_progress = _label(overlay, Rect2(128, 431, 240, 20), "", 12, MUTED, MONO)
 	_terminal_screen = RichTextLabel.new()
 	_terminal_screen.bbcode_enabled = true
 	_terminal_screen.scroll_active = false
 	_terminal_screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_terminal_screen.add_theme_font_override("normal_font", MONO)
-	_terminal_screen.add_theme_font_size_override("normal_font_size", 18)
-	_terminal_screen.add_theme_color_override("default_color", Color("#b3f4c7"))
-	_terminal_screen.add_theme_constant_override("line_separation", 2)
-	_place(overlay, _terminal_screen, Rect2(128, 142, 1064, 312))
-	_terminal_messages = [
-		{"speaker": "ALIEN ENVOY", "color": "#a0edb4", "text": "Horizon, you have entered %s's orbit. Why have you come here?" % planet_name},
-		{"speaker": "HORIZON / VALERIA", "color": "#a6dfff", "text": "We are looking for friends away from home. We come in peace."},
-		{"speaker": "ALIEN ENVOY", "color": "#a0edb4", "text": "Then face us in %s. Win, and we will welcome you as friends. Lose, and you must leave our orbit in peace." % game_name},
-	]
+	_terminal_screen.add_theme_font_override("normal_font", SANS)
+	_terminal_screen.add_theme_font_size_override("normal_font_size", 27)
+	_terminal_screen.add_theme_color_override("default_color", INK)
+	_terminal_screen.add_theme_constant_override("line_separation", 7)
+	_terminal_screen.clip_contents = true
+	_terminal_screen.finished.connect(_place_communication_action)
+	_place(overlay, _terminal_screen, Rect2(400, 155, 792, 225))
+	_terminal_messages = Story.encounter(system, expedition.standing(system), expedition.encounters_seen.has(system))
+	expedition.encounters_seen[system] = true
 	_terminal_active_line = 0
 	_terminal_characters = 0.0
-	_terminal_blink_time = 0.0
-	_communication_prompt = _label(overlay, Rect2(128, 467, 1064, 22), "", 14, Color("#75ad83"), MONO)
-	_communication_accept = _terminal_action(Rect2(128, 506, 512, 32), "[ENTER] REVEAL TRANSMISSION", _advance_communication)
-	_terminal_action(Rect2(680, 506, 512, 32), "[Q] LEAVE ORBIT", _leave_planet_orbit)
-	_label(overlay, Rect2(128, 554, 1064, 18), "HORIZON / ORBIT LINK OPEN", 11, Color("#518368"), MONO)
-	_communication_accept.disabled = false
+	_communication_prompt = _label(overlay, Rect2(128, 467, 1064, 22), "Read at your pace. Enter reveals the line, then continues.", 13, Color("#75ad83"), MONO)
+	_communication_accept = _terminal_action(Rect2(400, 400, 420, 42), "[ENTER] CONTINUE", _advance_communication)
+	_communication_accept.name = "ContinueTransmission"
+	_communication_accept.flat = false
+	_communication_accept.add_theme_font_size_override("font_size", 18)
+	_communication_accept.add_theme_stylebox_override("normal", _style(Color("#123326"), Color("#47795b"), 4))
+	_communication_accept.add_theme_stylebox_override("hover", _style(Color("#1d4b36"), Color("#8effb2"), 4))
+	_communication_accept.add_theme_stylebox_override("pressed", _style(Color("#285d44"), Color("#c7ffdc"), 4))
+	_terminal_action(Rect2(790, 506, 402, 32), "[Q] LEAVE ORBIT", _leave_planet_orbit)
+	_label(overlay, Rect2(128, 554, 1064, 18), "HORIZON / PEACEFUL CONTACT / NO LANDING WITHOUT CLEARANCE", 11, Color("#518368"), MONO)
 	_communication_local.disabled = true
 	if _communication_presented:
 		_finish_communication()
 	else:
 		_communication_presented = true
-		_communication_tween = create_tween()
-		_communication_tween.tween_interval(0.2)
-		for i in _terminal_messages.size():
-			var message: String = _terminal_messages[i].text
-			_communication_tween.tween_callback(_begin_terminal_message.bind(i))
-			_communication_tween.tween_property(self, "_terminal_characters", float(message.length()), clampf(message.length() / 50.0, 0.75, 3.2)).from(0.0)
-			_communication_tween.tween_callback(_stop_typing_audio)
-			_communication_tween.tween_interval(0.25)
-		_communication_tween.tween_callback(_finish_communication)
+		_begin_terminal_message(0)
 	_render_terminal()
 
 
@@ -379,35 +401,51 @@ func _terminal_action(rect: Rect2, title: String, callback: Callable) -> Button:
 
 
 func _begin_terminal_message(index: int) -> void:
+	_stop_communication()
 	_terminal_active_line = index
 	_terminal_characters = 0.0
+	var message: Dictionary = _terminal_messages[index]
+	_contact_art.role = message.role
+	_contact_art.queue_redraw()
+	_contact_name.text = "TRANSMITTING / " + ("CINDER" if drift_circuit else "KALYPSO") if message.role == "envoy" else "HORIZON / CREW LINK"
+	_contact_progress.text = "%02d / %02d" % [index + 1, _terminal_messages.size()]
 	soundtrack.cue("transmission")
+	_communication_tween = create_tween()
+	_communication_tween.tween_property(self, "_terminal_characters", float(message.text.length()), clampf(message.text.length() / 45.0, 0.5, 3.5)).from(0.0)
+	_communication_tween.tween_callback(_stop_typing_audio)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if is_instance_valid(ability_hologram) and not _can_show_ability_hologram():
 		ability_hologram.hide()
 	if overlay_kind == "home":
-		_terminal_blink_time = fposmod(_terminal_blink_time + delta, 1.0)
 		_render_terminal()
 
 
 func _render_terminal() -> void:
-	var cursor := "_" if _terminal_blink_time < 0.55 else " "
-	var transcript := ""
-	for i in _terminal_messages.size():
-		if not _communication_ready and i > _terminal_active_line:
-			break
-		var message: Dictionary = _terminal_messages[i]
-		var full_text: String = message.text
-		var visible_text := full_text
-		if not _communication_ready and i == _terminal_active_line:
-			visible_text = full_text.substr(0, int(_terminal_characters)) + cursor
-		transcript += "[color=%s]%s >\n%s[/color]\n\n" % [message.color, message.speaker, visible_text]
+	if _terminal_messages.is_empty() or not is_instance_valid(_terminal_screen):
+		return
+	var message: Dictionary = _terminal_messages[_terminal_active_line]
+	var full_text: String = message.text
+	var visible_text := full_text
+	var heading: String = message.speaker
 	if _communication_ready:
-		transcript += "[color=#8effb2]AWAITING COMMAND > %s[/color]" % cursor
+		heading = "DEPARTURE CONFIRMED" if _communication_departing else "CHALLENGE BRIEFING"
+		visible_text = "Return to flight. You can come back whenever your crew is ready." if _communication_departing else Story.terms(expedition.current_system)
+		if not _communication_departing and expedition.standing(expedition.current_system) == "allied":
+			visible_text = "Friendly rematch. Your alliance is secure, whatever the result.\n\n" + ("Reach 8 total: relay points + surviving ships." if drift_circuit else "Hold the flag through 3 enemy turns, or eliminate their fleet.")
+	var transcript := "[font_size=15][color=%s]%s[/color][/font_size]\n\n%s" % [message.color, heading, visible_text]
 	if _terminal_screen.text != transcript:
 		_terminal_screen.text = transcript
+	_terminal_screen.visible_characters = -1 if _communication_ready else heading.length() + 2 + int(_terminal_characters)
+
+
+func _place_communication_action() -> void:
+	if overlay_kind != "home" or not is_instance_valid(_communication_accept):
+		return
+	# Hidden letters retain their layout, so typing cannot move the Continue button.
+	var content_height := minf(225, _terminal_screen.get_content_height())
+	_communication_accept.position = Vector2(400, _terminal_screen.position.y + content_height + 16)
 
 
 func _stop_communication() -> void:
@@ -432,15 +470,17 @@ func _finish_communication() -> void:
 		return
 	_stop_communication()
 	_communication_ready = true
-	_communication_accept.text = "[ENTER] ACCEPT CHALLENGE"
+	_communication_accept.text = "[ENTER] RETURN TO FLIGHT" if _communication_departing else "[ENTER] ACCEPT CHALLENGE"
 	_communication_accept.disabled = false
-	_communication_local.disabled = false
-	_communication_prompt.text = ""
+	_communication_local.disabled = _communication_departing
+	_communication_skip.hide()
+	_communication_prompt.text = "No penalty for declining. The invitation remains open." if _communication_departing else "Your choice, Captain."
+	_contact_progress.text = "CHANNEL / STANDBY"
 	_render_terminal()
 
 
 func _accept_challenge(local: bool = false) -> void:
-	if overlay_kind != "home" or not _communication_ready or busy:
+	if overlay_kind != "home" or not _communication_ready or busy or _communication_departing:
 		return
 	soundtrack.cue("confirm")
 	_start(local)
@@ -449,14 +489,33 @@ func _accept_challenge(local: bool = false) -> void:
 func _leave_planet_orbit() -> void:
 	if overlay_kind != "home" or busy:
 		return
-	_leave_current_orbit()
+	if _communication_departing:
+		_leave_current_orbit()
+		return
+	_communication_departing = true
+	_terminal_messages = Story.departure(expedition.current_system)
+	_communication_skip.show()
+	_communication_skip.text = "Skip farewell »"
+	_communication_accept.text = "[ENTER] CONTINUE"
+	_communication_local.disabled = true
+	_communication_prompt.text = "Channel closing. Press Q again to return directly to flight."
+	_begin_terminal_message(0)
 
 
 func _advance_communication() -> void:
 	if overlay_kind != "home" or busy:
 		return
 	if _communication_ready:
-		_accept_challenge()
+		if _communication_departing:
+			_leave_current_orbit()
+		else:
+			_accept_challenge()
+	elif _terminal_characters < _terminal_messages[_terminal_active_line].text.length():
+		_stop_communication()
+		_terminal_characters = float(_terminal_messages[_terminal_active_line].text.length())
+		_render_terminal()
+	elif _terminal_active_line + 1 < _terminal_messages.size():
+		_begin_terminal_message(_terminal_active_line + 1)
 	else:
 		_finish_communication()
 
@@ -647,7 +706,7 @@ func _play_action_audio(events: Array) -> void:
 	var cues := {}
 	for event: Dictionary in events:
 		match event.kind:
-			"step", "returned":
+			"step":
 				cues["move"] = 0.26 if motion else 0.0
 			"capture":
 				cues["capture"] = 0.20 if motion else 0.0
@@ -655,7 +714,7 @@ func _play_action_audio(events: Array) -> void:
 				cues["shield"] = 0.0
 			"warning", "draft_reveal":
 				cues["confirm"] = 0.0
-			"collapse", "return_failed":
+			"collapse":
 				cues["collapse"] = 0.0
 			"spy":
 				cues["spy"] = 0.0
@@ -664,7 +723,7 @@ func _play_action_audio(events: Array) -> void:
 			"ability":
 				if event.ability in ["teleport", "shield"]:
 					cues[event.ability] = 0.0
-				elif event.ability in ["fracture", "borrow_tomorrow"]:
+				elif event.ability == "fracture":
 					cues["confirm"] = 0.0
 			"flag":
 				if event.pawn >= 0:
@@ -722,8 +781,6 @@ func _refresh() -> void:
 		return
 	board.state = state
 	board.selected = selected
-	board.second = second_pawn
-	board.preview_to = first_destination
 	board.draft_slots = {}
 	for pawn: int in assignments:
 		board.draft_slots[pawn] = Arena.SPELL_ICON[assignments[pawn]]
@@ -792,14 +849,9 @@ func _sync_ability_hologram() -> void:
 	var title: String = SPELLS[pawn.ability][0]
 	var caption := "Use " + title
 	if pawn.ability == "fracture": caption = "Use Fracture"
-	if pawn.ability == "borrow_tomorrow": caption = "Use Borrow"
 	var hint := "Choose a landing tile"
 	if pawn.ability == "shield": hint = "Click this ship to raise its shield"
 	elif pawn.ability == "fracture": hint = "Choose a tile to fracture"
-	elif pawn.ability == "borrow_tomorrow":
-		if first_destination == Vector2i.ZERO: hint = "Choose the first ship’s step"
-		elif second_pawn < 0: hint = "Choose a second ship"
-		else: hint = "Choose the second ship’s step"
 	ability_hologram.configure({
 		"board": board, "square": pawn.pos, "title": title, "motion": motion,
 		"status": status, "description": reason if not reason.is_empty() else SPELLS[pawn.ability][1],
@@ -893,9 +945,7 @@ func _draw_play() -> void:
 		if p.ability != "":
 			_action_button(Rect2(864, 524, 189, 36), SPELLS[p.ability][0], "ability")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
-		if not p.borrow.is_empty():
-			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
-		elif p.spy > 0:
+		if p.spy > 0:
 			details = "Stolen unit · %d turns left. Cannot score or capture at the beacon." % p.spy
 		elif details.is_empty() and action_group == "ability":
 			details = SPELLS[p.ability][1]
@@ -964,18 +1014,29 @@ func _draw_drift_play() -> void:
 
 
 func _draw_flight_log() -> void:
-	_panel(side_panel, Rect2(846, 592, 430, 140), ALIEN_PANEL, ALIEN_LINE, 12)
-	_label(side_panel, Rect2(864, 600, 270, 22), "ALIEN FLIGHT LOG", 12, ALIEN_GREEN, MONO)
-	var log_button := _button(side_panel, Rect2(1162, 598, 97, 27), "View log", _show_log)
+	var panel := _panel(side_panel, Rect2(846, 592, 430, 140), ALIEN_PANEL, ALIEN_LINE, 12)
+	panel.name = "FlightLogPanel"
+	panel.clip_contents = true
+	_label(panel, Rect2(18, 8, 270, 22), "FLIGHT LOG", 12, ALIEN_GREEN, MONO)
+	var log_button := _button(panel, Rect2(316, 6, 97, 27), "View log", _show_log)
 	log_button.add_theme_stylebox_override("normal", _style(Color("#14281a"), ALIEN_LINE, 8))
 	log_button.add_theme_stylebox_override("hover", _style(Color("#1e3925"), ALIEN_GREEN, 8))
 	log_button.add_theme_stylebox_override("pressed", _style(Color("#284b30"), ALIEN_GREEN, 8))
 	log_button.add_theme_color_override("font_color", ALIEN_GREEN)
 	log_button.add_theme_color_override("font_hover_color", Color("#d0ffc4"))
+	var scroll := ScrollContainer.new()
+	scroll.name = "FlightLogScroll"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.clip_contents = true
+	_place(panel, scroll, Rect2(18, 38, 389, 88))
+	var entries := VBoxContainer.new()
+	entries.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	entries.add_theme_constant_override("separation", 6)
+	scroll.add_child(entries)
 	var latest := messages.slice(0, 3)
 	for i in range(latest.size()):
-		var line := _label(side_panel, Rect2(864, 630 + i * 25, 389, 24), latest[i], 13, ALIEN_GREEN if i == 0 else ALIEN_DIM, MONO)
-		line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		var entry := _label(entries, Rect2(0, 0, 367, 0), latest[i], 13, ALIEN_GREEN if i == 0 else ALIEN_DIM, MONO, true)
+		entry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
 func _team_card(x: float, y: float, side: int) -> void:
@@ -1050,14 +1111,6 @@ func _action_hint() -> String:
 			return "No legal target for this power. Choose Move / capture, or finish / skip."
 		return "Choose: Move → Power, Move → Finish (move only), or Power → Finish (power only)."
 	var p: Dictionary = state.pawns[selected]
-	if not p.borrow.is_empty():
-		return "This unit is waiting to return to its echo."
-	if action_group == "ability" and p.ability == "borrow_tomorrow":
-		if first_destination == Vector2i.ZERO:
-			return "Choose where the borrowed unit steps."
-		if second_pawn < 0:
-			return "Choose the second unit."
-		return "Choose where the second unit steps to commit both moves."
 	if action_group == "ability" and p.ability == "shield":
 		return "Select the highlighted unit again to raise its shield."
 	if action_group == "ability" and p.ability == "fracture":
@@ -1076,8 +1129,6 @@ func _action_button(rect: Rect2, title: String, group: String) -> void:
 
 func _set_group(group: String) -> void:
 	action_group = group
-	first_destination = Vector2i.ZERO
-	second_pawn = -1
 	board.grab_focus()
 	_refresh()
 
@@ -1112,12 +1163,6 @@ func _targets() -> Dictionary:
 	for action in _group_actions(action_group):
 		if action.kind == "spy":
 			highlighted[state.pawns[action.mark].pos] = "mark"
-		elif action.kind == "borrow_tomorrow" and first_destination != Vector2i.ZERO:
-			if action.to == first_destination:
-				if second_pawn < 0:
-					highlighted[state.pawns[action.second].pos] = "mark"
-				elif action.second == second_pawn:
-					highlighted[action.second_to] = "move"
 		else:
 			highlighted[action.to] = "capture" if action.kind in ["capture", "long_capture"] else "move"
 			if action.kind == "fracture":
@@ -1136,7 +1181,7 @@ func _square_pressed(square: Vector2i) -> void:
 			_refresh()
 		return
 	for action in _group_actions(action_group):
-		if _select_target(action, square, id):
+		if _select_target(action, square):
 			return
 	if id >= 0 and state.pawns[id].side == state.active:
 		soundtrack.cue("select")
@@ -1150,24 +1195,9 @@ func _square_pressed(square: Vector2i) -> void:
 		_refresh()
 
 
-func _select_target(action: Dictionary, square: Vector2i, id: int) -> bool:
+func _select_target(action: Dictionary, square: Vector2i) -> bool:
 	if action.kind == "spy":
 		if state.pawns[action.mark].pos == square:
-			_commit(action)
-			return true
-		return false
-	if action.kind == "borrow_tomorrow":
-		if first_destination == Vector2i.ZERO and action.to == square:
-			first_destination = square
-			_refresh()
-			return true
-		if action.to != first_destination:
-			return false
-		if second_pawn < 0 and id == action.second:
-			second_pawn = id
-			_refresh()
-			return true
-		if second_pawn >= 0 and action.second == second_pawn and action.second_to == square:
 			_commit(action)
 			return true
 		return false
@@ -1211,8 +1241,6 @@ func _lock_draft() -> void:
 func _clear_selection() -> void:
 	selected = -1
 	action_group = "standard"
-	first_destination = Vector2i.ZERO
-	second_pawn = -1
 
 
 func _coord(p: Vector2i) -> String:
@@ -1290,7 +1318,7 @@ func _drift_guide_lane(parent: Node, y: float, row: int) -> void:
 
 
 func _show_kalypso_guide(page: int) -> void:
-	var box := _modal("rules", "Kalypso · How to play", 740)
+	var box := _modal("rules", "The Fractured Flag · How to play", 740)
 	_panel(box, Rect2(31, 89, 620, 83), Color("#192a32"), LINE, 4)
 	_label(box, Rect2(45, 94, 590, 20), "GOAL", 12, GOLD, MONO)
 	_label(box, Rect2(45, 116, 590, 50), KalypsoGuide.OBJECTIVE, 19, INK, SANS, true)
@@ -1328,6 +1356,9 @@ func _show_credits() -> void:
 	_button(box, Rect2(31, 427, 620, 41), "Back", _close_overlay)
 	audio_list.append_text("\n\n[color=#f8d587]AUDIO[/color]\n[url=https://opengameart.org/content/another-space-background-track]Observing the Star · yd · CC0[/url]\n[url=https://opengameart.org/content/background-space-track]My Very Own Dead Ship · yd · CC0[/url]\n[url=https://kenney.nl/assets/sci-fi-sounds]Sci-fi Sounds[/url], [url=https://kenney.nl/assets/interface-sounds]Interface Sounds[/url], [url=https://kenney.nl/assets/casino-audio]Casino Audio[/url] and [url=https://kenney.nl/assets/music-jingles]Music Jingles[/url] · Kenney · CC0.")
 	audio_list.append_text("\n[url=https://opengameart.org/content/bubbling-acid]Bubbling Acid · spookymodem · CC BY 3.0[/url] (trimmed and faded)\nRocket thrust · supplied MP3 · trimmed and looped")
+	audio_list.append_text("\n\n[color=#f8d587]CREW & ENVOYS[/color]\n[url=https://opengameart.org/content/sci-fi-roguelike-pixel-art]Sci-Fi RogueLike Pixel Art · Emcee Flesher · CC0[/url]\nOriginal pixel characters, scaled with nearest-neighbor filtering. Hologram scanlines and result spotlights use Godot primitives. No AI-generated artwork.")
+
+	audio_list.append_text("\n\n[color=#f8d587]DESCENT SEQUENCE[/color]\n[url=https://commons.wikimedia.org/wiki/File:StarfieldSimulation.gif]Starfield Simulation · Jahobr · CC0 · 2017[/url]\nOriginal star animation looped and converted to video.\n[url=https://commons.wikimedia.org/wiki/File:Space_Shuttle_Atlantis_OV-104_main_flight_deck.png]Atlantis flight deck · DMolybdenum · Public domain[/url]\nPanorama reprojected to a centered forward view, darkened, and windows masked. No AI generated assets.")
 
 
 func _show_map() -> void:
@@ -1411,63 +1442,24 @@ func _copy_replay() -> void:
 func _show_result() -> void:
 	if state.is_empty() or state.phase != "finished":
 		return
-	expedition.record_battle(int(state.winner))
-	if not drift_circuit:
-		_show_kalypso_result()
-		return
-	var next_available := expedition.has_next_system()
-	var title := "Trial unresolved"
-	var outcome := "The trial ends in a draw. You may try again or return to exploration."
-	cockpit.clearance = ""
-	match state.winner:
-		1:
-			title = "Alliance secured"
-			outcome = "The people of %s welcome the Horizon as friends. A landing corridor is open." % str(expedition.current_system_data().planet_name).capitalize()
-			cockpit.clearance = "land"
-		0:
-			title = "Challenge lost"
-			outcome = "The envoy asks the Horizon to leave orbit in peace. You can explore another planet or try again."
-	if drift_circuit:
-		title = "Circuit drawn" if state.winner < 0 else "%s win the circuit" % SIDES[state.winner]
-		outcome = "Aliens %d vs Pilots %d" % [_drift_total(0), _drift_total(1)]
-	_clear(overlay)
-	overlay_kind = "result"
-	var dim := ColorRect.new()
-	dim.color = Color(0.025, 0.032, 0.07, 0.84)
-	_place(overlay, dim, Rect2(0, 237, 1320, 570))
-	var box := _panel(overlay, Rect2(319, 262 if next_available else 292, 682, 491 if next_available else 432), PANEL, LINE, 12)
-	_label(box, Rect2(29, 19, 622, 59), title, 39, INK, bold)
-	var description: String = {
-		"flag": "The beacon held through three opposing turns.",
-		"elimination": "The opposing side lost its final unit.",
-		"mutual_elimination": "Both sides lost their final units.",
-		"round_cap": "Eight rounds elapsed without a winner.",
-		"relays": "The winning total was reached after the final shift.",
-		"drift_tie": "Both sides reached 8 on the same shift.",
-		"drift_limit": "Twelve rounds elapsed without a winner."
-	}.get(state.reason, "")
-	if drift_circuit:
-		description = "Aliens %d / Pilots %d. " % state.drift.scores + description
-	_label(box, Rect2(31, 86, 620, 62), outcome, 21, INK, SANS, true)
-	_label(box, Rect2(31, 146, 620, 53), description, 17, MUTED, SANS, true)
-	var rematch_y := 311 if next_available else 252
-	var footer_y := rematch_y + 59
-	if next_available:
-		var travel_title := "%s to %s" % ["Withdraw" if state.winner == 0 else "Travel", expedition.next_system_name()]
-		_button(box, Rect2(31, 252, 620, 46), travel_title, _travel_to_next_system, true)
-	_button(box, Rect2(31, rematch_y, 620, 46), "Rematch", func(): _start(local_mode, true), not next_available)
-	_button(box, Rect2(31, footer_y, 620, 41), "View board", func(): _close_overlay(false))
-	_button(box, Rect2(31, footer_y + 57, 620, 41), "Return to planets", _leave_current_orbit)
+	if not is_same(state, _result_recorded_state):
+		_result_was_allied = expedition.standing(expedition.current_system) == "allied"
+		_result_recorded_state = state
+		expedition.record_battle(int(state.winner))
+	_show_story_result(_result_was_allied)
 
 
-func _show_kalypso_result() -> void:
+func _show_story_result(already_allied: bool) -> void:
 	var won: bool = state.winner == 1
 	var lost: bool = state.winner == 0
 	var tone := Color("#8ae0a4") if won else (NORTH if lost else GOLD)
-	var title := "Crew victory!" if won else ("Aliens win" if lost else "Challenge drawn")
+	var planet: String = expedition.current_system_data().planet_name
+	var title := "Crew victory!" if won else ("Challenge lost" if lost else "Challenge drawn")
 	if local_mode and state.winner >= 0:
 		title = "%s win!" % SIDES[state.winner]
-	var outcome := "The crew has earned Kalypso’s trust. An alliance is secured." if won else ("Kalypso’s envoys won the challenge. The crew can try again." if lost else "Neither side won. Play again or continue exploring.")
+	var outcome := "ALLIANCE SECURED / " + ("NAVIGATION NETWORK OPEN" if drift_circuit else "LANDING CLEARANCE GRANTED") if won else "UNPROVEN / " + ("NETWORK ACCESS DENIED" if drift_circuit else "LANDING CLEARANCE DENIED") if lost else "INVITATION OPEN / TRY AGAIN ANYTIME"
+	if already_allied:
+		outcome = "FRIENDLY REMATCH / YOUR ALLIANCE STANDS"
 	var description := "The challenge is complete."
 	match state.reason:
 		"flag":
@@ -1478,62 +1470,87 @@ func _show_kalypso_result() -> void:
 			description = "Both sides lost their last ship."
 		"round_cap":
 			description = "Neither side won within 8 rounds."
-	if local_mode and state.winner >= 0:
+		"relays":
+			description = "Relay points + surviving ships reached 8 after the shift."
+		"drift_tie":
+			description = "Both sides reached 8 on the same shift."
+		"drift_limit":
+			description = "Neither side won within 12 rounds."
+	if local_mode and state.winner >= 0 and not drift_circuit:
 		description = "%s held the flag through 3 enemy turns." % SIDES[state.winner] if state.reason == "flag" else "%s eliminated the opposing fleet." % SIDES[state.winner]
-	cockpit.clearance = "land" if won else ""
+	cockpit.clearance = "land" if expedition.standing(expedition.current_system) == "allied" else ""
 	_clear(overlay)
 	overlay_kind = "result"
 	var dim := ColorRect.new()
-	dim.color = Color(0.025, 0.032, 0.07, 0.84)
-	_place(overlay, dim, Rect2(0, 237, 1320, 570))
-	var box := _panel(overlay, Rect2(319, 175, 682, 600), PANEL, tone, 8)
+	dim.color = Color(0.018, 0.028, 0.05, 0.92)
+	_place(overlay, dim, Rect2(0, 0, 1320, 807))
+	var box := _panel(overlay, Rect2(250, 38, 820, 750), Color("#101c2a"), tone, 8)
 	box.name = "ResultPanel"
-	var border := _style(PANEL, tone, 8)
+	var border := _style(Color("#101c2a"), tone, 8)
 	border.set_border_width_all(3)
 	box.add_theme_stylebox_override("panel", border)
-	_label(box, Rect2(31, 21, 620, 22), "KALYPSO / CHALLENGE COMPLETE", 12, tone, MONO)
-	_label(box, Rect2(31, 48, 620, 45), title, 38, tone, bold)
-	_label(box, Rect2(31, 97, 620, 32), outcome, 18, INK, SANS, true)
-	_result_faction(box, Rect2(31, 140, 270, 140), true, won)
-	_label(box, Rect2(309, 181, 64, 42), "VS", 22, MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_faction(box, Rect2(381, 140, 270, 140), false, lost)
-	_panel(box, Rect2(31, 298, 620, 70), Color("#0d1a24"), LINE, 4)
-	_label(box, Rect2(45, 304, 590, 20), "HOW IT ENDED", 11, MUTED, MONO)
-	_label(box, Rect2(45, 330, 590, 30), description, 18, INK, SANS, true)
-	var round_text := _label(box, Rect2(31, 384, 620, 22), "ROUND %02d" % state.round, 14, GOLD, MONO)
+	_label(box, Rect2(32, 20, 470, 22), planet + " / HORIZON MISSION REPORT", 12, tone, MONO)
+	if drift_circuit:
+		_label(box, Rect2(520, 20, 268, 22), "ALIENS %d / CREW %d" % [_drift_total(0), _drift_total(1)], 12, MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_label(box, Rect2(32, 48, 756, 52), title, 44, tone, bold)
+	_label(box, Rect2(32, 108, 756, 24), outcome, 13, tone, MONO)
+	var cast := StoryArt.new()
+	cast.name = "ResultCast"
+	cast.lineup = true
+	cast.cinder = drift_circuit
+	cast.outcome = state.winner
+	cast.motion = motion
+	_place(box, cast, Rect2(24, 143, 772, 202))
+	if state.winner < 0:
+		_label(box, Rect2(150, 336, 164, 18), "CREW", 12, SOUTH, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_label(box, Rect2(506, 336, 164, 18), "ALIENS", 12, NORTH, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	else:
+		_label(box, Rect2(302, 336, 216, 18), "ALIENS" if lost else "CREW", 12, tone, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_label(box, Rect2(32, 336, 140, 18), "CREW" if lost else "ALIENS", 11, MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_label(box, Rect2(648, 336, 140, 18), "CINDER" if drift_circuit else "KALYPSO", 11, MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_panel(box, Rect2(32, 359, 756, 119), Color("#0a1621"), LINE, 4)
+	_result_portrait = StoryArt.new()
+	_result_portrait.cinder = drift_circuit
+	_result_portrait.motion = motion
+	_place(box, _result_portrait, Rect2(42, 369, 88, 98))
+	_result_speaker = _label(box, Rect2(148, 370, 550, 22), "", 12, tone, MONO)
+	_result_quote = _label(box, Rect2(148, 400, 540, 70), "", 19, INK, SANS, true)
+	_result_next = _button(box, Rect2(705, 395, 70, 50), "Next ›", _advance_result_story)
+	_result_story = Story.result(expedition.current_system, int(state.winner), already_allied)
+	if expedition.all_allied() and won:
+		_result_story.append_array(Story.epilogue(expedition.current_system))
+	_result_line = 0
+	_render_result_story()
+	_label(box, Rect2(32, 491, 756, 20), "HOW IT ENDED", 11, MUTED, MONO)
+	_label(box, Rect2(32, 517, 756, 27), description, 18, INK, SANS, true)
+	var round_text := _label(box, Rect2(32, 555, 132, 22), "ROUND %02d" % state.round, 13, GOLD, MONO)
 	round_text.name = "ResultRound"
-	var flight := _button(box, Rect2(31, 423, 620, 46), "Return to flight", _leave_current_orbit)
+	var progress := "2 ALLIANCES / THE EXPEDITION CONTINUES" if expedition.all_allied() else "Trust earned. Fly on, or play again." if won or already_allied else "Withdraw and retry. Your journey continues." if lost else "No standing lost. Your journey continues."
+	_label(box, Rect2(183, 555, 605, 25), progress, 13, tone if expedition.all_allied() else MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var flight := _button(box, Rect2(32, 604, 756, 44), "Return to flight", _leave_current_orbit)
 	flight.name = "ReturnToFlightButton"
-	flight.tooltip_text = "Resume flying near Kalypso."
+	flight.tooltip_text = "Resume flying near " + planet.capitalize() + "."
 	var fill := Color("#1d3a32") if won else Color("#203042")
 	flight.add_theme_stylebox_override("normal", _style(fill, tone, 4))
 	flight.add_theme_stylebox_override("hover", _style(fill.lightened(0.16), tone, 4))
 	flight.add_theme_stylebox_override("pressed", _style(fill.lightened(0.24), tone, 4))
-	_button(box, Rect2(31, 485, 302, 42), "Rematch", func(): _start(local_mode, true))
-	_button(box, Rect2(349, 485, 302, 42), "View board", func(): _close_overlay(false))
-	_label(box, Rect2(31, 552, 620, 30), "Return to flight to explore the solar system.", 14, MUTED, MONO)
+	_button(box, Rect2(32, 664, 370, 42), "Rematch", func(): _start(local_mode, true))
+	_button(box, Rect2(418, 664, 370, 42), "View board", func(): _close_overlay(false))
+	_label(box, Rect2(32, 722, 756, 18), "HORIZON / EXPLORATION LOG / " + planet, 11, MUTED, MONO)
 
 
-func _result_faction(parent: Node, rect: Rect2, crew: bool, winner: bool) -> void:
-	var tone := Color("#8ae0a4") if crew and winner else (NORTH if winner else LINE)
-	var panel := _panel(parent, rect, Color("#0b1823"), tone, 4)
-	panel.name = "ResultCrew" if crew else "ResultAliens"
-	var name_label := _label(panel, Rect2(12, 7, rect.size.x - 24, 22), "CREW" if crew else "ALIENS", 13, SOUTH if crew else NORTH, MONO)
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var cells := [Vector2i(0, 0), Vector2i(0, 1), Vector2i(0, 0)] if crew else [Vector2i(1, 0), Vector2i(2, 0), Vector2i(1, 0)]
-	for index in cells.size():
-		var atlas := AtlasTexture.new()
-		atlas.atlas = RESULT_CHARACTERS
-		atlas.region = Rect2(Vector2(cells[index]) * 16, Vector2(16, 16))
-		var sprite := TextureRect.new()
-		sprite.texture = atlas
-		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sprite.modulate = Color.WHITE if winner or state.winner < 0 else Color(0.65, 0.65, 0.65)
-		_place(panel, sprite, Rect2(31 + index * 72, 37, 64, 64))
-	var caption := "ALLIANCE SECURED" if crew and winner else ("CHALLENGE WON" if winner else ("HORIZON" if crew else "KALYPSO ENVOYS"))
-	_label(panel, Rect2(12, 111, rect.size.x - 24, 20), caption, 11, tone if winner else MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+func _advance_result_story() -> void:
+	_result_line = (_result_line + 1) % _result_story.size()
+	_render_result_story()
+
+
+func _render_result_story() -> void:
+	var message: Dictionary = _result_story[_result_line]
+	_result_speaker.text = "%s  /  %d OF %d" % [message.speaker, _result_line + 1, _result_story.size()]
+	_result_quote.text = message.text
+	_result_portrait.role = message.role
+	_result_portrait.queue_redraw()
+	_result_next.text = "↺" if _result_line == _result_story.size() - 1 else "Next ›"
 
 
 func _travel_to_next_system() -> void:

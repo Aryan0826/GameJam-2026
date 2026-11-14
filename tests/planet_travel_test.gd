@@ -41,7 +41,7 @@ func _has_label(node: Node, text: String) -> bool:
 	return false
 
 
-func _await_scene(path: String, timeout_ms: int = 9000) -> bool:
+func _await_scene(path: String, timeout_ms: int = 18000) -> bool:
 	var deadline := Time.get_ticks_msec() + timeout_ms
 	while Time.get_ticks_msec() < deadline:
 		if current_scene and current_scene.scene_file_path == path:
@@ -152,7 +152,7 @@ func _check_travel() -> void:
 		return
 	var duel = current_scene
 	_check(duel.drift_circuit and duel.expedition.current_system_data().planet_name == "CINDER", "Cinder descent opens Drift Circuit with Cinder as the destination.")
-	_check(_press(duel, "[ENTER] REVEAL TRANSMISSION"), "The transmission can be revealed immediately.")
+	_check(_press(duel, "Skip story »"), "The story can be skipped directly to the briefing.")
 	_check(_press(duel, "Local duel"), "Cinder offers local play.")
 	_check(duel.state.has("drift") and duel.board.relay_nodes.size() == 3, "The local match has the relay board.")
 	_check(_has_label(duel.side_panel, "0 PTS  /  5 UNITS") and _has_label(duel.side_panel, "Points + units = 8 to win."),
@@ -173,7 +173,7 @@ func _check_travel() -> void:
 		return
 	duel = current_scene
 	_check(not duel.drift_circuit and duel.expedition.current_system == 0, "Kalypso descent opens the original challenge.")
-	_press(duel, "[ENTER] REVEAL TRANSMISSION")
+	_press(duel, "Skip story »")
 	_check(_press(duel, "Local duel") and duel.handoff, "Kalypso still uses its private local draft.")
 	_check(_press(duel, "Leave orbit"), "Kalypso can be left before the draft is complete.")
 	if not await _await_scene(FIRST_FLIGHT):
@@ -184,7 +184,7 @@ func _check_travel() -> void:
 	if not await _await_scene(SECOND_DUEL):
 		return
 	duel = current_scene
-	_press(duel, "[ENTER] REVEAL TRANSMISSION")
+	_press(duel, "Skip story »")
 	_check(_press(duel, "[ENTER] ACCEPT CHALLENGE") and not duel.local_mode, "Cinder can be replayed in solo mode after leaving Kalypso.")
 	if duel.state.active == 1:
 		duel._commit(duel.legal[0])

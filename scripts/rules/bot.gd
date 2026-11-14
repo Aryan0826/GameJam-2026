@@ -81,13 +81,6 @@ static func _score(state: Dictionary, side: int, public_round: int) -> float:
 			value -= 36.0
 		if state.fractures.has(pos):
 			value -= 48.0
-		if not pawn.borrow.is_empty():
-			value -= 9.0
-			var origin: Vector2i = pawn.borrow.origin
-			if state.holes.has(origin):
-				value -= 53.0
-			elif state.round == public_round and state.cracks.has(origin):
-				value -= 27.0
 		if pawn.id == state.holder:
 			var flag_value := 260.0 + 250.0 * int(state.replies)
 			if _can_be_captured(state, pawn):
@@ -108,7 +101,7 @@ static func _can_be_captured(state: Dictionary, target: Dictionary) -> bool:
 	if target_pos in state.infected:
 		return false
 	for attacker in state.pawns.values():
-		if attacker.side != enemy_side or not attacker.borrow.is_empty():
+		if attacker.side != enemy_side:
 			continue
 		if attacker.spy > 0 and target_pos == state.flag:
 			continue

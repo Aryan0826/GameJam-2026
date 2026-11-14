@@ -28,7 +28,7 @@ func _check(condition: bool, description: String) -> void:
 func _opening(seed_value: int = 7) -> Dictionary:
 	var s := Rules.create_match(seed_value, 0)
 	s = Rules.apply_action(s, {"kind": "draft", "pawns": [0, 1], "spells": ["teleport", "fracture"]}).state
-	s = Rules.apply_action(s, {"kind": "draft", "pawns": [5, 6], "spells": ["shield", "borrow_tomorrow"]}).state
+	s = Rules.apply_action(s, {"kind": "draft", "pawns": [5, 6], "spells": ["shield", "teleport"]}).state
 	return s
 
 
@@ -85,6 +85,16 @@ func _play(s: Dictionary, kind: String, id: int, p: Vector2i) -> Dictionary:
 
 
 func _setup_and_roll() -> void:
+	var draft := Rules.create_match(7, 0)
+	var choices := Rules.legal_actions(draft)
+	_check(Rules.SPELLS == ["shield", "fracture", "teleport"] and choices.size() == 60,
+		"Draft offers exactly the three remaining abilities on two different ships")
+	_check(not Rules.apply_action(draft, {"kind": "draft", "pawns": [0, 1], "spells": ["shield", "borrow_tomorrow"]}).ok,
+		"Removed ability cannot be drafted")
+	var obsolete := _position({0: Vector2i(4, 4), 1: Vector2i(7, 5), 5: Vector2i(8, 8)})
+	_grant(obsolete, 1, "borrow_tomorrow")
+	_check(not Rules.apply_action(obsolete, {"kind": "borrow_tomorrow", "pawn": 1, "to": Vector2i(6, 5), "second": 0, "second_to": Vector2i(4, 5)}).ok,
+		"Removed ability cannot be played even if a stale charge is supplied")
 	var faces := {}
 	for seed_value in range(1, 33):
 		var setup := Rules.create_match(seed_value, 0)
@@ -148,15 +158,6 @@ func _drafted_abilities() -> void:
 	_check(5 in s.pawns and Vector2i(8, 8) in s.fractures, "Fracture gives the other side one turn")
 	s = _play(s, "step", 6, Vector2i(6, 7))
 	_check(5 not in s.pawns and Vector2i(8, 8) in s.holes, "Fracture drops occupant")
-	s = _position({0: Vector2i(4, 4), 1: Vector2i(7, 5), 5: Vector2i(8, 8)})
-	_grant(s, 1, "borrow_tomorrow")
-	var borrowed := {"kind": "borrow_tomorrow", "pawn": 1, "to": Vector2i(6, 5), "second": 0, "second_to": Vector2i(4, 5)}
-	var result := Rules.apply_action(s, borrowed)
-	_check(result.ok and result.state.pawns[1].borrow.origin == Vector2i(7, 5), "Borrow establishes an echo")
-	s = _play_action(result.state, {"kind": "skip"})
-	s = _play(s, "step", 5, Vector2i(8, 7))
-	s = _play(s, "step", 0, s.flag)
-	_check(s.pawns[1].pos == Vector2i(7, 5) and s.holder == 0, "Borrow returns after next owner turn")
 	s = _position({0: Vector2i(3, 3), 5: Vector2i(4, 4)})
 	_grant(s, 0, "shield")
 	s = _play(s, "shield", 0, Vector2i(3, 3))

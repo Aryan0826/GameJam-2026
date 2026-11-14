@@ -1,14 +1,14 @@
 extends RefCounted
 ## Deterministic match state and transitions. All coordinates are one-based.
 
-const SPELLS := ["shield", "fracture", "teleport", "borrow_tomorrow"]
+const SPELLS := ["shield", "fracture", "teleport"]
 const SPECIALS := ["infected_trail", "spy", "long_capture"]
 const BOARD_SIZE := 9
 const PAWNS_PER_SIDE := 5
 const FLAG_REPLIES := 3
 const DIRECTIONS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
 const DIAGONALS := [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
-const SIDE_NAMES := ["Aliens", "Pilots"]
+const SIDE_NAMES := ["Aliens", "Crew"]
 const RNG_RANGE := 2147483646
 const Drift = preload("res://scripts/rules/drift.gd")
 
@@ -29,7 +29,7 @@ static func create_match(seed_value: int, first_override: int = -1) -> Dictionar
 			var id := side * PAWNS_PER_SIDE + index
 			state.pawns[id] = {
 				"id": id, "side": side, "owner": side, "pos": Vector2i(3 + index, 2 if side == 0 else 8),
-				"ability": "", "charged": false, "shield": false, "spy": 0, "borrow": {},
+				"ability": "", "charged": false, "shield": false, "spy": 0,
 			}
 	return state
 
@@ -68,7 +68,7 @@ static func legal_actions(state: Dictionary) -> Array[Dictionary]:
 			actions.append_array(_normal_actions(state, occupancy))
 			for id in state.pawns:
 				var pawn: Dictionary = state.pawns[id]
-				if pawn.side != side or not pawn.borrow.is_empty():
+				if pawn.side != side:
 					continue
 				actions.append_array(_drafted_actions(state, pawn, occupancy))
 		if not state.turn_power_used:
@@ -139,7 +139,7 @@ static func _play_drift_turn(state: Dictionary, action: Dictionary, events: Arra
 	if report:
 		if not relocations.is_empty():
 			_event(events, "relay_relocated", "Relays moved · %s." % " / ".join(relocations))
-		_event(events, "drift_score", "Rows shifted · Aliens +%d / Pilots +%d." % points)
+		_event(events, "drift_score", "Rows shifted · Aliens +%d / Crew +%d." % points)
 
 	var totals := [state.drift.scores[0], state.drift.scores[1]]
 	for pawn: Dictionary in state.pawns.values():
@@ -172,18 +172,12 @@ static func ability_reason(state: Dictionary, pawn: Dictionary) -> String:
 		return "Charge spent"
 	if pawn.spy:
 		return "A stolen pawn keeps its charge for its original side."
-	if not pawn.borrow.is_empty():
-		return "This pawn owes a return"
 	if not _drafted_actions(state, pawn, _occupancy(state)).is_empty():
 		return ""
 	match pawn.ability:
 		"shield": return "Shield cannot activate on the flag"
 		"fracture": return "No intact tile available to fracture"
 		"teleport": return "No open landing tile available"
-		"borrow_tomorrow":
-			if pawn.pos == state.flag:
-				return "The borrowed pawn cannot start on the flag"
-			return "Borrow Tomorrow needs two legal steps by different pawns"
 	return "Ability unavailable"
 
 
@@ -232,7 +226,7 @@ static func _normal_actions(state: Dictionary, occupancy: Dictionary) -> Array[D
 	var forward := _forward(side)
 	for id in state.pawns:
 		var pawn: Dictionary = state.pawns[id]
-		if pawn.side != side or not pawn.borrow.is_empty():
+		if pawn.side != side:
 			continue
 		var origin: Vector2i = pawn.pos
 		for offset: Vector2i in DIRECTIONS + DIAGONALS:
@@ -270,7 +264,7 @@ static func _draft_actions(state: Dictionary) -> Array[Dictionary]:
 
 static func _drafted_actions(state: Dictionary, pawn: Dictionary, occupancy: Dictionary) -> Array[Dictionary]:
 	var actions: Array[Dictionary] = []
-	if not pawn.charged or pawn.spy or not pawn.borrow.is_empty():
+	if not pawn.charged or pawn.spy:
 		return actions
 	var origin: Vector2i = pawn.pos
 	match pawn.ability:
@@ -288,33 +282,6 @@ static func _drafted_actions(state: Dictionary, pawn: Dictionary, occupancy: Dic
 					if pawn.ability == "fracture" and target in state.fractures:
 						continue
 					actions.append(_move(pawn.ability, pawn.id, target))
-		"borrow_tomorrow":
-			if origin != state.flag:
-				return _borrow_actions(state, pawn, occupancy)
-	return actions
-
-
-static func _borrow_actions(state: Dictionary, pawn: Dictionary, occupancy: Dictionary) -> Array[Dictionary]:
-	var actions: Array[Dictionary] = []
-	var origin: Vector2i = pawn.pos
-	for offset: Vector2i in DIRECTIONS:
-		var target := origin + offset
-		if target == state.flag or not _empty(state, occupancy, target):
-			continue
-		var updated := occupancy.duplicate()
-		updated.erase(origin)
-		updated[target] = pawn.id
-		for id in state.pawns:
-			var ally: Dictionary = state.pawns[id]
-			if id == pawn.id or ally.side != pawn.side or not ally.borrow.is_empty():
-				continue
-			for second_offset: Vector2i in DIRECTIONS:
-				var second_target: Vector2i = ally.pos + second_offset
-				if _empty(state, updated, second_target):
-					var action := _move("borrow_tomorrow", pawn.id, target)
-					action.second = id
-					action.second_to = second_target
-					actions.append(action)
 	return actions
 
 
@@ -324,14 +291,14 @@ static func _dice_power_actions(state: Dictionary) -> Array[Dictionary]:
 	match state.dice[state.active]:
 		"infected_trail":
 			for pawn: Dictionary in state.pawns.values():
-				if pawn.side == state.active and pawn.borrow.is_empty():
+				if pawn.side == state.active:
 					actions.append({"kind": "infected_trail", "pawn": pawn.id, "to": pawn.pos})
 		"spy":
 			for id in _spy_targets(state):
 				actions.append({"kind": "spy", "mark": id})
 		"long_capture":
 			for pawn: Dictionary in state.pawns.values():
-				if pawn.side != state.active or not pawn.borrow.is_empty():
+				if pawn.side != state.active:
 					continue
 				for offset: Vector2i in DIAGONALS:
 					for distance in [1, 2]:
@@ -418,7 +385,6 @@ static func _turn_event(state: Dictionary, events: Array[Dictionary]) -> void:
 static func _play_turn(state: Dictionary, events: Array[Dictionary]) -> void:
 	var side: int = state.active
 	_event(events, "skip", "%s ended the turn." % SIDE_NAMES[side], {"side": side})
-	_resolve_return(state, events)
 	_collapse(state, events)
 	_check_elimination(state)
 	if state.phase == "playing" and state.holder != -1 and state.pawns[state.holder].side != side:
@@ -469,12 +435,6 @@ static func _resolve_action(state: Dictionary, action: Dictionary, events: Array
 		"fracture":
 			state.fractures[target] = _serial(state) + 1
 			_event(events, "fracture", "%s will fall after the next turn." % _tile(target), {"tiles": [target], "to": target})
-		"borrow_tomorrow":
-			_shift(state, pawn, target, "step", events)
-			_shift(state, state.pawns[action.second], action.second_to, "step", events)
-			pawn.borrow = {"origin": origin, "due": _serial(state) + 2}
-			_event(events, "return_pending", "Pawn owes a return to %s after its side's next turn." % _tile(origin),
-				{"pawn": pawn.id, "from": target, "to": origin, "due": pawn.borrow.due})
 		_:
 			_shift(state, pawn, target, "step", events)
 	state.turn_move = true
@@ -526,7 +486,6 @@ static func _shift(state: Dictionary, pawn: Dictionary, target: Vector2i, kind: 
 	var message := "%s moved to %s." % [SIDE_NAMES[pawn.side], _tile(target)]
 	match kind:
 		"capture": message = "%s captured on %s." % [SIDE_NAMES[pawn.side], _tile(target)]
-		"returned": message = "Borrowed pawn returned to %s." % _tile(target)
 	var fields := {"pawn": pawn.id, "from": origin, "to": target, "side": pawn.side}
 	fields.merge(extra)
 	_event(events, kind, message, fields)
@@ -552,26 +511,6 @@ static func _flag_event(state: Dictionary, events: Array[Dictionary]) -> void:
 		side = state.pawns[state.holder].side
 		message = "%s flag hold: %d/%d replies." % [SIDE_NAMES[side], state.replies, FLAG_REPLIES]
 	_event(events, "flag", message, {"pawn": state.holder, "to": state.flag, "side": side, "replies": state.replies})
-
-
-static func _resolve_return(state: Dictionary, events: Array[Dictionary]) -> void:
-	for id in state.pawns.keys():
-		var pawn: Dictionary = state.pawns[id]
-		if pawn.owner != state.active or pawn.borrow.is_empty() or pawn.borrow.due > _serial(state):
-			continue
-		var origin: Vector2i = pawn.borrow.origin
-		pawn.borrow = {}
-		if _empty(state, _occupancy(state), origin):
-			_shift(state, pawn, origin, "returned", events)
-		else:
-			state.pawns.erase(id)
-			var reason := "occupied"
-			if state.holes.has(origin):
-				reason = "destroyed"
-			elif state.infected.has(origin):
-				reason = "infected"
-			_event(events, "return_failed", "Borrowed pawn lost. Its echo at %s was %s." % [_tile(origin), reason],
-				{"pawn": id, "from": pawn.pos, "to": origin, "reason": reason})
 
 
 static func _collapse(state: Dictionary, events: Array[Dictionary]) -> void:
