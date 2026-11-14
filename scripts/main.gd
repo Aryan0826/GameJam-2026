@@ -218,6 +218,11 @@ func _show_home() -> void:
 	_button(overlay, Rect2(93, 494, 461, 49), "Play solo", func(): _start(false), true)
 	_button(overlay, Rect2(93, 555, 220, 43), "Play local duel", func(): _start(true))
 	_button(overlay, Rect2(327, 555, 227, 43), "How to play", _show_rules)
+	_button(overlay, Rect2(93, 608, 461, 38), "Prologue / Story", _show_story)
+
+
+func _show_story() -> void:
+	get_tree().change_scene_to_file("res://scenes/opening_crawl.tscn")
 
 
 func _start(local: bool, rematch: bool = false) -> void:

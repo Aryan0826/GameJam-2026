@@ -1,8 +1,10 @@
-[gd_scene format=3 uid="uid://c8yj3a2vqx8pm"]
+[gd_scene load_steps=8 format=3 uid="uid://c8yj3a2vqx8pm"]
 
-[ext_resource type="Script" uid="uid://0d4gqbmn2i4w" path="res://scripts/opening_crawl.gd" id="1_crawl_script"]
-[ext_resource type="Shader" uid="uid://oarsx800moml" path="res://shaders/starfield.gdshader" id="2_starfield_shader"]
-[ext_resource type="Shader" uid="uid://di6kwpui1m5l8" path="res://shaders/crawl_fade.gdshader" id="3_crawl_fade_shader"]
+[ext_resource type="Script" path="res://scripts/opening_crawl.gd" id="1_crawl_script"]
+[ext_resource type="Shader" path="res://shaders/starfield.gdshader" id="2_starfield_shader"]
+[ext_resource type="Shader" path="res://shaders/crawl_fade.gdshader" id="3_crawl_fade_shader"]
+[ext_resource type="FontFile" uid="uid://cbad6c5e8970e42193f755b3ea37b5b7" path="res://art/SpaceGrotesk.ttf" id="4_space_font"]
+[ext_resource type="FontFile" uid="uid://f99b7a3c4468297024b42f01ee395ecf" path="res://art/IBMPlexMono-Regular.ttf" id="5_mono_font"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_starfield"]
 shader = ExtResource("2_starfield_shader")
@@ -19,7 +21,7 @@ shader_parameter/top_fade_end = 0.08
 shader_parameter/bottom_fade_start = 0.88
 shader_parameter/bottom_fade_end = 0.98
 
-[node name="OpeningCrawl" type="Control" unique_id=28774788]
+[node name="OpeningCrawl" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -27,8 +29,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_crawl_script")
+next_scene_path = "res://main.tscn"
 
-[node name="StarfieldBackground" type="ColorRect" parent="." unique_id=1933644666]
+[node name="StarfieldBackground" type="ColorRect" parent="."]
 material = SubResource("ShaderMaterial_starfield")
 layout_mode = 1
 anchors_preset = 15
@@ -39,7 +42,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
-[node name="CrawlViewportContainer" type="SubViewportContainer" parent="." unique_id=1301442348]
+[node name="CrawlViewportContainer" type="SubViewportContainer" parent="."]
 material = SubResource("ShaderMaterial_crawl_fade")
 layout_mode = 1
 anchors_preset = 15
@@ -50,56 +53,62 @@ grow_vertical = 2
 mouse_filter = 2
 stretch = true
 
-[node name="SubViewport" type="SubViewport" parent="CrawlViewportContainer" unique_id=1879526486]
+[node name="SubViewport" type="SubViewport" parent="CrawlViewportContainer"]
 transparent_bg = true
 handle_input_locally = false
-size = Vector2i(1152, 648)
+size = Vector2i(1320, 850)
 render_target_update_mode = 4
 
-[node name="CrawlWorld" type="Node3D" parent="CrawlViewportContainer/SubViewport" unique_id=1075731314]
+[node name="CrawlWorld" type="Node3D" parent="CrawlViewportContainer/SubViewport"]
 
-[node name="Camera3D" type="Camera3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld" unique_id=267015236]
+[node name="Camera3D" type="Camera3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld"]
 transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 1.2, 5)
 fov = 50.0
 
-[node name="CrawlTilt" type="Node3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld" unique_id=1449723840]
+[node name="CrawlTilt" type="Node3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld"]
 transform = Transform3D(1, 0, 0, 0, 0.469472, 0.882948, 0, -0.882948, 0.469472, 0, 0, 0)
 
-[node name="TextContent" type="Node3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt" unique_id=1782997838]
+[node name="TextContent" type="Node3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3.5, 0)
 
-[node name="EpisodeLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent" unique_id=1594754694]
+[node name="EpisodeLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
 modulate = Color(1, 0.9, 0.12, 1)
 outline_modulate = Color(0, 0, 0, 0.7)
 text = "EPISODE I"
+font = ExtResource("5_mono_font")
 font_size = 40
 outline_size = 6
 
-[node name="TitleLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent" unique_id=716540156]
+[node name="TitleLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.8, 0)
 modulate = Color(1, 0.9, 0.12, 1)
 outline_modulate = Color(0, 0, 0, 0.7)
-text = "THE ALLIANCE EXPEDITION"
+text = "THE FRACTURED FLAG"
+font = ExtResource("4_space_font")
 font_size = 50
 outline_size = 7
 
-[node name="BodyLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent" unique_id=488428731]
+[node name="BodyLabel" type="Label3D" parent="CrawlViewportContainer/SubViewport/CrawlWorld/CrawlTilt/TextContent"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
 modulate = Color(1, 0.9, 0.12, 1)
 outline_modulate = Color(0, 0, 0, 0.6)
 text = "The scientists of planet KALYPSO have achieved the impossible: the secret of interstellar travel has finally been unlocked.
 
-With their homeworld's ancient resources running low, COMMANDER VALERIA is chosen to helm the flagship HORIZON on humanity's first deep space expedition.
+With their homeworld's ancient energy reserves depleted, COMMANDER VALERIA is chosen to helm the flagship HORIZON on humanity's first deep space expedition.
 
-Setting course into uncharted star systems, the mission is perilous: explore distant worlds and find noble allies to secure the survival of their civilization...."
+Entering uncharted space, the expedition discovers a collapsing orbital arena and encounters an enigmatic ALIEN FLEET.
+
+To forge a vital alliance and ensure their people's survival, the Commander must now take the board, hold the fractured flag, and emerge victorious...."
+font = ExtResource("4_space_font")
+font_size = 32
 outline_size = 4
 vertical_alignment = 0
-line_spacing = 16.0
 autowrap_mode = 3
-width = 800.0
+width = 820.0
+line_spacing = 16.0
 
-[node name="IntroContainer" type="CenterContainer" parent="." unique_id=187342124]
+[node name="IntroContainer" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -108,30 +117,32 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="IntroLabel" type="Label" parent="IntroContainer" unique_id=769726811]
+[node name="IntroLabel" type="Label" parent="IntroContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.294118, 0.835294, 0.933333, 1)
-theme_override_font_sizes/font_size = 26
+theme_override_fonts/font = ExtResource("4_space_font")
+theme_override_font_sizes/font_size = 28
 text = "A short time ago in a star system far, far away..."
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="SkipHint" type="Label" parent="." unique_id=436540653]
+[node name="SkipHint" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -290.0
-offset_top = -36.0
-offset_right = -16.0
-offset_bottom = -12.0
+offset_left = -320.0
+offset_top = -40.0
+offset_right = -20.0
+offset_bottom = -14.0
 grow_horizontal = 0
 grow_vertical = 0
-theme_override_colors/font_color = Color(1, 1, 1, 0.38)
+theme_override_colors/font_color = Color(1, 1, 1, 0.4)
+theme_override_fonts/font = ExtResource("5_mono_font")
 theme_override_font_sizes/font_size = 13
-text = "[SPACE] Fast Forward  •  [ESC] Skip"
+text = "[SPACE] Fast Forward  •  [ESC/ENTER] Skip"
 horizontal_alignment = 2
 
-[node name="MusicPlayer" type="AudioStreamPlayer" parent="." unique_id=1501660134]
+[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]

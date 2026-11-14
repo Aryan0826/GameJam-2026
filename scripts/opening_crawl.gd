@@ -2,7 +2,7 @@ class_name OpeningCrawl
 extends Control
 
 ## Star Wars Opening Crawl Controller
-## Manages timing, 3D text progression, intro sequence, and skip handling.
+## Manages timing, 3D text progression, intro sequence, and transition to the game board.
 
 signal intro_finished
 signal crawl_finished
@@ -10,16 +10,18 @@ signal crawl_finished
 @export_group("Story Content")
 @export var intro_text: String = "A short time ago in a star system far, far away..."
 @export var episode_text: String = "EPISODE I"
-@export var title_text: String = "THE ALLIANCE EXPEDITION"
+@export var title_text: String = "THE FRACTURED FLAG"
 @export_multiline var body_text: String = (
 	"The scientists of planet KALYPSO have achieved the impossible: " +
 	"the secret of interstellar travel has finally been unlocked.\n\n" +
-	"With their homeworld's ancient resources running low, " +
+	"With their homeworld's ancient energy reserves depleted, " +
 	"COMMANDER VALERIA is chosen to helm the flagship HORIZON " +
 	"on humanity's first deep space expedition.\n\n" +
-	"Setting course into uncharted star systems, the mission is perilous: " +
-	"explore distant worlds and find noble allies to secure " +
-	"the survival of their civilization...."
+	"Entering uncharted space, the expedition discovers a collapsing " +
+	"orbital arena and encounters an enigmatic ALIEN FLEET.\n\n" +
+	"To forge a vital alliance and ensure their people's survival, " +
+	"the Commander must now take the board, hold the fractured flag, " +
+	"and emerge victorious...."
 )
 
 @export_group("Timing & Speed")
@@ -35,8 +37,8 @@ signal crawl_finished
 @export var end_local_y: float = 8.5
 
 @export_group("Scene Navigation")
-## Path to the next scene to load upon crawl completion (e.g. main menu or game level).
-@export_file("*.tscn") var next_scene_path: String = ""
+## Path to the next scene to load upon crawl completion (transitions to main.tscn).
+@export_file("*.tscn") var next_scene_path: String = "res://main.tscn"
 @export var allow_skip: bool = true
 @export var allow_speedup: bool = true
 @export var speedup_multiplier: float = 2.5
@@ -144,7 +146,8 @@ func _process(delta: float) -> void:
 	# Handle skip input
 	if allow_skip and (
 		Input.is_action_just_pressed("ui_cancel") or
-		Input.is_key_pressed(KEY_ESCAPE)
+		Input.is_key_pressed(KEY_ESCAPE) or
+		Input.is_key_pressed(KEY_ENTER)
 	):
 		_finish_crawl()
 		return
@@ -175,7 +178,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _is_completed:
 		return
 	if allow_skip and event is InputEventKey and event.is_pressed():
-		if event.keycode == KEY_ESCAPE:
+		if event.keycode == KEY_ESCAPE or event.keycode == KEY_ENTER:
 			_finish_crawl()
 
 
@@ -186,10 +189,10 @@ func _finish_crawl() -> void:
 	_is_crawl_active = false
 	crawl_finished.emit()
 
-	# Optional scene transition
+	# Smoothly transition to the game board / main scene
 	if not next_scene_path.is_empty():
 		var tween: Tween = create_tween()
-		tween.tween_property(self, "modulate:a", 0.0, 0.5)
+		tween.tween_property(self, "modulate:a", 0.0, 0.4)
 		tween.tween_callback(func():
 			get_tree().change_scene_to_file(next_scene_path)
 		)
