@@ -59,7 +59,7 @@ Shuffle once per round before moving or using a drafted ability. The cards shuff
 Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
 
 [color=#f8d587]CONTROLS[/color]
-Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
+Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Multiplayer switches alien control to Player 2; Computer returns control to the AI. Changes take effect on the next alien turn boundary."""
 
 const DRIFT_QUICK_START = """[color=#f8d587]TAKE YOUR TURN[/color]
 Move or capture one unit. Turns alternate.
@@ -213,7 +213,7 @@ func _build_frame() -> void:
 	for lamp in beacon_lamps:
 		lamp.visible = not drift_circuit
 	mode_button = _button(chrome, Rect2(680, 811, 95, 31), "Solo", _show_modes)
-	takeover_button = _button(chrome, Rect2(783, 811, 150, 31), "Multiplayer" if drift_circuit else "Take Over Aliens", _takeover)
+	takeover_button = _button(chrome, Rect2(783, 811, 150, 31), "Multiplayer", _takeover)
 	_button(chrome, Rect2(941, 811, 104, 31), "How to play", _show_rules)
 	motion_button = _button(chrome, Rect2(1051, 811, 76, 31), "FX on", _toggle_motion)
 	feedback = _label(chrome, Rect2(72, 812, 590, 26), "", 14, GOLD)
@@ -580,10 +580,7 @@ func _start(local: bool, rematch: bool = false) -> void:
 func _enter_turn() -> void:
 	legal = Rules.legal_actions(state)
 	if state.phase == "playing" and state.active == 0 and takeover_queued:
-		if drift_circuit:
-			local_mode = not local_mode
-		else:
-			local_mode = true
+		local_mode = not local_mode
 		takeover_queued = false
 		_note("Aliens are now controlled by Player 2." if local_mode else "Aliens are now controlled by the computer.")
 	_refresh()
@@ -749,13 +746,10 @@ func _play_action_audio(events: Array) -> void:
 
 
 func _takeover() -> void:
-	if state.phase != "playing" or takeover_queued or (local_mode and not drift_circuit):
+	if state.phase != "playing" or takeover_queued:
 		return
 	takeover_queued = true
-	if drift_circuit:
-		_note("Computer control will resume on the next Alien turn." if local_mode else "Multiplayer will begin on the next Alien turn.")
-	else:
-		_note("Takeover queued for the next Alien turn.")
+	_note("Computer control will resume on the next Alien turn." if local_mode else "Multiplayer will begin on the next Alien turn.")
 	_refresh()
 
 
@@ -799,14 +793,11 @@ func _refresh() -> void:
 			flag_status = "STOLEN UNIT  /  NO SCORE"
 		status_label.text = "BEACON  %s     /     %s" % [_coord(state.flag), flag_status]
 	mode_button.text = "Local" if local_mode else "Solo"
-	takeover_button.disabled = draft or (local_mode and not drift_circuit) or takeover_queued or state.phase != "playing"
-	if drift_circuit:
-		if takeover_queued:
-			takeover_button.text = "Bot queued" if local_mode else "MP queued"
-		else:
-			takeover_button.text = "Computer" if local_mode else "Multiplayer"
+	takeover_button.disabled = draft or takeover_queued or state.phase != "playing"
+	if takeover_queued:
+		takeover_button.text = "Bot queued" if local_mode else "MP queued"
 	else:
-		takeover_button.text = "Takeover queued" if takeover_queued else "Take Over Aliens"
+		takeover_button.text = "Computer" if local_mode else "Multiplayer"
 	_clear(side_panel)
 	if draft:
 		_draw_draft()
