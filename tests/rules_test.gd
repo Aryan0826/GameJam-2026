@@ -58,6 +58,30 @@ func _play(s: Dictionary, kind: String, id: int, p: Vector2i) -> Dictionary:
 	return result.state
 
 
+func _combined_action(s: Dictionary, move_kind: String, mover: int, move_to: Vector2i, power_kind: String, power_details: Dictionary = {}) -> Dictionary:
+	for action: Dictionary in Rules.legal_actions(s):
+		if action.kind != "combined" or action.move.kind != move_kind or action.move.pawn != mover or action.move.to != move_to:
+			continue
+		if action.power.kind != power_kind:
+			continue
+		var matches := true
+		for key in power_details:
+			if action.power.get(key) != power_details[key]:
+				matches = false
+				break
+		if matches:
+			return action
+	return {}
+
+
+func _play_combo(s: Dictionary, move_kind: String, mover: int, move_to: Vector2i, power_kind: String, power_details: Dictionary = {}) -> Dictionary:
+	var action := _combined_action(s, move_kind, mover, move_to, power_kind, power_details)
+	_check(not action.is_empty(), "Expected combined %s + %s action" % [move_kind, power_kind])
+	var result := Rules.apply_action(s, action)
+	_check(result.ok, "Expected combined action to be legal")
+	return result.state
+
+
 func _setup_and_roll() -> void:
 	var faces := {}
 	for seed_value in range(1, 33):
@@ -139,17 +163,21 @@ func _drafted_abilities() -> void:
 func _die_abilities() -> void:
 	var s := _position({0: Vector2i(4, 4), 5: Vector2i(7, 7), 6: Vector2i(2, 4)})
 	s.dice[0] = "infected_trail"
-	s = _play(s, "infected_trail", 0, Vector2i(6, 6))
+	_check(_has(s, "step", 0, Vector2i(6, 6)), "Normal moves remain available after rolling")
+	_check({"kind": "infected_trail", "pawn": 0, "to": Vector2i(6, 6)} not in Rules.legal_actions(s),
+		"Infected Trail no longer replaces the normal move")
+	s = _play_combo(s, "step", 0, Vector2i(6, 6), "infected_trail")
 	_check(s.infected.size() == 8 and s.flag not in s.infected, "Centered infection affects 3 × 3 except the flag")
 	_check(not _has(s, "step", 6, Vector2i(3, 4)), "Infection blocks entry")
 	s = _play(s, "step", 5, Vector2i(8, 7))
 	_check(s.infected.is_empty(), "Infection expires after enemy turn")
-	s = _position({0: Vector2i(3, 4), 1: Vector2i(7, 7), 5: Vector2i(4, 5), 6: Vector2i(7, 8)})
+	s = _position({0: Vector2i(2, 4), 1: Vector2i(7, 7), 5: Vector2i(4, 5), 6: Vector2i(7, 8)})
 	_grant(s, 5, "teleport")
 	s.dice[0] = "spy"
-	var result := Rules.apply_action(s, {"kind": "spy", "pawn": 0, "to": Vector2i(4, 5), "mark": 5})
-	_check(result.ok and result.state.pawns[5].side == 0 and result.state.pawns[5].spy == 3, "Spy grants three turns of control")
-	s = _play(result.state, "step", 6, Vector2i(6, 8))
+	s = _play_combo(s, "step", 0, Vector2i(3, 4), "spy", {"mark": 5})
+	_check(s.pawns[0].pos == Vector2i(3, 4) and s.pawns[5].side == 0 and s.pawns[5].spy == 3,
+		"Spy follows a normal move and grants three turns of control")
+	s = _play(s, "step", 6, Vector2i(6, 8))
 	_check(not _has(s, "teleport", 5, Vector2i(1, 1)), "Stolen pawn cannot spend its original charge")
 	s = _play(s, "step", 5, s.flag)
 	_check(s.holder == -1 and s.pawns[5].spy == 2, "Stolen pawn occupies the flag without scoring")
@@ -162,12 +190,14 @@ func _die_abilities() -> void:
 	s.holder = 5
 	s.dice[0] = "long_capture"
 	_check(not _has(s, "capture", 0, s.flag), "Normal capture cannot reach two diagonals")
-	s = _play(s, "long_capture", 0, s.flag)
-	_check(5 not in s.pawns and s.holder == 0 and s.replies == 0, "Long Capture jumps blockers and can claim a distant flag")
-	s = _position({0: Vector2i(4, 4), 5: Vector2i(5, 5)})
+	s = _play_combo(s, "step", 0, Vector2i(3, 4), "long_capture", {"pawn": 1, "to": s.flag})
+	_check(5 not in s.pawns and s.pawns[0].pos == Vector2i(3, 4) and s.holder == 1 and s.replies == 0,
+		"Long Capture follows a normal move and can claim the flag with another pawn")
+	s = _position({0: Vector2i(4, 4), 1: Vector2i(3, 3), 5: Vector2i(5, 5)})
 	s.pawns[0].spy = 3
 	s.dice[0] = "long_capture"
-	_check(not _has(s, "capture", 0, s.flag) and not _has(s, "long_capture", 0, s.flag), "Stolen pawn cannot take a flag holder")
+	_check(_combined_action(s, "step", 1, Vector2i(3, 2), "long_capture", {"pawn": 0, "to": s.flag}).is_empty(),
+		"Stolen pawn cannot use Long Capture against a flag holder")
 
 
 func _rims() -> void:
