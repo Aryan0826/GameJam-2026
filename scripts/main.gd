@@ -7,6 +7,7 @@ const DriftBot = preload("res://scripts/drift_bot.gd")
 const Arena = preload("res://scripts/board.gd")
 const Cockpit = preload("res://scripts/cockpit.gd")
 const AbilityCards = preload("res://scripts/ability_cards.gd")
+const KalypsoGuide = preload("res://scripts/kalypso_guide.gd")
 const ExpeditionState = preload("res://scripts/expedition.gd")
 const SANS = preload("res://art/SpaceGrotesk.ttf")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
@@ -36,29 +37,6 @@ const SPELLS = {
 const DRAFT_SPELLS = Rules.SPELLS
 const IMAGE_CREDIT = "NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team"
 const IMAGE_URL = "https://esahubble.org/images/heic1509a/"
-const RULES_TEXT = """[color=#f8d587]WIN THE DUEL[/color]
-Hold the center beacon through three enemy turns with the same unit, or remove every enemy unit. The match draws after round 8 if neither side wins.
-
-[color=#f8d587]TAKE YOUR TURN[/color]
-Shuffle first. Then choose one path: Move → Use power; Move → Finish turn; or Use power → Finish turn. A drafted ability counts as your move. Finish / skip turn is available at any time.
-
-Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the beacon from an adjacent square or by making a capture.
-
-[color=#f8d587]WATCH THE RIM[/color]
-Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any unit on a falling tile is removed.
-
-[color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
-Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant.
-
-Borrow Tomorrow moves its assigned unit one orthogonal step, then moves another ally one orthogonal step. The first unit cannot enter or leave the beacon. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
-
-[color=#f8d587]SHUFFLE FOR AN ABILITY[/color]
-Shuffle once per round before moving or using a drafted ability. The cards shuffle, then flip to reveal your special power. Each of the three powers has an equal chance. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
-
-Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
-
-[color=#f8d587]CONTROLS[/color]
-Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
 const DRIFT_RULES_TEXT = """[color=#f8d587]RACE TO FIVE[/color]
 After both players act, the marked rows shift. Each gold relay occupied after the shift earns one point, then jumps to another column on the same row. Each relay can score once per round. Reach five points with a lead to win. A tie at five or more goes to another round. If no side wins by the end of round %d, the match draws.
@@ -922,9 +900,45 @@ func _show_handoff() -> void:
 
 
 func _show_rules() -> void:
-	var box := _modal("rules", "Drift Circuit rules" if drift_circuit else "How to play", 702)
-	_rich(box, Rect2(31, 94, 621, 516), DRIFT_RULES_TEXT % Drift.ROUND_LIMIT if drift_circuit else RULES_TEXT)
+	if not drift_circuit:
+		_show_kalypso_guide(0)
+		return
+	var box := _modal("rules", "Drift Circuit rules", 702)
+	_rich(box, Rect2(31, 94, 621, 516), DRIFT_RULES_TEXT % Drift.ROUND_LIMIT)
 	_button(box, Rect2(31, 634, 620, 41), "Back", _close_overlay)
+
+
+func _show_kalypso_guide(page: int) -> void:
+	var box := _modal("rules", "Kalypso · How to play", 740)
+	_panel(box, Rect2(31, 89, 620, 83), Color("#192a32"), LINE, 4)
+	_label(box, Rect2(45, 94, 590, 20), "GOAL", 12, GOLD, MONO)
+	_label(box, Rect2(45, 116, 590, 50), KalypsoGuide.OBJECTIVE, 19, INK, SANS, true)
+	var tabs := ["Quick start", "Moves", "Abilities"]
+	for index in tabs.size():
+		var tab := _button(box, Rect2(31 + index * 210, 185, 200, 36), tabs[index], _show_kalypso_guide.bind(index), page == index)
+		tab.name = "GuideTab%d" % index
+	if page == 0:
+		_rich(box, Rect2(31, 238, 620, 418), KalypsoGuide.QUICK_START, 18)
+	elif page == 1:
+		var examples := [
+			["MOVE", "res://art/kalypso-movement-guide.png", KalypsoGuide.MOVEMENT],
+			["CAPTURE", "res://art/kalypso-capture-guide.png", KalypsoGuide.CAPTURES],
+		]
+		for index in examples.size():
+			var x := 31 + index * 320
+			_label(box, Rect2(x, 235, 300, 24), examples[index][0], 15, SOUTH if index == 0 else NORTH, MONO)
+			var screenshot := TextureRect.new()
+			screenshot.name = "MovementScreenshot" if index == 0 else "CaptureScreenshot"
+			screenshot.texture = load(examples[index][1])
+			screenshot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			screenshot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			screenshot.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			_place(box, screenshot, Rect2(x, 266, 300, 259))
+			_rich(box, Rect2(x, 535, 300, 91), examples[index][2], 16)
+		_rich(box, Rect2(31, 632, 620, 38), "Enter the flag from an adjacent tile or by capture. Click a ship to see legal targets; drag the board to rotate.", 14)
+	else:
+		_rich(box, Rect2(31, 238, 620, 425), KalypsoGuide.ABILITIES, 17)
+	_button(box, Rect2(31, 680, 620, 41), "Back to game" if not state.is_empty() else "Back", _close_overlay)
 
 
 func _show_credits() -> void:
@@ -1074,12 +1088,12 @@ func _travel_to_next_system() -> void:
 		_note("Could not set course for Cinder.")
 
 
-func _rich(parent: Node, rect: Rect2, value: String) -> void:
+func _rich(parent: Node, rect: Rect2, value: String, px: int = 18) -> void:
 	var rich := RichTextLabel.new()
 	rich.bbcode_enabled = true
 	rich.text = value
 	rich.add_theme_font_override("normal_font", SANS)
-	rich.add_theme_font_size_override("normal_font_size", 18)
+	rich.add_theme_font_size_override("normal_font_size", px)
 	rich.add_theme_color_override("default_color", INK)
 	rich.meta_clicked.connect(func(url): OS.shell_open(str(url)))
 	_place(parent, rich, rect)
