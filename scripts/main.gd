@@ -15,6 +15,10 @@ const NORTH = Color("#ff937e")
 const SOUTH = Color("#83e1fa")
 const PANEL = Color("#111e29")
 const LINE = Color("#3d5b68")
+const ALIEN_GREEN = Color("#9cff83")
+const ALIEN_DIM = Color("#75ad83")
+const ALIEN_PANEL = Color("#0c1c15")
+const ALIEN_LINE = Color("#3b7950")
 const SIDES = ["Aliens", "Pilots"]
 const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the beacon."],
@@ -475,12 +479,12 @@ func _draw_play() -> void:
 	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() or not state.fractures.is_empty() else MUTED)
 	_panel(side_panel, Rect2(846, 359, 430, 282))
 	_label(side_panel, Rect2(864, 369, 396, 25), "TURN CHOICES", 12, MUTED, MONO)
-	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 16, INK, SANS, true)
+	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 15, INK, SANS, true)
 	if selected >= 0 and selected in state.pawns:
 		var p: Dictionary = state.pawns[selected]
 		_action_button(Rect2(864, 462, 189, 38), "Move / capture", "standard")
 		if p.ability != "":
-			_action_button(Rect2(864, 509, 189, 38), SPELLS[p.ability][0], "ability")
+			_action_button(Rect2(864, 507, 189, 36), SPELLS[p.ability][0], "ability")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
@@ -491,20 +495,24 @@ func _draw_play() -> void:
 		elif details.is_empty() and action_group == "power" and not face.is_empty():
 			details = SPELLS[face][1]
 		if not details.is_empty():
-			_label(side_panel, Rect2(865, 595, 387, 36), details, 13, MUTED, SANS, true)
+			_label(side_panel, Rect2(864, 549, 394, 35), details, 13, MUTED, SANS, true)
 	else:
-		_label(side_panel, Rect2(864, 473, 188, 40), "Hold the beacon through three enemy turns.", 16, GOLD, bold, true)
-		_label(side_panel, Rect2(864, 518, 188, 67), "Select a unit to move. Power targets appear after Use power.", 14, MUTED, SANS, true)
+		_label(side_panel, Rect2(864, 510, 394, 74), "For a move, select a unit first. For power, click Use power, then choose a highlighted target.", 15, MUTED, SANS, true)
 	if not face.is_empty():
 		_action_button(Rect2(1062, 462, 196, 38), "Use power", "power")
-	var skip := _button(side_panel, Rect2(1062, 509, 196, 38), "Finish / skip turn", _skip_turn)
+	var skip := _button(side_panel, Rect2(864, 590, 394, 38), "Finish / skip turn", _skip_turn)
 	skip.disabled = busy or state.phase != "playing" or (not local_mode and state.active == 0)
-	_panel(side_panel, Rect2(846, 654, 430, 145))
-	_label(side_panel, Rect2(864, 665, 270, 22), "FLIGHT LOG", 12, MUTED, MONO)
-	_button(side_panel, Rect2(1162, 663, 97, 27), "View log", _show_log)
+	_panel(side_panel, Rect2(846, 654, 430, 145), ALIEN_PANEL, ALIEN_LINE, 12)
+	_label(side_panel, Rect2(864, 665, 270, 22), "ALIEN FLIGHT LOG", 12, ALIEN_GREEN, MONO)
+	var log_button := _button(side_panel, Rect2(1162, 663, 97, 27), "View log", _show_log)
+	log_button.add_theme_stylebox_override("normal", _style(Color("#14281a"), ALIEN_LINE, 8))
+	log_button.add_theme_stylebox_override("hover", _style(Color("#1e3925"), ALIEN_GREEN, 8))
+	log_button.add_theme_stylebox_override("pressed", _style(Color("#284b30"), ALIEN_GREEN, 8))
+	log_button.add_theme_color_override("font_color", ALIEN_GREEN)
+	log_button.add_theme_color_override("font_hover_color", Color("#d0ffc4"))
 	var latest := messages.slice(0, 3)
 	for i in range(latest.size()):
-		var line := _label(side_panel, Rect2(864, 695 + i * 30, 389, 27), latest[i], 14, INK if i == 0 else MUTED)
+		var line := _label(side_panel, Rect2(864, 695 + i * 30, 389, 27), latest[i], 14, ALIEN_GREEN if i == 0 else ALIEN_DIM)
 		line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
 
