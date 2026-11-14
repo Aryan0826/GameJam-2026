@@ -8,6 +8,7 @@ const Arena = preload("res://scripts/board.gd")
 const Cockpit = preload("res://scripts/cockpit.gd")
 const AbilityCards = preload("res://scripts/ability_cards.gd")
 const KalypsoGuide = preload("res://scripts/kalypso_guide.gd")
+const RESULT_CHARACTERS = preload("res://art/results/characters.png")
 const ExpeditionState = preload("res://scripts/expedition.gd")
 const SANS = preload("res://art/SpaceGrotesk.ttf")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
@@ -1278,6 +1279,9 @@ func _show_result() -> void:
 	if state.is_empty() or state.phase != "finished":
 		return
 	expedition.record_battle(int(state.winner))
+	if not drift_circuit:
+		_show_kalypso_result()
+		return
 	var next_available := expedition.has_next_system()
 	var title := "Trial unresolved"
 	var outcome := "The trial ends in a draw. You may try again or return to exploration."
@@ -1321,6 +1325,82 @@ func _show_result() -> void:
 	_button(box, Rect2(31, rematch_y, 620, 46), "Rematch", func(): _start(local_mode, true), not next_available)
 	_button(box, Rect2(31, footer_y, 620, 41), "View board", func(): _close_overlay(false))
 	_button(box, Rect2(31, footer_y + 57, 620, 41), "Return to planets", _leave_current_orbit)
+
+
+func _show_kalypso_result() -> void:
+	var won: bool = state.winner == 1
+	var lost: bool = state.winner == 0
+	var tone := Color("#8ae0a4") if won else (NORTH if lost else GOLD)
+	var title := "Crew victory!" if won else ("Aliens win" if lost else "Challenge drawn")
+	if local_mode and state.winner >= 0:
+		title = "%s win!" % SIDES[state.winner]
+	var outcome := "The crew has earned Kalypso’s trust. An alliance is secured." if won else ("Kalypso’s envoys won the challenge. The crew can try again." if lost else "Neither side won. Play again or continue exploring.")
+	var description := "The challenge is complete."
+	match state.reason:
+		"flag":
+			description = "Your ship held the flag through 3 enemy turns." if won else "An enemy ship held the flag through 3 of your turns."
+		"elimination":
+			description = "All enemy ships were eliminated." if won else "All of your ships were eliminated."
+		"mutual_elimination":
+			description = "Both sides lost their last ship."
+		"round_cap":
+			description = "Neither side won within 8 rounds."
+	if local_mode and state.winner >= 0:
+		description = "%s held the flag through 3 enemy turns." % SIDES[state.winner] if state.reason == "flag" else "%s eliminated the opposing fleet." % SIDES[state.winner]
+	cockpit.clearance = "land" if won else ""
+	_clear(overlay)
+	overlay_kind = "result"
+	var dim := ColorRect.new()
+	dim.color = Color(0.025, 0.032, 0.07, 0.84)
+	_place(overlay, dim, Rect2(0, 237, 1320, 570))
+	var box := _panel(overlay, Rect2(319, 175, 682, 600), PANEL, tone, 8)
+	box.name = "ResultPanel"
+	var border := _style(PANEL, tone, 8)
+	border.set_border_width_all(3)
+	box.add_theme_stylebox_override("panel", border)
+	_label(box, Rect2(31, 21, 620, 22), "KALYPSO / CHALLENGE COMPLETE", 12, tone, MONO)
+	_label(box, Rect2(31, 48, 620, 45), title, 38, tone, bold)
+	_label(box, Rect2(31, 97, 620, 32), outcome, 18, INK, SANS, true)
+	_result_faction(box, Rect2(31, 140, 270, 140), true, won)
+	_label(box, Rect2(309, 181, 64, 42), "VS", 22, MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_result_faction(box, Rect2(381, 140, 270, 140), false, lost)
+	_panel(box, Rect2(31, 298, 620, 70), Color("#0d1a24"), LINE, 4)
+	_label(box, Rect2(45, 304, 590, 20), "HOW IT ENDED", 11, MUTED, MONO)
+	_label(box, Rect2(45, 330, 590, 30), description, 18, INK, SANS, true)
+	var round_text := _label(box, Rect2(31, 384, 620, 22), "ROUND %02d" % state.round, 14, GOLD, MONO)
+	round_text.name = "ResultRound"
+	var flight := _button(box, Rect2(31, 423, 620, 46), "Return to flight", _leave_current_orbit)
+	flight.name = "ReturnToFlightButton"
+	flight.tooltip_text = "Resume flying near Kalypso."
+	var fill := Color("#1d3a32") if won else Color("#203042")
+	flight.add_theme_stylebox_override("normal", _style(fill, tone, 4))
+	flight.add_theme_stylebox_override("hover", _style(fill.lightened(0.16), tone, 4))
+	flight.add_theme_stylebox_override("pressed", _style(fill.lightened(0.24), tone, 4))
+	_button(box, Rect2(31, 485, 302, 42), "Rematch", func(): _start(local_mode, true))
+	_button(box, Rect2(349, 485, 302, 42), "View board", func(): _close_overlay(false))
+	_label(box, Rect2(31, 552, 620, 30), "Return to flight to explore the solar system.", 14, MUTED, MONO)
+
+
+func _result_faction(parent: Node, rect: Rect2, crew: bool, winner: bool) -> void:
+	var tone := Color("#8ae0a4") if crew and winner else (NORTH if winner else LINE)
+	var panel := _panel(parent, rect, Color("#0b1823"), tone, 4)
+	panel.name = "ResultCrew" if crew else "ResultAliens"
+	var name_label := _label(panel, Rect2(12, 7, rect.size.x - 24, 22), "CREW" if crew else "ALIENS", 13, SOUTH if crew else NORTH, MONO)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var cells := [Vector2i(0, 0), Vector2i(0, 1), Vector2i(0, 0)] if crew else [Vector2i(1, 0), Vector2i(2, 0), Vector2i(1, 0)]
+	for index in cells.size():
+		var atlas := AtlasTexture.new()
+		atlas.atlas = RESULT_CHARACTERS
+		atlas.region = Rect2(Vector2(cells[index]) * 16, Vector2(16, 16))
+		var sprite := TextureRect.new()
+		sprite.texture = atlas
+		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sprite.modulate = Color.WHITE if winner or state.winner < 0 else Color(0.65, 0.65, 0.65)
+		_place(panel, sprite, Rect2(31 + index * 72, 37, 64, 64))
+	var caption := "ALLIANCE SECURED" if crew and winner else ("CHALLENGE WON" if winner else ("HORIZON" if crew else "KALYPSO ENVOYS"))
+	_label(panel, Rect2(12, 111, rect.size.x - 24, 20), caption, 11, tone if winner else MUTED, MONO).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
 func _travel_to_next_system() -> void:
