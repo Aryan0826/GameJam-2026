@@ -1,27 +1,91 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Twin Engine Glow/Nozzles -->
-  <rect x="6" y="21" width="8" height="6" rx="2" fill="#1A2B3C" stroke="#38BDF8" stroke-width="1.5"/>
-  <rect x="6" y="37" width="8" height="6" rx="2" fill="#1A2B3C" stroke="#38BDF8" stroke-width="1.5"/>
-  <rect x="8" y="22" width="3" height="4" rx="1" fill="#0284C7"/>
-  <rect x="8" y="38" width="3" height="4" rx="1" fill="#0284C7"/>
-  
-  <!-- Outer Wings / Solar Fins -->
-  <path d="M12 18 L28 10 L38 20 L16 26 Z" fill="#334155" stroke="#64748B" stroke-width="1.5"/>
-  <path d="M12 46 L28 54 L38 44 L16 38 Z" fill="#334155" stroke="#64748B" stroke-width="1.5"/>
-  
-  <!-- Main Fuselage / Hull Body -->
-  <path d="M10 24 L34 16 L58 32 L34 48 L10 40 L16 32 Z" fill="#F1F5F9" stroke="#94A3B8" stroke-width="2" stroke-linejoin="round"/>
-  
-  <!-- Armor Panels & Cyber Lines -->
-  <path d="M22 26 L36 22 L46 32 L36 42 L22 38 Z" fill="#CBD5E1"/>
-  <path d="M30 20 L48 32 L30 44" stroke="#0284C7" stroke-width="1.5" stroke-linecap="round"/>
-  
-  <!-- Glowing Canopy / Cockpit -->
-  <polygon points="32,32 42,29 48,32 42,35" fill="#38BDF8"/>
-  <polygon points="36,32 42,30 46,32 42,34" fill="#E0F2FE"/>
-  
-  <!-- Wingtip Beacons -->
-  <circle cx="28" cy="10" r="2" fill="#EF4444"/>
-  <circle cx="28" cy="54" r="2" fill="#10B981"/>
-  <circle cx="58" cy="32" r="1.5" fill="#38BDF8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Exposed Unlit Engine Nozzles (Stern / Left Side) -->
+  <!-- Auxiliary Outer Nozzles -->
+  <polygon points="52,126 68,122 68,158 52,154" fill="#212529" stroke="#111827" stroke-width="2" />
+  <rect x="48" y="130" width="6" height="20" rx="1" fill="#0f172a" stroke="#343a40" stroke-width="1.5" />
+  <polygon points="52,358 68,354 68,390 52,386" fill="#212529" stroke="#111827" stroke-width="2" />
+  <rect x="48" y="362" width="6" height="20" rx="1" fill="#0f172a" stroke="#343a40" stroke-width="1.5" />
+
+  <!-- Port & Starboard Main Engine Bells -->
+  <polygon points="46,164 72,158 72,210 46,204" fill="#343a40" stroke="#111827" stroke-width="2" />
+  <rect x="40" y="168" width="8" height="32" rx="2" fill="#0f172a" stroke="#495057" stroke-width="1.5" />
+  <line x1="46" y1="176" x2="64" y2="176" stroke="#212529" stroke-width="2" />
+  <line x1="46" y1="184" x2="64" y2="184" stroke="#212529" stroke-width="2" />
+  <line x1="46" y1="192" x2="64" y2="192" stroke="#212529" stroke-width="2" />
+
+  <polygon points="46,308 72,302 72,354 46,348" fill="#343a40" stroke="#111827" stroke-width="2" />
+  <rect x="40" y="312" width="8" height="32" rx="2" fill="#0f172a" stroke="#495057" stroke-width="1.5" />
+  <line x1="46" y1="320" x2="64" y2="320" stroke="#212529" stroke-width="2" />
+  <line x1="46" y1="328" x2="64" y2="328" stroke="#212529" stroke-width="2" />
+  <line x1="46" y1="336" x2="64" y2="336" stroke="#212529" stroke-width="2" />
+
+  <!-- Central Heavy Flagship Engine Bell -->
+  <polygon points="40,228 70,220 70,292 40,284" fill="#343a40" stroke="#111827" stroke-width="2.5" />
+  <rect x="34" y="234" width="8" height="44" rx="2" fill="#0f172a" stroke="#495057" stroke-width="1.5" />
+  <line x1="40" y1="244" x2="62" y2="244" stroke="#212529" stroke-width="2.5" />
+  <line x1="40" y1="256" x2="62" y2="256" stroke="#212529" stroke-width="2.5" />
+  <line x1="40" y1="268" x2="62" y2="268" stroke="#212529" stroke-width="2.5" />
+
+  <!-- Primary Beveled Wedge Hull -->
+  <polygon points="64,116 96,64 246,132 240,142 498,256 64,256" fill="#dee2e6" stroke="#212529" stroke-width="2.5" />
+  <polygon points="64,256 498,256 240,370 246,380 96,448 64,396" fill="#adb5bd" stroke="#212529" stroke-width="2.5" />
+
+  <!-- Hull Armor Plating Seams & Broadside Notches -->
+  <line x1="152" y1="92" x2="124" y2="156" stroke="#6c757d" stroke-width="1.5" />
+  <line x1="224" y1="124" x2="194" y2="182" stroke="#6c757d" stroke-width="1.5" />
+  <line x1="312" y1="170" x2="286" y2="212" stroke="#6c757d" stroke-width="1.5" />
+  <line x1="392" y1="206" x2="372" y2="238" stroke="#6c757d" stroke-width="1.5" />
+  <line x1="152" y1="420" x2="124" y2="356" stroke="#495057" stroke-width="1.5" />
+  <line x1="224" y1="388" x2="194" y2="330" stroke="#495057" stroke-width="1.5" />
+  <line x1="312" y1="342" x2="286" y2="300" stroke="#495057" stroke-width="1.5" />
+  <line x1="392" y1="306" x2="372" y2="274" stroke="#495057" stroke-width="1.5" />
+
+  <!-- Recessed Lateral Trench Rim -->
+  <polygon points="98,78 476,250 476,262 98,434 92,422 456,256 92,90" fill="#495057" />
+
+  <!-- Superstructure Tier 1 (Lower Deck) -->
+  <polygon points="82,136 110,108 394,238 394,256 82,256" fill="#e9ecef" stroke="#343a40" stroke-width="2" />
+  <polygon points="82,256 394,256 394,274 110,404 82,376" fill="#ced4da" stroke="#343a40" stroke-width="2" />
+
+  <!-- Republic/Imperial Red Command Stripes -->
+  <polygon points="124,128 152,140 128,256 104,256" fill="#9b2226" opacity="0.85" />
+  <polygon points="124,384 152,372 128,256 104,256" fill="#780000" opacity="0.85" />
+  <polygon points="310,208 356,228 356,246 310,236" fill="#9b2226" opacity="0.85" />
+  <polygon points="310,304 356,284 356,266 310,276" fill="#780000" opacity="0.85" />
+
+  <!-- Superstructure Tier 2 (Mid Deck) -->
+  <polygon points="92,166 120,144 308,240 308,256 92,256" fill="#f8f9fa" stroke="#343a40" stroke-width="2" />
+  <polygon points="92,256 308,256 308,272 120,368 92,346" fill="#dee2e6" stroke="#343a40" stroke-width="2" />
+
+  <!-- Superstructure Tier 3 (Upper Command Terrace) -->
+  <polygon points="102,196 128,180 226,244 226,268 128,332 102,316" fill="#e9ecef" stroke="#343a40" stroke-width="2" />
+
+  <!-- Central Axial Spine & Armored Reactor Core -->
+  <polygon points="68,250 494,255 494,257 68,262" fill="#6c757d" stroke="#212529" stroke-width="1" />
+  <circle cx="168" cy="256" r="14" fill="#adb5bd" stroke="#212529" stroke-width="2" />
+  <circle cx="168" cy="256" r="7" fill="#495057" stroke="#212529" stroke-width="1.5" />
+
+  <!-- Port & Starboard Heavy Turbolaser Batteries -->
+  <g fill="#495057" stroke="#212529" stroke-width="1.5">
+    <circle cx="148" cy="146" r="7" /><rect x="148" y="142" width="14" height="2.5" stroke="none" fill="#212529" /><rect x="148" y="147.5" width="14" height="2.5" stroke="none" fill="#212529" />
+    <circle cx="188" cy="164" r="7" /><rect x="188" y="160" width="14" height="2.5" stroke="none" fill="#212529" /><rect x="188" y="165.5" width="14" height="2.5" stroke="none" fill="#212529" />
+    <circle cx="228" cy="182" r="7" /><rect x="228" y="178" width="14" height="2.5" stroke="none" fill="#212529" /><rect x="228" y="183.5" width="14" height="2.5" stroke="none" fill="#212529" />
+    <circle cx="268" cy="200" r="7" /><rect x="268" y="196" width="14" height="2.5" stroke="none" fill="#212529" /><rect x="268" y="201.5" width="14" height="2.5" stroke="none" fill="#212529" />
+
+    <circle cx="148" cy="366" r="7" /><rect x="148" y="362" width="14" height="2.5" stroke="none" fill="#212529" /><rect x="148" y="367.5" width="14" height="2.5" stroke="none" fill="#212529" />
+    <circle cx="188" cy="348" r="7" /><rect x="188" y="344" width="14" height="2.5" stroke="none" fill="#212529" /><rect x="188" y="349.5" width="14" height="2.5" stroke="none" fill="#212529" />
+    <circle cx="228" cy="330" r="7" /><rect x="228" y="326" width="14" height="2.5" stroke="none" fill="#212529" /><rect x="228" y="331.5" width="14" height="2.5" stroke="none" fill="#212529" />
+    <circle cx="268" cy="312" r="7" /><rect x="268" y="308" width="14" height="2.5" stroke="none" fill="#212529" /><rect x="268" y="313.5" width="14" height="2.5" stroke="none" fill="#212529" />
+  </g>
+
+  <!-- Command Bridge Tower & Deflector Shield Domes -->
+  <polygon points="86,210 120,220 120,292 86,302" fill="#6c757d" stroke="#212529" stroke-width="2" />
+  <polygon points="94,164 130,176 130,336 94,348" fill="#adb5bd" stroke="#212529" stroke-width="2.5" />
+  <rect x="106" y="232" width="22" height="48" rx="2" fill="#dee2e6" stroke="#343a40" stroke-width="2" />
+  <rect x="127" y="238" width="4" height="36" fill="#212529" />
+
+  <circle cx="112" cy="184" r="13" fill="#e9ecef" stroke="#212529" stroke-width="2" />
+  <circle cx="112" cy="184" r="7" fill="none" stroke="#6c757d" stroke-width="1.5" />
+  <circle cx="112" cy="328" r="13" fill="#ced4da" stroke="#212529" stroke-width="2" />
+  <circle cx="112" cy="328" r="7" fill="none" stroke="#495057" stroke-width="1.5" />
 </svg>

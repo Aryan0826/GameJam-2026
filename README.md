@@ -12,6 +12,7 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 
 ## Controls
 
+- During solar-system flight, hold **W / Up** to accelerate; the ship coasts on release. Exhaust runs while accelerating and during automatic orbit entry. Hold **Shift / Space** while accelerating to boost, **A / D** or **Left / Right** to steer, and **S / Down** to brake. Descent begins after **2 seconds** in stable orbit.
 - Click a pawn, choose an action in the right panel if needed, and click a highlighted target. The arrow keys move the board cursor, Enter selects, and Esc clears the selection.
 - **Roll ability** gives your side one optional die power for the current round. The roll does not consume your turn. After rolling, you may combine a normal move with the power, or make a normal move alone.
 - In the draft, select two different pawns, assign them different abilities, and lock your choices. In local mode, pass the device when prompted.
