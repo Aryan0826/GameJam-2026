@@ -60,6 +60,15 @@ The project received these files without a source link or separate license notic
 | `art/flight/bodies/sun_sheet.png` | `sun.png` | 32-frame Solar Core rotation |
 | `art/flight/bodies/system_two_star.png`, `system_two_planet.png` | `4185252325 (1).png` and `4185252325.png` | Azure Reach’s cyan star and Verdant |
 
+## Missile Strike
+
+| Project file | Supplied source | License and treatment |
+| --- | --- | --- |
+| `art/effects/missile/rocket.png` | PixelProjectiles v1.0, `06_Missiles_Rockets/rocket_64x32_right_64x32_8f.png` | Bundled [PixelProjectiles license](art/effects/missile/LICENSE-PixelProjectiles.txt) permits use in games. Unmodified eight-frame strip, rotated and animated in Godot. Creator not identified in the supplied notices. The pack README describes AI-assisted, programmatically generated pixel art. |
+| `art/effects/missile/explosion.png` | Explosion Pack 1 by Luis Zuno (Ansimuz), `Explosions pack/explosion-1-b/spritesheet.png` | CC0, as stated in the bundled [license](art/effects/missile/LICENSE-explosion-pack-1.pdf). Unmodified eight-frame strip, animated at 12 fps in Godot. |
+
+Only the selected rocket and explosion are included. See [source details](art/effects/missile/SOURCE.md). Launch and impact reuse the existing Kenney teleport and collapse sounds credited above.
+
 ## Descent sequence
 
 `art/descent/star-flight.ogv` adapts [StarfieldSimulation.gif](https://commons.wikimedia.org/wiki/File:StarfieldSimulation.gif) by **Jahobr**, April 20, 2017, under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The author provides the original MATLAB rendering code. The existing animation is looped, resized, and encoded as a silent Ogg Theora video. It shows forward motion through white stars on black space. It is conventional animation, not camera footage or AI generated video.

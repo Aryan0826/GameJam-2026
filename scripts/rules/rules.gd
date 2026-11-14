@@ -1,7 +1,7 @@
 extends RefCounted
 ## Deterministic match state and transitions. All coordinates are one-based.
 
-const SPELLS := ["shield", "fracture", "teleport"]
+const SPELLS := ["shield", "fracture", "teleport", "missile"]
 const SPECIALS := ["infected_trail", "spy", "long_capture"]
 const BOARD_SIZE := 9
 const PAWNS_PER_SIDE := 5
@@ -178,7 +178,18 @@ static func ability_reason(state: Dictionary, pawn: Dictionary) -> String:
 		"shield": return "Shield cannot activate on the flag"
 		"fracture": return "No intact tile available to fracture"
 		"teleport": return "No open landing tile available"
+		"missile":
+			if _enemy_on_flag(state):
+				return "Missiles locked while an enemy is on the flag."
+			return "No intact enemy or empty tile available"
 	return "Ability unavailable"
+
+
+static func _enemy_on_flag(state: Dictionary) -> bool:
+	for pawn: Dictionary in state.pawns.values():
+		if pawn.pos == state.flag and pawn.side != state.active:
+			return true
+	return false
 
 
 static func _roll(state: Dictionary, faces: int) -> int:
@@ -266,12 +277,14 @@ static func _drafted_actions(state: Dictionary, pawn: Dictionary, occupancy: Dic
 	var actions: Array[Dictionary] = []
 	if not pawn.charged or pawn.spy:
 		return actions
+	if pawn.ability == "missile" and _enemy_on_flag(state):
+		return actions
 	var origin: Vector2i = pawn.pos
 	match pawn.ability:
 		"shield":
 			if origin != state.flag:
 				actions.append(_move("shield", pawn.id, origin))
-		"teleport", "fracture":
+		"teleport", "fracture", "missile":
 			for y in range(1, BOARD_SIZE + 1):
 				for x in range(1, BOARD_SIZE + 1):
 					var target := Vector2i(x, y)
@@ -280,6 +293,8 @@ static func _drafted_actions(state: Dictionary, pawn: Dictionary, occupancy: Dic
 					if pawn.ability == "teleport" and not _empty(state, occupancy, target):
 						continue
 					if pawn.ability == "fracture" and target in state.fractures:
+						continue
+					if pawn.ability == "missile" and target in occupancy and state.pawns[occupancy[target]].side == state.active:
 						continue
 					actions.append(_move(pawn.ability, pawn.id, target))
 	return actions
@@ -435,6 +450,19 @@ static func _resolve_action(state: Dictionary, action: Dictionary, events: Array
 		"fracture":
 			state.fractures[target] = _serial(state) + 1
 			_event(events, "fracture", "%s will fall after the next turn." % _tile(target), {"tiles": [target], "to": target})
+		"missile":
+			var victim: int = _occupancy(state).get(target, -1)
+			if victim >= 0:
+				state.pawns.erase(victim)
+			state.holes[target] = true
+			state.cracks.erase(target)
+			state.fractures.erase(target)
+			state.infected.erase(target)
+			_event(events, "missile", "%s missile destroyed %s%s." % [SIDE_NAMES[state.active], _tile(target), " and its enemy ship" if victim >= 0 else ""],
+				{"pawn": pawn.id, "from": origin, "to": target, "victim": victim, "side": state.active})
+			_check_elimination(state)
+			if state.phase == "finished":
+				_result_event(state, events)
 		_:
 			_shift(state, pawn, target, "step", events)
 	state.turn_move = true

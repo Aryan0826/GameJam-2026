@@ -16,7 +16,11 @@ const LILAC = Color("#bd9dff")
 const DRIFT_ARROW = Color("#8dffe9")
 const DRIFT_DELAY := 0.26
 const DRIFT_DURATION := 0.58
-const SPELL_ICON = {"shield": "S", "fracture": "F", "teleport": "P"}
+const MISSILE_TEXTURE = preload("res://art/effects/missile/rocket.png")
+const EXPLOSION_TEXTURE = preload("res://art/effects/missile/explosion.png")
+const MISSILE_FLIGHT := 0.65
+const MISSILE_BLAST := 8.0 / 12.0
+const SPELL_ICON = {"shield": "S", "fracture": "F", "teleport": "P", "missile": "M"}
 const TOP := 0.14
 const CAMERA_TARGET := Vector3(0, -0.38, 0.28)
 const DRAG_THRESHOLD := 6.0
@@ -55,6 +59,7 @@ var displayed_relays: Array[Vector2i] = []
 var shift_pending := false
 var shift_tween: Tween
 var falling: Array[Node3D] = []
+var missiles: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -206,6 +211,7 @@ func _paint_unit(unit: Node3D, side: int, dimmed: bool) -> void:
 
 
 func reset_visuals() -> void:
+	missiles.clear()
 	if shift_tween:
 		shift_tween.kill()
 		shift_tween = null
@@ -240,6 +246,8 @@ func sync() -> void:
 		for x in range(1, Rules.BOARD_SIZE + 1):
 			var square := Vector2i(x, y)
 			if square in state.holes:
+				if _missile_pending(square):
+					continue
 				if square in tiles:
 					_remove_model(tiles[square], true)
 					tiles.erase(square)
@@ -266,6 +274,8 @@ func sync() -> void:
 	_sync_relay_models()
 	for id in pieces.keys():
 		if id not in state.pawns:
+			if missiles.any(func(flight: Dictionary): return not flight.impacted and flight.victim == id):
+				continue
 			_remove_model(pieces[id], false)
 			pieces.erase(id)
 	for pawn: Dictionary in state.pawns.values():
@@ -306,7 +316,9 @@ func show_events(events: Array) -> void:
 		return
 	var teleported := {}
 	for event: Dictionary in events:
-		if event.kind == "drift_score":
+		if event.kind == "missile":
+			missiles.append({"from": event.from, "to": event.to, "victim": event.victim, "age": 0.0, "impacted": false})
+		elif event.kind == "drift_score":
 			shift_pending = true
 		elif event.kind == "ability" and event.ability == "teleport":
 			teleported[event.pawn] = true
@@ -316,6 +328,39 @@ func show_events(events: Array) -> void:
 			if event.pawn not in landings:
 				landings[event.pawn] = []
 			landings[event.pawn].append(landing)
+
+
+func _missile_pending(square: Vector2i) -> bool:
+	return missiles.any(func(flight: Dictionary): return flight.to == square and not flight.impacted)
+
+
+func _missile_point(flight: Dictionary, progress: float) -> Vector3:
+	var origin := _world_at(flight.from, TOP + 0.45)
+	var target := _world_at(flight.to, TOP + 0.12)
+	return origin.lerp(target, progress) + Vector3.UP * sin(progress * PI) * 1.6
+
+
+func _draw_missiles() -> void:
+	for flight in missiles:
+		var target := _project(flight.to)
+		var tile_width := target.distance_to(_project(flight.to + Vector2i.RIGHT))
+		if not flight.impacted:
+			var progress := clampf(flight.age / MISSILE_FLIGHT, 0.0, 1.0)
+			var point := _project_world(_missile_point(flight, progress))
+			var tangent := (_project_world(_missile_point(flight, minf(progress + 0.02, 1.0))) - point).angle()
+			var frame := int(flight.age * 16) % 8
+			draw_arc(target, tile_width * 0.5, 0, TAU, 24, NORTH, 2.0, true)
+			draw_line(target - Vector2(7, 0), target + Vector2(7, 0), NORTH, 1.5, true)
+			draw_line(target - Vector2(0, 7), target + Vector2(0, 7), NORTH, 1.5, true)
+			draw_set_transform(point, tangent, Vector2.ONE * clampf(tile_width / 45.0, 0.65, 1.6))
+			draw_texture_rect_region(MISSILE_TEXTURE, Rect2(-44, -16, 64, 32), Rect2(frame * 64, 0, 64, 32))
+			draw_set_transform(Vector2.ZERO)
+		else:
+			var age: float = flight.age - MISSILE_FLIGHT
+			var frame := mini(int(age * 12), 7)
+			var extent := Vector2.ONE * tile_width * 2.8
+			var center := _project(flight.to, TOP + 0.65)
+			draw_texture_rect_region(EXPLOSION_TEXTURE, Rect2(center - extent / 2, extent), Rect2(frame * 64, 0, 64, 64))
 
 
 func _paint_drift_tile(square: Vector2i) -> void:
@@ -498,6 +543,13 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	for flight in missiles.duplicate():
+		flight.age += delta
+		if not flight.impacted and (flight.age >= MISSILE_FLIGHT or not motion):
+			flight.impacted = true
+			sync()
+		if flight.age >= MISSILE_FLIGHT + MISSILE_BLAST or not motion:
+			missiles.erase(flight)
 	if visible and not state.is_empty():
 		clock += delta if motion else 0.0
 		queue_redraw()
@@ -535,6 +587,12 @@ func _draw() -> void:
 	for square: Vector2i in targets:
 		var point := _project(square)
 		match targets[square]:
+			"missile":
+				draw_line(point - Vector2(4, 0), point + Vector2(4, 0), NORTH, 1.2, true)
+				draw_line(point - Vector2(0, 4), point + Vector2(0, 4), NORTH, 1.2, true)
+				if square in [hover, keyboard_square] or state.pawns.values().any(func(pawn: Dictionary): return pawn.pos == square):
+					_outline(square, NORTH)
+					draw_arc(point, 12, 0, TAU, 24, NORTH, 1.5, true)
 			"capture", "mark", "fracture":
 				_outline(square, NORTH if targets[square] == "capture" else LILAC)
 				draw_arc(point, 19, clock, clock + TAU - 0.35, 30, NORTH if targets[square] == "capture" else LILAC, 2, true)
@@ -549,6 +607,7 @@ func _draw() -> void:
 			var start := -PI + i * TAU / Rules.FLAG_REPLIES
 			draw_arc(point, 23, start, start + TAU / Rules.FLAG_REPLIES - 0.16, 22, GOLD if i < state.replies else Color("#a5844a"), 2.2, true)
 		_text(point + Vector2(-10, 25), "%d/%d" % [state.replies, Rules.FLAG_REPLIES], 11, GOLD)
+	_draw_missiles()
 
 
 func _draw_drift() -> void:

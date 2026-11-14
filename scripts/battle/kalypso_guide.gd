@@ -27,6 +27,7 @@ const ABILITIES = """[color=#f8d587]DRAFTED · ONE USE · REPLACES YOUR MOVE[/co
 [b]Shield[/b]: Blocks one capture. Stops working on the flag.
 [b]Fracture Tile[/b]: Cracks a tile now; it falls after the next turn, taking any ship with it. Cannot target the flag.
 [b]Teleport[/b]: Jump to an empty, intact, uninfected tile. Cannot land on the flag.
+[b]Missile Strike[/b]: Destroy an empty or enemy tile and its ship, even with a shield. Cannot target allies or the flag. Launch is locked while any enemy occupies the flag.
 
 [color=#83e1fa]SHUFFLED CARD · OPTIONAL POWER[/color]
 [b]Spy[/b]: Control a nearby enemy for 3 of your turns. It can capture, but cannot claim or capture on the flag.

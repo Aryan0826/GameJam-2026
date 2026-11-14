@@ -87,8 +87,8 @@ func _play(s: Dictionary, kind: String, id: int, p: Vector2i) -> Dictionary:
 func _setup_and_roll() -> void:
 	var draft := Rules.create_match(7, 0)
 	var choices := Rules.legal_actions(draft)
-	_check(Rules.SPELLS == ["shield", "fracture", "teleport"] and choices.size() == 60,
-		"Draft offers exactly the three remaining abilities on two different ships")
+	_check(Rules.SPELLS == ["shield", "fracture", "teleport", "missile"] and choices.size() == 120,
+		"Draft offers four abilities on two different ships with distinct charges")
 	_check(not Rules.apply_action(draft, {"kind": "draft", "pawns": [0, 1], "spells": ["shield", "borrow_tomorrow"]}).ok,
 		"Removed ability cannot be drafted")
 	var obsolete := _position({0: Vector2i(4, 4), 1: Vector2i(7, 5), 5: Vector2i(8, 8)})

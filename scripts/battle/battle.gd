@@ -32,6 +32,7 @@ const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the beacon."],
 	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any unit on it."],
 	"teleport": ["Teleport", "Jump to any open tile outside the beacon."],
+	"missile": ["Missile Strike", "Destroy a tile and its enemy. Locked while an enemy is on the flag."],
 	"infected_trail": ["Infected Trail", "Infect the 3 × 3 area around a selected unit through the enemy turn."],
 	"spy": ["Spy", "Take control of a nearby enemy unit for your next three turns. It cannot score the beacon."],
 	"long_capture": ["Long Capture", "Capture diagonally in any direction, from one or two squares away."],
@@ -51,7 +52,7 @@ Move one tile orthogonally or one or two diagonally in any direction. A two tile
 Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any unit on a falling tile is removed.
 
 [color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
-Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant.
+Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant. Missile Strike destroys one empty or enemy tile immediately, including a shielded enemy. It cannot target allies or the beacon, and cannot launch while an enemy occupies the beacon.
 
 [color=#f8d587]SHUFFLE FOR AN ABILITY[/color]
 Shuffle once per round before moving or using a drafted ability. The cards shuffle, then flip to reveal your special power. Each of the three powers has an equal chance. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
@@ -661,7 +662,7 @@ func _commit(action: Dictionary) -> void:
 	board.show_events(result.events)
 	_play_action_audio(result.events)
 	for event: Dictionary in result.events:
-		if event.kind == "collapse":
+		if event.kind in ["collapse", "missile"]:
 			cockpit.alert = 0.7
 		if first_flag_round == 0 and event.kind == "flag" and event.get("pawn", -1) >= 0:
 			first_flag_round = played_round
@@ -695,6 +696,8 @@ func _commit(action: Dictionary) -> void:
 	var turn_delay := 0.65 if motion else 0.10
 	if motion and shifting:
 		turn_delay = Arena.DRIFT_DELAY + Arena.DRIFT_DURATION + 0.15
+	if motion and action.kind == "missile":
+		turn_delay = Arena.MISSILE_FLIGHT + Arena.MISSILE_BLAST + 0.08
 	await get_tree().create_timer(turn_delay).timeout
 	if stamp != generation:
 		return
@@ -716,6 +719,9 @@ func _play_action_audio(events: Array) -> void:
 				cues["confirm"] = 0.0
 			"collapse":
 				cues["collapse"] = 0.0
+			"missile":
+				cues["teleport"] = 0.0
+				cues["collapse"] = Arena.MISSILE_FLIGHT if motion else 0.0
 			"spy":
 				cues["spy"] = 0.0
 			"infection":
@@ -735,6 +741,8 @@ func _play_action_audio(events: Array) -> void:
 			"result":
 				var result_cue := "confirm" if event.side < 0 else ("victory" if event.side == 1 else "defeat")
 				cues[result_cue] = 0.98 if drift_circuit and motion else 0.0
+				if motion and events.any(func(item: Dictionary): return item.kind == "missile"):
+					cues[result_cue] = Arena.MISSILE_FLIGHT + Arena.MISSILE_BLAST
 	if "teleport" in cues:
 		cues.erase("move")
 	for cue: String in cues:
@@ -849,9 +857,11 @@ func _sync_ability_hologram() -> void:
 	var title: String = SPELLS[pawn.ability][0]
 	var caption := "Use " + title
 	if pawn.ability == "fracture": caption = "Use Fracture"
+	elif pawn.ability == "missile": caption = "Launch missile"
 	var hint := "Choose a landing tile"
 	if pawn.ability == "shield": hint = "Click this ship to raise its shield"
 	elif pawn.ability == "fracture": hint = "Choose a tile to fracture"
+	elif pawn.ability == "missile": hint = "Choose an enemy or empty tile"
 	ability_hologram.configure({
 		"board": board, "square": pawn.pos, "title": title, "motion": motion,
 		"status": status, "description": reason if not reason.is_empty() else SPELLS[pawn.ability][1],
@@ -1115,6 +1125,8 @@ func _action_hint() -> String:
 		return "Select the highlighted unit again to raise its shield."
 	if action_group == "ability" and p.ability == "fracture":
 		return "Select a tile to drop after the next turn."
+	if action_group == "ability" and p.ability == "missile":
+		return "Select a highlighted enemy or empty tile to destroy with one missile."
 	if _group_actions(action_group).is_empty():
 		return "This unit has no legal target for the selected action."
 	if action_group == "standard":
@@ -1167,6 +1179,8 @@ func _targets() -> Dictionary:
 			highlighted[action.to] = "capture" if action.kind in ["capture", "long_capture"] else "move"
 			if action.kind == "fracture":
 				highlighted[action.to] = "fracture"
+			elif action.kind == "missile":
+				highlighted[action.to] = "missile"
 	return highlighted
 
 
@@ -1359,6 +1373,7 @@ func _show_credits() -> void:
 	audio_list.append_text("\n\n[color=#f8d587]CREW & ENVOYS[/color]\n[url=https://opengameart.org/content/sci-fi-roguelike-pixel-art]Sci-Fi RogueLike Pixel Art · Emcee Flesher · CC0[/url]\nOriginal pixel characters, scaled with nearest-neighbor filtering. Hologram scanlines and result spotlights use Godot primitives. No AI-generated artwork.")
 
 	audio_list.append_text("\n\n[color=#f8d587]DESCENT SEQUENCE[/color]\n[url=https://commons.wikimedia.org/wiki/File:StarfieldSimulation.gif]Starfield Simulation · Jahobr · CC0 · 2017[/url]\nOriginal star animation looped and converted to video.\n[url=https://commons.wikimedia.org/wiki/File:Space_Shuttle_Atlantis_OV-104_main_flight_deck.png]Atlantis flight deck · DMolybdenum · Public domain[/url]\nPanorama reprojected to a centered forward view, darkened, and windows masked. No AI generated assets.")
+	audio_list.append_text("\n\n[color=#f8d587]MISSILE STRIKE[/color]\nRocket · supplied PixelProjectiles v1.0 · game-use license included. The pack describes AI-assisted, programmatically generated pixel art.\nExplosion Pack 1 · Luis Zuno (Ansimuz) · CC0.\nOriginal sprite strips animated and rotated in Godot. Full notices in art/effects/missile.")
 
 
 func _show_map() -> void:
