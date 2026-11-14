@@ -4,7 +4,7 @@ A pawn-only tactics duel on a collapsing 3D orbital arena. Five pawns per side s
 
 ## Play
 
-Open `project.godot` in Godot 4.7.2 Standard and press **F5**. Choose **Play solo** to face the Aliens or **Play local duel** for two people on one device.
+Open `project.godot` in Godot 4.7.2 Standard and press **F5**. The opening crawl leads into the solar-system flight and then the Horizon cockpit. Choose **Accept challenge** to face the Aliens or **Local duel** for two people on one device. **Replay prologue** returns to the opening crawl.
 
 For the Windows build, extract the ZIP and run `ConquerorsChess.exe` beside its `ConquerorsChess.pck`.
 
@@ -21,7 +21,8 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 ## Project
 
 - `main.tscn` and `scripts/main.gd` own screens, draft privacy, input, replay capture, and mode transitions.
-- `scripts/board.gd` renders the 3D arena and animated pawn meshes into the 2D HUD, and maps pointer input to board squares.
+- `scripts/board.gd` renders the landing pads, survey rovers, and interceptors from a low perspective camera and maps pointer input to the grid.
+- `scripts/cockpit.gd` draws the windshield, envoy comms, and orbital map.
 - `scripts/rules.gd` implements the seeded state machine and validates the full legal action list.
 - `scripts/bot.gd` chooses from that same list using the visible board and roll.
 - `tests/rules_test.gd` covers rules, spell interactions, deterministic replay, and bot behavior.

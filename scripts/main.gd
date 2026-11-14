@@ -3,7 +3,7 @@ extends Control
 const Rules = preload("res://scripts/rules.gd")
 const Bot = preload("res://scripts/bot.gd")
 const Arena = preload("res://scripts/board.gd")
-const PHOTO = preload("res://art/westerlund-2.jpg")
+const Cockpit = preload("res://scripts/cockpit.gd")
 const SANS = preload("res://art/SpaceGrotesk.ttf")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
 
@@ -13,48 +13,49 @@ const GOLD = Color("#f8d587")
 const LILAC = Color("#b99dfd")
 const NORTH = Color("#ff937e")
 const SOUTH = Color("#83e1fa")
-const PANEL = Color("#11192a")
-const LINE = Color("#34445f")
+const PANEL = Color("#111e29")
+const LINE = Color("#3d5b68")
 const SIDES = ["Aliens", "Pilots"]
 const SPELLS = {
-	"shield": ["Shield", "Absorb one capture outside the flag."],
-	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any pawn on it."],
-	"teleport": ["Teleport", "Jump to any open tile outside the flag."],
-	"borrow_tomorrow": ["Borrow Tomorrow", "Move this pawn, then a different ally. The first pawn owes a return."],
+	"shield": ["Shield", "Absorb one capture outside the beacon."],
+	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any unit on it."],
+	"teleport": ["Teleport", "Jump to any open tile outside the beacon."],
+	"borrow_tomorrow": ["Borrow Tomorrow", "Move this unit, then a different ally. The first unit owes a return."],
 	"infected_trail": ["Infected Trail", "Infect the 3 × 3 area around your move’s starting tile through the enemy turn."],
-	"spy": ["Spy", "Take control of a nearby enemy pawn for your next three turns. It cannot score the flag."],
+	"spy": ["Spy", "Take control of a nearby enemy unit for your next three turns. It cannot score the beacon."],
 	"long_capture": ["Long Capture", "Capture diagonally in any direction, from one or two squares away."],
 }
 const DRAFT_SPELLS = Rules.SPELLS
 const IMAGE_CREDIT = "NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team"
 const IMAGE_URL = "https://esahubble.org/images/heic1509a/"
 const RULES_TEXT = """[color=#f8d587]WIN THE DUEL[/color]
-Hold the center flag through three enemy turns with the same pawn, or remove every enemy pawn. The match draws after round 8 if neither side wins.
+Hold the center beacon through three enemy turns with the same unit, or remove every enemy unit. The match draws after round 8 if neither side wins.
 
 [color=#f8d587]TAKE ONE ACTION[/color]
-Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a pawn or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the flag from an adjacent square or by making a capture.
+Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the beacon from an adjacent square or by making a capture.
 
 [color=#f8d587]WATCH THE RIM[/color]
-Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any pawn on a falling tile is removed.
+Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any unit on a falling tile is removed.
 
 [color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
-Shield absorbs one capture and disappears on flag entry. Teleport jumps to any empty, intact, uninfected non-flag tile. Fracture marks any intact non-flag tile to drop after the next turn, removing its occupant.
+Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant.
 
-Borrow Tomorrow moves its assigned pawn one orthogonal step, then moves another ally one orthogonal step. The first pawn cannot enter or leave the flag. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
+Borrow Tomorrow moves its assigned unit one orthogonal step, then moves another ally one orthogonal step. The first unit cannot enter or leave the beacon. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
 
 [color=#f8d587]ROLL FOR AN ABILITY[/color]
-Each player can roll once per round before acting. Rolling is optional and does not spend the turn. After rolling, take a normal move and optionally use the rolled power as part of that turn, or take a normal move alone.
+Each player can roll once per round before acting. Rolling is optional and does not spend the turn. After rolling, take a normal move and optionally use the rolled power in the same turn. You can also move without using the power.
 
-Infected Trail infects the 3 × 3 area around the normal move’s starting tile through the enemy turn, except the flag. Spy takes control of an enemy within two orthogonal steps of any ally after the move. It returns after three of your subsequent turns. It may stand on the flag but cannot score or capture there while stolen. Long Capture lets one of your pawns capture an enemy one or two tiles diagonally in any direction after your normal move.
+Infected Trail blocks entry into the 3 × 3 area around the unit’s departure tile through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally after your move. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction after your move.
 
 [color=#f8d587]CONTROLS[/color]
-Click a pawn, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
+Click a unit, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
 var state: Dictionary = {}
 var legal: Array[Dictionary] = []
 var records: Array[Dictionary] = []
 var messages: Array[String] = []
 var board: Control
+var cockpit: Control
 var chrome: Control
 var side_panel: Control
 var overlay: Control
@@ -64,6 +65,8 @@ var mode_button: Button
 var takeover_button: Button
 var motion_button: Button
 var feedback: Label
+var signal_text: Label
+var beacon_lamps: Array[Panel] = []
 var local_mode := false
 var takeover_queued := false
 var handoff := false
@@ -92,42 +95,47 @@ func _ready() -> void:
 
 
 func _build_frame() -> void:
-	var photo := TextureRect.new()
-	photo.texture = PHOTO
-	photo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	photo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	photo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	photo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(photo)
-	var shade := ColorRect.new()
-	shade.color = Color(0.025, 0.035, 0.085, 0.70)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(shade)
+	cockpit = Cockpit.new()
+	cockpit.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(cockpit)
 	chrome = _layer(self)
-	_panel(chrome, Rect2(44, 148, 776, 651), Color("#141c2f"), LINE, 17)
-	_label(chrome, Rect2(66, 158, 300, 23), "ARENA  /  THE FRACTURED FLAG", 13, MUTED, MONO)
-	status_label = _label(chrome, Rect2(350, 158, 446, 23), "", 13, GOLD, MONO)
+	_panel(chrome, Rect2(42, 231, 775, 565), Color("#364451"), Color("#657782"), 12)
+	_panel(chrome, Rect2(51, 239, 757, 549), Color("#142530"), Color("#588590"), 8)
+	_panel(chrome, Rect2(58, 247, 743, 533), Color("#091924"), Color("#237285"), 4)
+	_label(chrome, Rect2(71, 253, 305, 23), "TACTICAL PROJECTION", 13, SOUTH, MONO)
+	status_label = _label(chrome, Rect2(363, 253, 420, 23), "", 13, GOLD, MONO)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	board = Arena.new()
-	_place(chrome, board, Rect2(66, 153, 730, 642))
+	_place(chrome, board, Rect2(66, 261, 727, 519))
 	board.square_pressed.connect(_square_pressed)
 	board.gui_input.connect(func(event: InputEvent):
 		if event is InputEventKey:
 			_unhandled_key_input(event))
-	_label(chrome, Rect2(44, 21, 560, 24), "THE FRACTURED FLAG", 13, GOLD, MONO)
-	_label(chrome, Rect2(42, 44, 600, 61), "Conqueror’s Chess", 47, INK, bold)
-	round_label = _label(chrome, Rect2(46, 105, 780, 24), "", 15, MUTED, MONO)
-	mode_button = _button(chrome, Rect2(818, 52, 104, 36), "Solo", _show_modes)
-	takeover_button = _button(chrome, Rect2(930, 52, 154, 36), "Take Over Aliens", _takeover)
-	_button(chrome, Rect2(1092, 52, 82, 36), "Rules", _show_rules)
-	motion_button = _button(chrome, Rect2(1182, 52, 94, 36), "FX on", _toggle_motion)
-	feedback = _label(chrome, Rect2(846, 105, 430, 31), "", 15, GOLD)
-	feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_label(chrome, Rect2(66, 42, 490, 46), "Conqueror’s Chess", 36, INK, bold)
+	round_label = _label(chrome, Rect2(69, 91, 440, 23), "", 14, SOUTH, MONO)
+	_panel(chrome, Rect2(66, 124, 482, 87), Color(0.035, 0.068, 0.11, 0.95), LINE, 5)
+	var head := Cockpit.new()
+	head.envoy = true
+	head.motion = false
+	_place(chrome, head, Rect2(75, 133, 78, 68))
+	_label(chrome, Rect2(163, 130, 370, 18), "ALIEN ENVOY  /  LIVE", 11, GOLD, MONO)
+	signal_text = _label(chrome, Rect2(163, 151, 367, 45), "", 16, INK, SANS, true)
+	_label(chrome, Rect2(850, 208, 111, 17), "BEACON HOLD", 12, GOLD, MONO)
+	for i in Rules.FLAG_REPLIES:
+		beacon_lamps.append(_panel(chrome, Rect2(965 + 25 * i, 212, 18, 8), Color("#26313b"), LINE, 1))
+	_button(chrome, Rect2(1130, 198, 144, 31), "System map", _show_map)
+	mode_button = _button(chrome, Rect2(680, 811, 95, 31), "Solo", _show_modes)
+	takeover_button = _button(chrome, Rect2(783, 811, 150, 31), "Take Over Aliens", _takeover)
+	_button(chrome, Rect2(941, 811, 77, 31), "Rules", _show_rules)
+	motion_button = _button(chrome, Rect2(1026, 811, 76, 31), "FX on", _toggle_motion)
+	feedback = _label(chrome, Rect2(72, 812, 590, 26), "", 14, GOLD)
 	side_panel = _layer(chrome)
-	var credit := _label(self, Rect2(46, 810, 1050, 26), "Westerlund 2  /  " + IMAGE_CREDIT, 12, INK)
-	credit.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_button(self, Rect2(1160, 807, 116, 30), "Asset credits", _show_credits)
+	side_panel.position.y = 106
+	side_panel.scale.y = 0.86
+	_label(self, Rect2(48, 831, 780, 16), IMAGE_CREDIT, 10, MUTED)
+	feedback.position.y = 808
+	feedback.size.y = 19
+	_button(self, Rect2(1146, 811, 128, 31), "Asset credits", _show_credits)
 	overlay = _layer(self)
 
 
@@ -209,16 +217,25 @@ func _clear(layer: Node) -> void:
 
 func _show_home() -> void:
 	chrome.hide()
+	cockpit.mode = "approach"
+	cockpit.clearance = ""
 	_clear(overlay)
 	overlay_kind = "home"
-	_panel(overlay, Rect2(55, 126, 575, 560), Color(0.055, 0.078, 0.14, 0.96), LINE, 18)
-	_label(overlay, Rect2(93, 170, 497, 26), "THE FRACTURED FLAG", 15, GOLD, MONO)
-	_label(overlay, Rect2(88, 204, 521, 154), "Conqueror’s\nChess", 68, INK, bold)
-	_label(overlay, Rect2(93, 390, 465, 63), "Hold the flag through three enemy turns or eliminate the opposing pawns before the arena breaks apart.", 22, MUTED, SANS, true)
-	_button(overlay, Rect2(93, 494, 461, 49), "Play solo", func(): _start(false), true)
-	_button(overlay, Rect2(93, 555, 220, 43), "Play local duel", func(): _start(true))
-	_button(overlay, Rect2(327, 555, 227, 43), "How to play", _show_rules)
-	_button(overlay, Rect2(93, 608, 461, 38), "Prologue / Story", _show_story)
+	_panel(overlay, Rect2(65, 117, 508, 576), Color(0.027, 0.060, 0.10, 0.96), LINE, 12)
+	_label(overlay, Rect2(94, 140, 445, 24), "INCOMING TRANSMISSION  /  ORBITAL ARENA", 13, SOUTH, MONO)
+	_label(overlay, Rect2(91, 179, 440, 118), "Conqueror’s\nChess", 53, INK, bold)
+	var head := Cockpit.new()
+	head.envoy = true
+	head.motion = false
+	_place(overlay, head, Rect2(95, 325, 78, 68))
+	_label(overlay, Rect2(188, 322, 354, 21), "ALIEN ENVOY", 13, GOLD, MONO)
+	_label(overlay, Rect2(188, 349, 354, 95), "“Commander Valeria, the Horizon has reached our arena. Win the trial and we will stand with Kalypso. Lose, and your crew is ours.”", 20, INK, SANS, true)
+	_button(overlay, Rect2(94, 476, 448, 49), "Accept challenge", func(): _start(false), true)
+	_button(overlay, Rect2(94, 540, 215, 43), "Local duel", func(): _start(true))
+	_button(overlay, Rect2(324, 540, 218, 43), "How to play", _show_rules)
+	_button(overlay, Rect2(94, 597, 448, 38), "System map", _show_map)
+	_button(overlay, Rect2(94, 644, 448, 32), "Replay prologue", _show_story)
+	_label(overlay, Rect2(728, 553, 420, 29), "HORIZON  /  APPROACH LOCKED", 14, GOLD, MONO)
 
 
 func _show_story() -> void:
@@ -243,7 +260,11 @@ func _start(local: bool, rematch: bool = false) -> void:
 	started_at = 0
 	finished_at = 0
 	feedback.text = ""
+	cockpit.mode = "trial"
+	cockpit.clearance = ""
+	cockpit.alert = 0.0
 	board.reset_visuals()
+	board.power_on()
 	board.keyboard_square = Vector2i.ZERO
 	_clear_selection()
 	_close_overlay(false)
@@ -312,10 +333,12 @@ func _commit(action: Dictionary) -> void:
 		finished_at = Time.get_ticks_msec()
 	board.show_events(result.events)
 	for event: Dictionary in result.events:
+		if event.kind == "collapse":
+			cockpit.alert = 0.7
 		if first_flag_round == 0 and event.kind == "flag" and event.get("pawn", -1) >= 0:
 			first_flag_round = played_round
 		if event.kind not in ["turn", "draft_lock"]:
-			messages.push_front(event.text)
+			messages.push_front(event.text.replace("Pawns", "Units").replace("pawns", "units").replace("Pawn", "Unit").replace("pawn", "unit").replace("flag", "beacon"))
 			if messages.size() > 12:
 				messages.pop_back()
 	legal = Rules.legal_actions(state)
@@ -349,6 +372,7 @@ func _takeover() -> void:
 func _toggle_motion() -> void:
 	motion = not motion
 	board.motion = motion
+	cockpit.motion = motion
 	motion_button.text = "FX on" if motion else "FX off"
 
 
@@ -366,19 +390,20 @@ func _refresh() -> void:
 	board.state = state
 	board.selected = selected
 	board.second = second_pawn
-	board.preview_to = first_destination
+	board.preview_to = pending_move.get("to", first_destination)
 	board.draft_slots = {}
 	for pawn: int in assignments:
 		board.draft_slots[pawn] = Arena.SPELL_ICON[assignments[pawn]]
 	board.targets = _targets()
 	board.sync()
+	_update_transmission()
 	var draft: bool = state.phase == "draft"
 	round_label.text = "PRIVATE DRAFT" if draft else "ROUND %02d / 08     ·     %s" % [state.round, "DUEL COMPLETE" if state.phase == "finished" else SIDES[state.active].to_upper() + " TO ACT"]
 	var flag_status := "%d/%d HELD" % [state.replies, Rules.FLAG_REPLIES] if state.holder >= 0 else "UNCLAIMED"
 	var occupant := _pawn_at(state.flag)
 	if state.holder < 0 and occupant >= 0:
-		flag_status = "STOLEN PAWN  /  NO SCORE"
-	status_label.text = "FLAG  %s     /     %s" % [_coord(state.flag), flag_status]
+		flag_status = "STOLEN UNIT  /  NO SCORE"
+	status_label.text = "BEACON  %s     /     %s" % [_coord(state.flag), flag_status]
 	mode_button.text = "Local" if local_mode else "Solo"
 	takeover_button.disabled = draft or local_mode or takeover_queued or state.phase != "playing"
 	takeover_button.text = "Takeover queued" if takeover_queued else "Take Over Aliens"
@@ -389,12 +414,32 @@ func _refresh() -> void:
 		_draw_play()
 
 
+func _update_transmission() -> void:
+	var line := "Configure your units. The trial begins when both sides lock their choices."
+	var lamp_color := SOUTH
+	if state.holder >= 0 and state.pawns[state.holder].side == 0:
+		lamp_color = NORTH
+	if state.phase == "playing":
+		line = "The beacon is open. Hold it through three opposing turns."
+		if not state.cracks.is_empty() or not state.fractures.is_empty():
+			line = "The arena is breaking. Watch the cracked platforms."
+		if state.holder >= 0:
+			line = "We see your signal, Horizon. Keep it alive." if lamp_color == SOUTH else "Our beacon is locked. Show us how you break a hold."
+			if state.replies == 2:
+				line = "One more reply. The fleet is watching." if lamp_color == SOUTH else "One more reply and the trial is ours."
+	elif state.phase == "finished":
+		line = "Landing permission granted, ally." if state.winner == 1 else "The trial has ended. Await instructions."
+	signal_text.text = line
+	for i in beacon_lamps.size():
+		beacon_lamps[i].add_theme_stylebox_override("panel", _style(lamp_color if state.holder >= 0 and i < state.replies else Color("#26313b"), LINE, 1))
+
+
 func _draw_draft() -> void:
 	var color := NORTH if state.active == 0 else SOUTH
 	_panel(side_panel, Rect2(846, 148, 430, 651))
 	_label(side_panel, Rect2(868, 166, 380, 28), "%s  /  PRIVATE DRAFT" % SIDES[state.active].to_upper(), 14, color, MONO)
-	_label(side_panel, Rect2(868, 200, 380, 46), "Assign two abilities", 33, INK, bold)
-	_label(side_panel, Rect2(869, 254, 376, 53), "Select a pawn on the board, then an ability. Assign a different ability to a second pawn.", 17, MUTED, SANS, true)
+	_label(side_panel, Rect2(868, 200, 380, 46), "Configure landing team", 30, INK, bold)
+	_label(side_panel, Rect2(869, 254, 376, 53), "Select a unit on the grid, then an ability. Assign a different ability to a second unit.", 17, MUTED, SANS, true)
 	var y := 326
 	for spell: String in DRAFT_SPELLS:
 		var title: String = SPELLS[spell][0]
@@ -407,7 +452,7 @@ func _draw_draft() -> void:
 		y += 82
 	var lock := _button(side_panel, Rect2(869, 697, 382, 48), "Lock draft  ·  %d / 2" % assignments.size(), _lock_draft, true)
 	lock.disabled = assignments.size() != 2 or handoff
-	var caption := "Click an Alien pawn to begin." if state.active == 0 else "Click a Pilot pawn to begin."
+	var caption := "Click an interceptor to begin." if state.active == 0 else "Click a survey rover to begin."
 	if selected >= 0:
 		caption = "Selected " + _coord(state.pawns[selected].pos)
 		if selected in assignments:
@@ -443,7 +488,7 @@ func _draw_play() -> void:
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
 		elif p.spy > 0:
-			details = "Stolen pawn · %d turns left. Cannot score or capture on the flag." % p.spy
+			details = "Stolen unit · %d turns left. Cannot score or capture at the beacon." % p.spy
 		elif details.is_empty() and action_group == "ability":
 			details = SPELLS[p.ability][1]
 		elif details.is_empty() and action_group == "combo":
@@ -451,8 +496,8 @@ func _draw_play() -> void:
 		if not details.is_empty():
 			_label(side_panel, Rect2(865, 595, 387, 36), details, 13, MUTED, SANS, true)
 	else:
-		_label(side_panel, Rect2(864, 473, 394, 40), "Hold the flag through three enemy turns.", 19, GOLD, bold, true)
-		_label(side_panel, Rect2(864, 518, 390, 67), "Choose a pawn to see its moves. Red cracks mark the rim and purple cracks mark a fractured tile.", 15, MUTED, SANS, true)
+		_label(side_panel, Rect2(864, 473, 394, 40), "Hold the beacon through three enemy turns.", 19, GOLD, bold, true)
+		_label(side_panel, Rect2(864, 518, 390, 67), "Choose a unit to see its moves. Red cracks mark the rim. Purple cracks mark a fractured pad.", 15, MUTED, SANS, true)
 	_panel(side_panel, Rect2(846, 654, 430, 145))
 	_label(side_panel, Rect2(864, 665, 270, 22), "FLIGHT LOG", 12, MUTED, MONO)
 	_button(side_panel, Rect2(1162, 663, 97, 27), "View log", _show_log)
@@ -471,7 +516,7 @@ func _team_card(x: float, y: float, side: int) -> void:
 	for pawn: Dictionary in state.pawns.values():
 		if pawn.side == side:
 			count += 1
-	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), "%d PAWNS IN PLAY" % count, 13, MUTED, MONO)
+	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), "%d UNITS IN PLAY" % count, 13, MUTED, MONO)
 
 
 func _roll_ability() -> void:
@@ -499,30 +544,30 @@ func _action_hint() -> String:
 			return "Aliens are taking their turn."
 		return "Resolving the turn."
 	if selected < 0:
-		return "Select one of your pawns to see its legal actions."
+		return "Select one of your units to see its legal actions."
 	var p: Dictionary = state.pawns[selected]
 	if not p.borrow.is_empty():
-		return "This pawn is waiting to return to its echo."
+		return "This unit is waiting to return to its echo."
 	if action_group == "combo":
 		if pending_move.is_empty():
 			return "Choose a normal move to use the rolled power."
 		match state.dice[state.active]:
 			"spy":
-				return "Select a highlighted enemy pawn to take control."
+				return "Select a highlighted enemy unit to take control."
 			"long_capture":
-				return "Choose a pawn, then a highlighted capture target." if second_pawn < 0 else "Select a highlighted long-capture target."
+				return "Choose a unit, then a highlighted capture target." if second_pawn < 0 else "Select a highlighted long-capture target."
 	if action_group == "ability" and p.ability == "borrow_tomorrow":
 		if first_destination == Vector2i.ZERO:
-			return "Choose where the borrowed pawn steps."
+			return "Choose where the borrowed unit steps."
 		if second_pawn < 0:
-			return "Choose the second pawn."
-		return "Choose where the second pawn steps to commit both moves."
+			return "Choose the second unit."
+		return "Choose where the second unit steps to commit both moves."
 	if action_group == "ability" and p.ability == "shield":
-		return "Select the highlighted pawn again to raise its shield."
+		return "Select the highlighted unit again to raise its shield."
 	if action_group == "ability" and p.ability == "fracture":
 		return "Select a tile to drop after the next turn."
 	if _group_actions(action_group).is_empty():
-		return "This pawn has no legal target for the selected action."
+		return "This unit has no legal target for the selected action."
 	return "Select a highlighted destination for %s." % _coord(p.pos)
 
 
@@ -573,7 +618,7 @@ func _targets() -> Dictionary:
 			elif action.power.kind == "spy":
 				highlighted[state.pawns[action.power.mark].pos] = "mark"
 			elif action.power.kind == "long_capture" and second_pawn < 0:
-				highlighted[state.pawns[action.power.pawn].pos] = "mark"
+				highlighted[_combo_unit_square(action.power.pawn)] = "mark"
 			elif action.power.kind == "long_capture":
 				highlighted[action.power.to] = "capture"
 		elif action.kind == "borrow_tomorrow" and first_destination != Vector2i.ZERO:
@@ -613,8 +658,8 @@ func _square_pressed(square: Vector2i) -> void:
 					_commit(action)
 					return
 				if action.power.kind == "long_capture":
-					if second_pawn < 0 and id == action.power.pawn:
-						second_pawn = id
+					if second_pawn < 0 and square == _combo_unit_square(action.power.pawn):
+						second_pawn = action.power.pawn
 						_refresh()
 						return
 					if second_pawn >= 0 and action.power.pawn == second_pawn and action.power.to == square:
@@ -634,6 +679,14 @@ func _square_pressed(square: Vector2i) -> void:
 					action_group = group
 					break
 		_refresh()
+
+
+func _combo_unit_square(id: int) -> Vector2i:
+	if id == pending_move.get("pawn", -1):
+		var victim := _pawn_at(pending_move.to)
+		if pending_move.kind == "step" or (victim >= 0 and not state.pawns[victim].shield):
+			return pending_move.to
+	return state.pawns[id].pos
 
 
 func _select_target(action: Dictionary, square: Vector2i, id: int) -> bool:
@@ -675,7 +728,7 @@ func _assign(spell: String) -> void:
 		if old != null:
 			assignments.erase(old)
 		if assignments.size() == 2 and selected not in assignments:
-			_note("Select an assigned pawn to change its ability.")
+			_note("Select an assigned unit to change its ability.")
 			return
 		assignments[selected] = spell
 	_refresh()
@@ -731,8 +784,18 @@ func _show_rules() -> void:
 
 func _show_credits() -> void:
 	var box := _modal("credits", "Asset credits", 495)
-	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped on screen with a dark overlay.\n\n[color=#f8d587]3D ARENA AND PAWNS[/color]\nGodot primitives and a revolved mesh profile built into the project.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
+	_rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]COCKPIT AND SYSTEM[/color]\n[url=https://kenney.nl/assets/space-kit]Space Kit · Kenney · CC0[/url]\n[url=https://opengameart.org/content/spaceship-interior-0]Spaceship Interior · cheerful sprite · CC0[/url]\n[url=https://screamingbrainstudios.itch.io/tiny-planet-pack]Tiny Planet Pack · Screaming Brain Studios · CC0[/url]\n\n[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped and tinted.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
 	_button(box, Rect2(31, 427, 620, 41), "Back", _close_overlay)
+
+
+func _show_map() -> void:
+	var box := _modal("map", "Orbital chart", 438)
+	var chart := Cockpit.new()
+	chart.map_only = true
+	chart.motion = false
+	_place(box, chart, Rect2(27, 79, 620, 250))
+	_label(box, Rect2(31, 317, 620, 25), "Horizon holding position above the arena. Orbital chart is schematic.", 15, MUTED)
+	_button(box, Rect2(31, 365, 620, 41), "Back to cockpit", _close_overlay)
 
 
 func _show_modes() -> void:
@@ -755,18 +818,25 @@ func _show_log() -> void:
 	_button(box, Rect2(348, 511, 303, 43), "Back", _close_overlay)
 
 
+func _replay_action(record: Dictionary) -> Dictionary:
+	var action := record.duplicate()
+	for key in ["to", "second_to"]:
+		if key in action:
+			var point: Vector2i = action[key]
+			action[key] = [point.x, point.y]
+	for key in ["move", "power"]:
+		if key in action:
+			action[key] = _replay_action(action[key])
+	return action
+
+
 func _copy_replay() -> void:
 	var actions: Array[Dictionary] = []
 	for record in records:
-		var action := record.duplicate()
-		for key in ["to", "second_to"]:
-			if key in action:
-				var p: Vector2i = action[key]
-				action[key] = [p.x, p.y]
-		actions.append(action)
+		actions.append(_replay_action(record))
 	var end := finished_at if finished_at > 0 else Time.get_ticks_msec()
 	var replay := {
-		"rules_version": 2, "seed": state.seed, "first": state.first, "actions": actions,
+		"rules_version": 3, "seed": state.seed, "first": state.first, "actions": actions,
 		"first_flag_round": first_flag_round, "result": state.reason, "winner": state.winner,
 		"elapsed_ms": end - started_at if started_at > 0 else 0,
 	}
@@ -776,19 +846,36 @@ func _copy_replay() -> void:
 
 
 func _show_result() -> void:
-	var title := "Draw" if state.winner < 0 else "%s win" % SIDES[state.winner]
-	var box := _modal("result", title, 342)
+	var title := "Trial unresolved"
+	var outcome := "The Horizon remains in orbit pending a decision."
+	match state.winner:
+		1:
+			title = "Alliance secured"
+			outcome = "The envoy opened a landing corridor for the Horizon."
+			cockpit.clearance = "land"
+		0:
+			title = "Horizon detained"
+			outcome = "The envoy has dispatched a patrol to take custody."
+			cockpit.clearance = "detained"
+	_clear(overlay)
+	overlay_kind = "result"
+	var dim := ColorRect.new()
+	dim.color = Color(0.025, 0.032, 0.07, 0.84)
+	_place(overlay, dim, Rect2(0, 237, 1320, 570))
+	var box := _panel(overlay, Rect2(319, 306, 682, 383), PANEL, LINE, 12)
+	_label(box, Rect2(29, 19, 622, 59), title, 39, INK, bold)
 	var description: String = {
-		"flag": "The flag held through three opposing turns.",
-		"elimination": "The opposing side lost its final pawn.",
-		"mutual_elimination": "Both sides lost their final pawns.",
+		"flag": "The beacon held through three opposing turns.",
+		"elimination": "The opposing side lost its final unit.",
+		"mutual_elimination": "Both sides lost their final units.",
 		"round_cap": "Eight rounds elapsed without a winner."
 	}.get(state.reason, "")
-	_label(box, Rect2(31, 92, 620, 58), description, 21, MUTED, SANS, true)
-	_label(box, Rect2(31, 158, 620, 26), "ROUND %02d   /   SEED %d" % [state.round, state.seed], 14, GOLD, MONO)
-	_button(box, Rect2(31, 208, 620, 46), "Rematch", func(): _start(local_mode, true), true)
-	_button(box, Rect2(31, 266, 302, 41), "View board", func(): _close_overlay(false))
-	_button(box, Rect2(348, 266, 303, 41), "Copy replay data", _copy_replay)
+	_label(box, Rect2(31, 86, 620, 62), outcome, 21, INK, SANS, true)
+	_label(box, Rect2(31, 146, 620, 53), description, 17, MUTED, SANS, true)
+	_label(box, Rect2(31, 209, 620, 25), "ROUND %02d   /   SEED %d" % [state.round, state.seed], 14, GOLD, MONO)
+	_button(box, Rect2(31, 252, 620, 46), "Rematch", func(): _start(local_mode, true), true)
+	_button(box, Rect2(31, 311, 302, 41), "View board", func(): _close_overlay(false))
+	_button(box, Rect2(348, 311, 303, 41), "Copy replay data", _copy_replay)
 
 
 func _rich(parent: Node, rect: Rect2, value: String) -> void:

@@ -5,6 +5,9 @@ signal square_pressed(square: Vector2i)
 
 const Rules = preload("rules.gd")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
+const ROVER = preload("res://art/fleet/rover.glb")
+const INTERCEPTOR = preload("res://art/fleet/craft-speederd.glb")
+const DISH = preload("res://art/fleet/satellitedish-detailed.glb")
 const NORTH = Color("#ff9479")
 const SOUTH = Color("#73d9fa")
 const GOLD = Color("#ffda8f")
@@ -22,6 +25,7 @@ var hover := Vector2i.ZERO
 var motion := true
 var draft_slots: Dictionary = {}
 var clock := 0.0
+var power := 1.0
 var viewport_3d: SubViewport
 var world: Node3D
 var camera: Camera3D
@@ -29,8 +33,10 @@ var tiles: Dictionary = {}
 var pieces: Dictionary = {}
 var landings: Dictionary = {}
 var palette: Dictionary = {}
-var tile_mesh: BoxMesh
-var pawn_mesh: ArrayMesh
+var tile_mesh: ArrayMesh
+var rover_mesh: Mesh
+var interceptor_mesh: Mesh
+var unit_materials: Dictionary = {}
 var flag_node: Node3D
 var falling: Array[Node3D] = []
 
@@ -41,7 +47,8 @@ func _ready() -> void:
 		hover = Vector2i.ZERO
 		queue_redraw())
 	viewport_3d = SubViewport.new()
-	viewport_3d.size = Vector2i(size)
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	viewport_3d.size = Vector2i(size / 2.0)
 	viewport_3d.transparent_bg = true
 	viewport_3d.own_world_3d = true
 	viewport_3d.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -49,11 +56,11 @@ func _ready() -> void:
 	world = Node3D.new()
 	viewport_3d.add_child(world)
 	camera = Camera3D.new()
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 10.45
-	camera.position = Vector3(0, 12, 6.2)
+	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	camera.fov = 35.0
+	camera.position = Vector3(1.6, 8.0, 12.6)
 	world.add_child(camera)
-	camera.look_at(Vector3(0, 0, 0.11))
+	camera.look_at(Vector3(0, -0.38, 0.28))
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-52, -32, 0)
 	light.light_energy = 0.94
@@ -66,16 +73,14 @@ func _ready() -> void:
 	environment.environment.ambient_light_energy = 0.62
 	world.add_child(environment)
 	palette = {
-		"light": _material(Color("#394e70")), "dark": _material(Color("#202f49")),
-		"flag": _material(Color("#846739")), "crack": _material(Color("#7b3d4d")),
+		"light": _material(Color("#204256"), 0.15), "dark": _material(Color("#183548"), 0.15),
+		"flag": _material(Color("#85673b")), "crack": _material(Color("#7b3d4d")),
 		"fracture": _material(Color("#743f76")), "infected": _material(Color("#584287")),
-		"north": _material(NORTH.darkened(0.12), 0.22), "south": _material(SOUTH.darkened(0.11), 0.22),
-		"north_dim": _material(NORTH.darkened(0.62)), "south_dim": _material(SOUTH.darkened(0.60)),
 		"gold": _material(GOLD, 0.30)
 	}
-	tile_mesh = BoxMesh.new()
-	tile_mesh.size = Vector3(0.967, 0.28, 0.967)
-	pawn_mesh = _lathe()
+	tile_mesh = _platform_mesh()
+	rover_mesh = _imported_mesh(ROVER)
+	interceptor_mesh = _imported_mesh(INTERCEPTOR)
 	_build_flag()
 
 
@@ -87,32 +92,36 @@ func _material(color: Color, metallic: float = 0.0) -> StandardMaterial3D:
 	return material
 
 
-func _lathe() -> ArrayMesh:
-	var rings := PackedVector2Array([
-		Vector2(0, 0), Vector2(0.29, 0), Vector2(0.32, 0.055), Vector2(0.32, 0.12),
-		Vector2(0.29, 0.17), Vector2(0.23, 0.19), Vector2(0.19, 0.22),
-		Vector2(0.125, 0.40), Vector2(0.13, 0.47), Vector2(0.21, 0.48),
-		Vector2(0.21, 0.54), Vector2(0.13, 0.57), Vector2(0.14, 0.60),
-		Vector2(0.179, 0.67), Vector2(0.175, 0.73), Vector2(0.13, 0.80), Vector2(0, 0.85)
+func _platform_mesh() -> ArrayMesh:
+	var corners := PackedVector2Array([
+		Vector2(-0.31, -0.47), Vector2(0.31, -0.47), Vector2(0.47, -0.31), Vector2(0.47, 0.31),
+		Vector2(0.31, 0.47), Vector2(-0.31, 0.47), Vector2(-0.47, 0.31), Vector2(-0.47, -0.31)
 	])
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for ring in range(rings.size() - 1):
-		for i in 24:
-			var a := i * TAU / 24.0
-			var b := (i + 1) * TAU / 24.0
-			var low_a := _vertex(rings[ring], a)
-			var low_b := _vertex(rings[ring], b)
-			var high_a := _vertex(rings[ring + 1], a)
-			var high_b := _vertex(rings[ring + 1], b)
-			for vertex in [low_a, low_b, high_a, high_a, low_b, high_b]:
-				surface.add_vertex(vertex)
+	surface.set_smooth_group(-1)
+	for i in corners.size():
+		var a := corners[i]
+		var b := corners[(i + 1) % corners.size()]
+		var top_a := Vector3(a.x, TOP, a.y)
+		var top_b := Vector3(b.x, TOP, b.y)
+		var side_a := Vector3(a.x * 1.035, 0.05, a.y * 1.035)
+		var side_b := Vector3(b.x * 1.035, 0.05, b.y * 1.035)
+		var base_a := Vector3(a.x * 0.80, -0.21, a.y * 0.80)
+		var base_b := Vector3(b.x * 0.80, -0.21, b.y * 0.80)
+		for vertex: Vector3 in [Vector3.UP * TOP, top_a, top_b, top_b, top_a, side_a, top_b, side_a, side_b,
+				side_b, side_a, base_a, side_b, base_a, base_b, Vector3.DOWN * 0.21, base_b, base_a]:
+			surface.add_vertex(vertex)
 	surface.generate_normals()
 	return surface.commit()
 
 
-func _vertex(profile: Vector2, angle: float) -> Vector3:
-	return Vector3(cos(angle) * profile.x, profile.y, sin(angle) * profile.x)
+func _imported_mesh(source: PackedScene) -> Mesh:
+	var instance := source.instantiate()
+	var model: MeshInstance3D = instance.find_children("*", "MeshInstance3D", true, false).front()
+	var result := model.mesh
+	instance.free()
+	return result
 
 
 func _mesh(parent: Node3D, geometry: Mesh, material: Material, at: Vector3) -> MeshInstance3D:
@@ -127,20 +136,43 @@ func _mesh(parent: Node3D, geometry: Mesh, material: Material, at: Vector3) -> M
 func _build_flag() -> void:
 	flag_node = Node3D.new()
 	world.add_child(flag_node)
-	var pole := CylinderMesh.new()
-	pole.top_radius = 0.035
-	pole.bottom_radius = 0.045
-	pole.height = 0.56
-	_mesh(flag_node, pole, palette.gold, Vector3(-0.15, 0.29, 0))
-	var pennant := PrismMesh.new()
-	pennant.size = Vector3(0.30, 0.26, 0.055)
-	var marker := _mesh(flag_node, pennant, palette.gold, Vector3(0.0, 0.44, 0))
-	marker.rotation.z = -PI / 2.0
-	var stand := CylinderMesh.new()
-	stand.top_radius = 0.12
-	stand.bottom_radius = 0.17
-	stand.height = 0.06
-	_mesh(flag_node, stand, palette.gold, Vector3(-0.15, 0.03, 0))
+	var receiver := _mesh(flag_node, _imported_mesh(DISH), palette.gold, Vector3.ZERO)
+	receiver.scale = Vector3(0.9, 0.70, 0.9)
+	receiver.rotation.y = PI * 0.24
+
+
+func _new_unit(owner: int, at: Vector3) -> Node3D:
+	var unit := Node3D.new()
+	unit.position = at
+	world.add_child(unit)
+	var vehicle := _mesh(unit, interceptor_mesh if owner == 0 else rover_mesh, null, Vector3.ZERO)
+	vehicle.scale = Vector3(0.258, 0.36, 0.258) if owner == 0 else Vector3(1.9, 1.05, 1.9)
+	vehicle.position.y = 0.10 if owner == 0 else 0.0
+	unit.rotation.y = PI if owner == 0 else 0.0
+	return unit
+
+
+func _paint_unit(unit: Node3D, side: int, dimmed: bool) -> void:
+	var model: MeshInstance3D = unit.get_child(0)
+	var key := "%s/%d/%s" % [model.mesh.resource_path, side, str(dimmed)]
+	if key not in unit_materials:
+		var paints: Array[StandardMaterial3D] = []
+		for index in model.mesh.get_surface_count():
+			var original: StandardMaterial3D = model.mesh.surface_get_material(index)
+			var faction := NORTH if side == 0 else SOUTH
+			var tint := original.albedo_color
+			if tint.r - tint.b > 0.25:
+				var livery := _material(faction.darkened(0.55) if dimmed else faction, 0.18)
+				livery.emission_enabled = true
+				livery.emission = faction
+				livery.emission_energy_multiplier = 0.08 if dimmed else 0.34
+				paints.append(livery)
+			else:
+				var hull := tint.lerp(faction.darkened(0.42), 0.29).darkened(0.12)
+				paints.append(_material(hull.darkened(0.42) if dimmed else hull, 0.18))
+		unit_materials[key] = paints
+	for index in model.mesh.get_surface_count():
+		model.set_surface_override_material(index, unit_materials[key][index])
 
 
 func reset_visuals() -> void:
@@ -151,6 +183,13 @@ func reset_visuals() -> void:
 	falling.clear()
 	tiles.clear()
 	pieces.clear()
+
+
+func power_on() -> void:
+	power = 1.0
+	if motion:
+		power = 0.0
+		create_tween().tween_property(self, "power", 1.0, 0.50).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 func sync() -> void:
@@ -183,17 +222,14 @@ func sync() -> void:
 			_remove_model(pieces[id], false)
 			pieces.erase(id)
 	for pawn: Dictionary in state.pawns.values():
-		var key := "north" if pawn.side == 0 else "south"
-		if state.phase == "draft" and pawn.side != state.active:
-			key += "_dim"
 		var destination := _world_at(pawn.pos)
-		var model: MeshInstance3D
+		var model: Node3D
 		if pawn.id in pieces:
 			model = pieces[pawn.id]
 		else:
-			model = _mesh(world, pawn_mesh, palette[key], destination)
+			model = _new_unit(pawn.owner, destination)
 			pieces[pawn.id] = model
-		model.material_override = palette[key]
+		_paint_unit(model, pawn.side, state.phase == "draft" and pawn.side != state.active)
 		if pawn.pos == state.flag:
 			flag_node.visible = false
 		if pawn.id not in landings:
@@ -201,11 +237,14 @@ func sync() -> void:
 				model.position = destination
 				model.set_meta("destination", destination)
 			continue
-		var landing: Dictionary = landings[pawn.id]
+		var path: Array = landings[pawn.id]
 		landings.erase(pawn.id)
-		model.position = _world_at(landing.from)
+		model.position = _world_at(path[0].from)
 		model.set_meta("destination", destination)
-		_hop(model, destination, landing.kind == "capture", landing.get("teleport", false))
+		var tween := create_tween().bind_node(model)
+		for landing: Dictionary in path:
+			_hop(tween, model, _world_at(landing.from), _world_at(landing.to),
+				landing.kind == "capture", landing.teleport, path.size())
 	queue_redraw()
 
 
@@ -218,20 +257,28 @@ func show_events(events: Array) -> void:
 		if event.kind == "ability" and event.ability == "teleport":
 			teleported[event.pawn] = true
 		elif event.kind in ["step", "capture", "returned"]:
-			landings[event.pawn] = event.duplicate()
-			landings[event.pawn].teleport = event.pawn in teleported
+			var landing := event.duplicate()
+			landing.teleport = event.pawn in teleported
+			if event.pawn not in landings:
+				landings[event.pawn] = []
+			landings[event.pawn].append(landing)
 
 
-func _hop(model: MeshInstance3D, destination: Vector3, impact: bool, teleport: bool) -> void:
-	var tween := create_tween().bind_node(model)
+func _hop(tween: Tween, model: Node3D, origin: Vector3, destination: Vector3, impact: bool, teleport: bool, segments: int) -> void:
 	if teleport:
 		tween.tween_property(model, "scale", Vector3.ONE * 0.09, 0.10)
 		tween.tween_callback(func(): model.position = destination)
 		tween.tween_property(model, "scale", Vector3.ONE, 0.24).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		return
-	var apex := model.position.lerp(destination, 0.5) + Vector3.UP * (0.55 if impact else 0.35)
-	tween.tween_property(model, "position", apex, 0.14).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_property(model, "position", destination, 0.19).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	var apex := origin.lerp(destination, 0.5) + Vector3.UP * (0.42 if impact else 0.23)
+	var travel := destination - origin
+	var bank := signf(travel.x) * -0.18
+	var lift := 0.14 if segments == 1 else 0.11
+	var settle := 0.19 if segments == 1 else 0.15
+	tween.tween_property(model, "position", apex, lift).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(model, "rotation:z", bank, lift)
+	tween.tween_property(model, "position", destination, settle).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.parallel().tween_property(model, "rotation:z", 0.0, settle)
 
 
 func _remove_model(model: Node3D, tile: bool) -> void:
@@ -253,11 +300,16 @@ func _world_at(square: Vector2i, height: float = TOP) -> Vector3:
 
 
 func _project(square: Vector2i, height: float = TOP) -> Vector2:
-	return camera.unproject_position(_world_at(square, height))
+	return _project_world(_world_at(square, height))
+
+
+func _project_world(point: Vector3) -> Vector2:
+	return camera.unproject_position(point) * size / Vector2(viewport_3d.size)
 
 
 func _square_at(local_pos: Vector2) -> Vector2i:
-	var ground = Plane(Vector3.UP, TOP).intersects_ray(camera.project_ray_origin(local_pos), camera.project_ray_normal(local_pos))
+	var viewport_pos := local_pos * Vector2(viewport_3d.size) / size
+	var ground = Plane(Vector3.UP, TOP).intersects_ray(camera.project_ray_origin(viewport_pos), camera.project_ray_normal(viewport_pos))
 	if ground == null:
 		return Vector2i.ZERO
 	var square := Vector2i(floori(ground.x + 5.5), floori(ground.z + 5.5))
@@ -266,12 +318,28 @@ func _square_at(local_pos: Vector2) -> Vector2i:
 	return square
 
 
+func _pick_square(local_pos: Vector2) -> Vector2i:
+	var ground := _square_at(local_pos)
+	if ground in targets or state.is_empty():
+		return ground
+	var closest := 13.0
+	var picked := ground
+	for pawn: Dictionary in state.pawns.values():
+		var height := 0.31 if pawn.owner == 0 else 0.22
+		var center := _project(pawn.pos, TOP + height)
+		var distance := local_pos.distance_to(center)
+		if distance < closest:
+			picked = pawn.pos
+			closest = distance
+	return picked
+
+
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		hover = _square_at(event.position)
+		hover = _pick_square(event.position)
 		queue_redraw()
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var square := _square_at(event.position)
+		var square := _pick_square(event.position)
 		if square != Vector2i.ZERO:
 			grab_focus()
 			keyboard_square = Vector2i.ZERO
@@ -288,10 +356,16 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if state.is_empty() or not is_instance_valid(camera):
 		return
-	draw_texture_rect(viewport_3d.get_texture(), Rect2(Vector2.ZERO, size), false)
+	draw_texture_rect(viewport_3d.get_texture(), Rect2(Vector2.ZERO, size), false, Color(0.83, 1.0, 0.98, power))
+	for y in range(38, int(size.y) - 28, 5):
+		draw_line(Vector2(85, y), Vector2(size.x - 85, y), Color(0.025, 0.12, 0.17, 0.21))
+	if power < 0.99:
+		draw_line(Vector2(67, size.y * power), Vector2(size.x - 67, size.y * power), Color(0.40, 1.0, 0.93, (1.0 - power) * 0.8), 3)
 	for i in range(1, Rules.BOARD_SIZE + 1):
-		_text(_project(Vector2i(i, 1)) + Vector2(-4, -37), char(64 + i), 13)
-		_text(_project(Vector2i(1, i)) + Vector2(-54, 3), str(i), 13)
+		_text(_project_world(_world_at(Vector2i(i, 1)) + Vector3(0, 0, -0.76)) + Vector2(-4, 1), char(64 + i), 12)
+		_text(_project_world(_world_at(Vector2i(1, i)) + Vector3(-0.90, 0, 0)) + Vector2(-4, 4), str(i), 12)
+	for square: Vector2i in tiles:
+		_pad_lights(square)
 	for square: Vector2i in state.cracks:
 		_hazard(square, NORTH)
 	for square: Vector2i in state.fractures:
@@ -329,18 +403,22 @@ func _draw() -> void:
 func _pawn_status(pawn: Dictionary) -> void:
 	var foot := _project(pawn.pos)
 	var team := NORTH if pawn.side == 0 else SOUTH
+	var at := _world_at(pawn.pos)
+	draw_line(_project_world(at + Vector3(-0.24, 0, 0.40)), _project_world(at + Vector3(0.24, 0, 0.40)),
+		team.darkened(0.32) if state.phase == "draft" and pawn.side != state.active else team, 1.7, true)
 	if pawn.id in [selected, second]:
 		_outline(pawn.pos, team)
+	var marker := _project_world(_world_at(pawn.pos) + Vector3(0.36, 0.12, -0.32))
 	if pawn.id in draft_slots:
-		_badge(foot + Vector2(18, -23), draft_slots[pawn.id], LILAC)
+		_badge(marker, draft_slots[pawn.id], LILAC)
 	if state.phase == "draft":
 		return
 	if pawn.charged:
-		_badge(foot + Vector2(18, -23), SPELL_ICON[pawn.ability], LILAC)
+		_badge(marker, SPELL_ICON[pawn.ability], LILAC)
 	if pawn.shield:
 		draw_arc(foot + Vector2(0, -13), 23, 0, TAU, 35, SOUTH, 2, true)
 	if pawn.spy > 0:
-		_badge(foot + Vector2(-18, -23), str(pawn.spy), GOLD)
+		_badge(_project_world(_world_at(pawn.pos) + Vector3(-0.36, 0.12, -0.32)), str(pawn.spy), GOLD)
 	if not pawn.borrow.is_empty():
 		var origin := _project(pawn.borrow.origin)
 		draw_dashed_line(origin, foot, LILAC, 1.8, 5)
@@ -351,16 +429,33 @@ func _pawn_status(pawn: Dictionary) -> void:
 func _outline(square: Vector2i, color: Color) -> void:
 	var points := PackedVector2Array()
 	for corner: Vector3 in [Vector3(-0.46, 0, -0.46), Vector3(0.46, 0, -0.46), Vector3(0.46, 0, 0.46), Vector3(-0.46, 0, 0.46), Vector3(-0.46, 0, -0.46)]:
-		points.append(camera.unproject_position(_world_at(square) + corner))
+		points.append(_project_world(_world_at(square) + corner))
 	draw_polyline(points, color, 1.6, true)
 
 
 func _hazard(square: Vector2i, color: Color) -> void:
-	var point := _project(square)
-	var line := PackedVector2Array([point + Vector2(-26, -15), point + Vector2(-11, -8), point + Vector2(-6, 4),
-		point + Vector2(5, 1), point + Vector2(13, 15), point + Vector2(25, 19)])
+	var at := _world_at(square)
+	var line := PackedVector2Array()
+	for offset: Vector3 in [Vector3(-0.44, 0, -0.31), Vector3(-0.22, 0, -0.19), Vector3(-0.13, 0, 0.09),
+			Vector3(0.07, 0, 0.02), Vector3(0.22, 0, 0.25), Vector3(0.43, 0, 0.39)]:
+		line.append(_project_world(at + offset))
 	draw_polyline(line, color, 1.5, true)
-	draw_line(point + Vector2(5, 1), point + Vector2(16, -9), color, 1.5, true)
+	draw_line(line[3], _project_world(at + Vector3(0.28, 0, -0.16)), color, 1.5, true)
+
+
+func _pad_lights(square: Vector2i) -> void:
+	var at := _world_at(square)
+	var tint := Color("#4d9eab")
+	if square == state.flag:
+		tint = GOLD
+	elif square in state.fractures:
+		tint = LILAC
+	elif square in state.cracks:
+		tint = NORTH
+	for direction in [-1.0, 1.0]:
+		var start := _project_world(at + Vector3(0.14 * direction, 0, 0.40))
+		var end := _project_world(at + Vector3(0.32 * direction, 0, 0.40))
+		draw_line(start, end, tint, 1.4, true)
 
 
 func _badge(point: Vector2, title: String, color: Color) -> void:
