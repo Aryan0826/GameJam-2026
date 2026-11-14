@@ -10,14 +10,18 @@ config_version=5
 
 [application]
 
-config/name="Conqueror's Board"
+config/name="Conqueror's Chess"
+run/main_scene="res://scenes/opening_crawl.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [display]
 
+window/size/viewport_width=1320
+window/size/viewport_height=850
+window/size/window_width_override=1188
+window/size/window_height_override=765
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
 
 [physics]
 
@@ -25,6 +29,6 @@ window/stretch/aspect="expand"
 
 [rendering]
 
-rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0, 0, 0, 1)

@@ -1,0 +1,331 @@
+[gd_scene format=3 uid="uid://df7w4ywaq2m10"]
+
+[ext_resource type="Script" path="res://scripts/solar_system.gd" id="1_solar_script"]
+[ext_resource type="Shader" path="res://shaders/starfield.gdshader" id="2_starfield_shader"]
+[ext_resource type="Script" path="res://scripts/sun_visual.gd" id="3_sun_visual"]
+[ext_resource type="Script" path="res://scripts/orbit_zone_visual.gd" id="4_orbit_zone_visual"]
+[ext_resource type="Script" path="res://scripts/orbit_line_visual.gd" id="5_orbit_line_visual"]
+[ext_resource type="Texture2D" path="res://art/sun_sheet.png" id="6_sun_texture"]
+[ext_resource type="Texture2D" path="res://art/planet_sheet.png" id="7_planet_texture"]
+[ext_resource type="Texture2D" path="res://art/ship.png" id="8_ship_texture"]
+[ext_resource type="FontFile" path="res://art/SpaceGrotesk.ttf" id="9_space_font"]
+[ext_resource type="FontFile" path="res://art/IBMPlexMono-Regular.ttf" id="10_mono_font"]
+[ext_resource type="Script" path="res://scripts/minimap_visual.gd" id="11_minimap_script"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_starfield"]
+shader = ExtResource("2_starfield_shader")
+shader_parameter/background_color = Color(0.005, 0.005, 0.015, 1)
+shader_parameter/star_tint_cool = Color(0.75, 0.88, 1, 1)
+shader_parameter/star_tint_warm = Color(1, 0.92, 0.75, 1)
+shader_parameter/drift_speed = 0.006
+shader_parameter/twinkle_speed = 2.2
+shader_parameter/camera_offset = Vector2(0, 0)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hud_panel"]
+bg_color = Color(0.04, 0.07, 0.12, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.75, 0.95, 0.6)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+expand_margin_left = 16.0
+expand_margin_top = 12.0
+expand_margin_right = 16.0
+expand_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_progress_bg"]
+bg_color = Color(0.08, 0.12, 0.18, 0.8)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_progress_fill"]
+bg_color = Color(0.25, 0.85, 0.95, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_ship"]
+radius = 16.0
+
+[node name="SolarSystem" type="Node2D"]
+script = ExtResource("1_solar_script")
+next_scene_path = "res://main.tscn"
+
+[node name="StarfieldLayer" type="CanvasLayer" parent="."]
+layer = -100
+
+[node name="StarfieldBackground" type="ColorRect" parent="StarfieldLayer"]
+material = SubResource("ShaderMaterial_starfield")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="World" type="Node2D" parent="."]
+
+[node name="OrbitLine" type="Node2D" parent="World"]
+script = ExtResource("5_orbit_line_visual")
+
+[node name="Sun" type="Node2D" parent="World"]
+
+[node name="SunGlow" type="Node2D" parent="World/Sun"]
+script = ExtResource("3_sun_visual")
+
+[node name="SunSprite" type="Sprite2D" parent="World/Sun"]
+texture_filter = 1
+scale = Vector2(22, 22)
+texture = ExtResource("6_sun_texture")
+hframes = 50
+
+[node name="SunLabel" type="Label" parent="World/Sun"]
+offset_left = -100.0
+offset_top = 220.0
+offset_right = 100.0
+offset_bottom = 244.0
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 0.75)
+theme_override_fonts/font = ExtResource("9_space_font")
+theme_override_font_sizes/font_size = 14
+text = "SOLAR CORE"
+horizontal_alignment = 1
+
+[node name="Planet" type="Node2D" parent="World"]
+position = Vector2(5000, 0)
+
+[node name="OrbitZone" type="Node2D" parent="World/Planet"]
+script = ExtResource("4_orbit_zone_visual")
+
+[node name="PlanetSprite" type="Sprite2D" parent="World/Planet"]
+texture_filter = 1
+scale = Vector2(5, 5)
+texture = ExtResource("7_planet_texture")
+hframes = 50
+
+[node name="PlanetLabel" type="Label" parent="World/Planet"]
+offset_left = -80.0
+offset_top = 64.0
+offset_right = 80.0
+offset_bottom = 88.0
+theme_override_colors/font_color = Color(0.35, 0.9, 1, 0.8)
+theme_override_fonts/font = ExtResource("9_space_font")
+theme_override_font_sizes/font_size = 14
+text = "KALYPSO"
+horizontal_alignment = 1
+
+[node name="PlayerShip" type="CharacterBody2D" parent="World"]
+position = Vector2(3400, 3100)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/PlayerShip"]
+shape = SubResource("CircleShape2D_ship")
+
+[node name="EngineParticles" type="CPUParticles2D" parent="World/PlayerShip"]
+position = Vector2(-18, 0)
+emitting = false
+amount = 32
+lifetime = 0.35
+speed_scale = 1.0
+direction = Vector2(-1, 0)
+spread = 12.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 100.0
+initial_velocity_max = 160.0
+scale_amount_min = 2.0
+scale_amount_max = 4.0
+color = Color(0.25, 0.85, 1, 0.85)
+
+[node name="ShipSprite" type="Sprite2D" parent="World/PlayerShip"]
+scale = Vector2(0.8, 0.8)
+texture = ExtResource("8_ship_texture")
+
+[node name="Camera2D" type="Camera2D" parent="World"]
+position_smoothing_enabled = true
+position_smoothing_speed = 6.0
+
+[node name="HUDLayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="HUD" type="Control" parent="HUDLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Radar" type="Control" parent="HUDLayer/HUD"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="SunPointer" type="Control" parent="HUDLayer/HUD/Radar"]
+layout_mode = 1
+anchors_preset = 0
+mouse_filter = 2
+
+[node name="Chevron" type="Polygon2D" parent="HUDLayer/HUD/Radar/SunPointer"]
+color = Color(1, 0.85, 0.25, 0.9)
+polygon = PackedVector2Array(-8, -6, 10, 0, -8, 6)
+
+[node name="TagLabel" type="Label" parent="HUDLayer/HUD/Radar/SunPointer"]
+offset_left = -35.0
+offset_top = 10.0
+offset_right = 35.0
+offset_bottom = 28.0
+theme_override_colors/font_color = Color(1, 0.85, 0.25, 0.85)
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 11
+text = "SUN"
+horizontal_alignment = 1
+
+[node name="PlanetPointer" type="Control" parent="HUDLayer/HUD/Radar"]
+layout_mode = 1
+anchors_preset = 0
+mouse_filter = 2
+
+[node name="Chevron" type="Polygon2D" parent="HUDLayer/HUD/Radar/PlanetPointer"]
+color = Color(0.3, 0.9, 1, 0.9)
+polygon = PackedVector2Array(-8, -6, 10, 0, -8, 6)
+
+[node name="TagLabel" type="Label" parent="HUDLayer/HUD/Radar/PlanetPointer"]
+offset_left = -40.0
+offset_top = 10.0
+offset_right = 40.0
+offset_bottom = 28.0
+theme_override_colors/font_color = Color(0.3, 0.9, 1, 0.85)
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 11
+text = "KALYPSO"
+horizontal_alignment = 1
+
+[node name="FlightInfo" type="VBoxContainer" parent="HUDLayer/HUD"]
+layout_mode = 1
+anchors_preset = 0
+offset_left = 28.0
+offset_top = 26.0
+offset_right = 320.0
+offset_bottom = 120.0
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="SpeedLabel" type="Label" parent="HUDLayer/HUD/FlightInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.85, 1, 0.95)
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 15
+text = "VELOCITY: 120 KM/S"
+
+[node name="DistSunLabel" type="Label" parent="HUDLayer/HUD/FlightInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.35, 0.85)
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 13
+text = "SOLAR CORE: 720 KM"
+
+[node name="DistPlanetLabel" type="Label" parent="HUDLayer/HUD/FlightInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.95, 0.8, 0.85)
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 13
+text = "KALYPSO: 350 KM"
+
+[node name="ControlsHint" type="Label" parent="HUDLayer/HUD"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = -48.0
+offset_right = 720.0
+offset_bottom = -22.0
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 1, 1, 0.5)
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 13
+text = "[W / UP] Thrust  •  [A / D] Steer  •  [SHIFT / SPACE] Warp Boost  •  [S / DOWN] Retro-Brake"
+
+[node name="Minimap" type="Control" parent="HUDLayer/HUD"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -175.0
+offset_top = 25.0
+offset_right = -25.0
+offset_bottom = 175.0
+grow_horizontal = 0
+mouse_filter = 2
+script = ExtResource("11_minimap_script")
+
+[node name="OrbitHUD" type="PanelContainer" parent="HUDLayer/HUD"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -220.0
+offset_top = 35.0
+offset_right = 220.0
+offset_bottom = 150.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hud_panel")
+
+[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUD/OrbitHUD"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="TitleLabel" type="Label" parent="HUDLayer/HUD/OrbitHUD/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.95, 1, 1)
+theme_override_fonts/font = ExtResource("9_space_font")
+theme_override_font_sizes/font_size = 20
+text = "◆ PLANETARY ORBIT ESTABLISHED ◆"
+horizontal_alignment = 1
+
+[node name="TimerLabel" type="Label" parent="HUDLayer/HUD/OrbitHUD/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.3, 1)
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 17
+text = "DESCENT IN: 4.0s"
+horizontal_alignment = 1
+
+[node name="ProgressBar" type="ProgressBar" parent="HUDLayer/HUD/OrbitHUD/VBox"]
+custom_minimum_size = Vector2(360, 10)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_progress_fill")
+show_percentage = false
+
+[node name="SubHint" type="Label" parent="HUDLayer/HUD/OrbitHUD/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.5)
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 12
+text = "[SPACE / ENTER] Land Now  •  [W] Disengage Orbit"
+horizontal_alignment = 1
+
+[node name="ScreenFade" type="ColorRect" parent="HUDLayer"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
