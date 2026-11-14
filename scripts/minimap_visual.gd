@@ -36,7 +36,10 @@ func _draw() -> void:
 	var scale_factor = radar_radius / world_radius
 
 	# 3. Sun marker
-	draw_circle(center, 4.0, Color(1.0, 0.85, 0.2, 0.95))
+	var star_color: Color = Color(1.0, 0.85, 0.2, 0.95)
+	if solar_system.has_method("get_system_star_color"):
+		star_color = solar_system.call("get_system_star_color")
+	draw_circle(center, 4.0, star_color)
 
 	# 4. Every planet, its solar orbit, and its gravity boundary.
 	if sun and solar_system.has_method("get_system_map_data"):
@@ -50,6 +53,8 @@ func _draw() -> void:
 			var gravity_r: float = body_data.gravity_radius * scale_factor
 			draw_arc(planet_pos, gravity_r, 0.0, TAU, 32, Color(marker_color, 0.3), 1.0)
 			draw_circle(planet_pos, 3.5 if body_data.is_target else 2.8, marker_color)
+			if body_data.is_target:
+				draw_arc(planet_pos, 6.0, 0.0, TAU, 24, marker_color, 1.4, true)
 
 	# 5. Player ship marker
 	if ship and sun:

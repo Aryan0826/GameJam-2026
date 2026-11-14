@@ -4,6 +4,7 @@ extends Control
 signal square_pressed(square: Vector2i)
 
 const Rules = preload("rules.gd")
+const Drift = preload("drift.gd")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
 const ROVER = preload("res://art/fleet/rover.glb")
 const INTERCEPTOR = preload("res://art/fleet/craft-speederd.glb")
@@ -47,6 +48,7 @@ var rover_mesh: Mesh
 var interceptor_mesh: Mesh
 var unit_materials: Dictionary = {}
 var flag_node: Node3D
+var relay_nodes: Array[Node3D] = []
 var falling: Array[Node3D] = []
 
 
@@ -90,12 +92,18 @@ func _ready() -> void:
 		"light": _material(Color("#204256"), 0.15), "dark": _material(Color("#183548"), 0.15),
 		"flag": _material(Color("#85673b")), "crack": _material(Color("#7b3d4d")),
 		"fracture": _material(Color("#743f76")), "infected": _material(Color("#584287")),
+		"drift_light": _material(Color("#404469"), 0.15), "drift_dark": _material(Color("#313957"), 0.15),
 		"gold": _material(GOLD, 0.30)
 	}
 	tile_mesh = _platform_mesh()
 	rover_mesh = _imported_mesh(ROVER)
 	interceptor_mesh = _imported_mesh(INTERCEPTOR)
-	_build_flag()
+	var dish := _imported_mesh(DISH)
+	flag_node = _build_receiver(dish, Vector3(0.9, 0.70, 0.9))
+	for i in 3:
+		var relay := _build_receiver(dish, Vector3(0.66, 0.57, 0.66))
+		relay.hide()
+		relay_nodes.append(relay)
 
 
 func _material(color: Color, metallic: float = 0.0) -> StandardMaterial3D:
@@ -147,12 +155,13 @@ func _mesh(parent: Node3D, geometry: Mesh, material: Material, at: Vector3) -> M
 	return model
 
 
-func _build_flag() -> void:
-	flag_node = Node3D.new()
-	world.add_child(flag_node)
-	var receiver := _mesh(flag_node, _imported_mesh(DISH), palette.gold, Vector3.ZERO)
-	receiver.scale = Vector3(0.9, 0.70, 0.9)
+func _build_receiver(dish: Mesh, dimensions: Vector3) -> Node3D:
+	var base := Node3D.new()
+	world.add_child(base)
+	var receiver := _mesh(base, dish, palette.gold, Vector3.ZERO)
+	receiver.scale = dimensions
 	receiver.rotation.y = PI * 0.24
+	return base
 
 
 func _new_unit(owner: int, at: Vector3) -> Node3D:
@@ -191,6 +200,7 @@ func _paint_unit(unit: Node3D, side: int, dimmed: bool) -> void:
 
 func reset_visuals() -> void:
 	landings.clear()
+	hover = Vector2i.ZERO
 	for node in pieces.values() + tiles.values() + falling:
 		if is_instance_valid(node):
 			node.queue_free()
@@ -209,6 +219,7 @@ func power_on() -> void:
 func sync() -> void:
 	if state.is_empty():
 		return
+	var relays: Array = state.drift.relays if state.has("drift") else []
 	for y in range(1, Rules.BOARD_SIZE + 1):
 		for x in range(1, Rules.BOARD_SIZE + 1):
 			var square := Vector2i(x, y)
@@ -220,8 +231,10 @@ func sync() -> void:
 			if square not in tiles:
 				tiles[square] = _mesh(world, tile_mesh, palette.dark, _world_at(square, 0.0))
 			var key := "light" if (x + y) % 2 == 0 else "dark"
-			if square == state.flag:
+			if square == state.flag or square in relays:
 				key = "flag"
+			elif not relays.is_empty() and Drift.direction(y) != 0:
+				key = "drift_" + key
 			elif square in state.fractures:
 				key = "fracture"
 			elif square in state.cracks:
@@ -230,7 +243,11 @@ func sync() -> void:
 				key = "infected"
 			tiles[square].material_override = palette[key]
 	flag_node.position = _world_at(state.flag)
-	flag_node.visible = true
+	flag_node.visible = relays.is_empty()
+	for i in relay_nodes.size():
+		relay_nodes[i].visible = i < relays.size()
+		if relay_nodes[i].visible:
+			relay_nodes[i].position = _world_at(relays[i])
 	for id in pieces.keys():
 		if id not in state.pawns:
 			_remove_model(pieces[id], false)
@@ -246,6 +263,9 @@ func sync() -> void:
 		_paint_unit(model, pawn.side, state.phase == "draft" and pawn.side != state.active)
 		if pawn.pos == state.flag:
 			flag_node.visible = false
+		var relay_index := relays.find(pawn.pos)
+		if relay_index >= 0:
+			relay_nodes[relay_index].hide()
 		if pawn.id not in landings:
 			if model.get_meta("destination", Vector3.INF) != destination:
 				model.position = destination
@@ -257,8 +277,13 @@ func sync() -> void:
 		model.set_meta("destination", destination)
 		var tween := create_tween().bind_node(model)
 		for landing: Dictionary in path:
-			_hop(tween, model, _world_at(landing.from), _world_at(landing.to),
-				landing.kind == "capture", landing.teleport, path.size())
+			if landing.kind == "drift_move":
+				if path.size() == 1:
+					tween.tween_interval(0.26)
+				_slide(tween, model, landing.from, landing.to)
+			else:
+				_hop(tween, model, _world_at(landing.from), _world_at(landing.to),
+					landing.kind == "capture", landing.teleport, path.size())
 	queue_redraw()
 
 
@@ -270,12 +295,23 @@ func show_events(events: Array) -> void:
 	for event: Dictionary in events:
 		if event.kind == "ability" and event.ability == "teleport":
 			teleported[event.pawn] = true
-		elif event.kind in ["step", "capture", "returned"]:
+		elif event.kind in ["step", "capture", "returned", "drift_move"]:
 			var landing := event.duplicate()
 			landing.teleport = event.pawn in teleported
 			if event.pawn not in landings:
 				landings[event.pawn] = []
 			landings[event.pawn].append(landing)
+
+
+func _slide(tween: Tween, model: Node3D, from: Vector2i, to: Vector2i) -> void:
+	var destination := _world_at(to)
+	if absi(to.x - from.x) > 1:
+		var edge := Vector3(Drift.direction(from.y) * 0.5, 0, 0)
+		tween.tween_property(model, "position", _world_at(from) + edge, 0.12)
+		tween.tween_callback(func(): model.position = destination - edge)
+		tween.tween_property(model, "position", destination, 0.12)
+	else:
+		tween.tween_property(model, "position", destination, 0.24)
 
 
 func _hop(tween: Tween, model: Node3D, origin: Vector3, destination: Vector3, impact: bool, teleport: bool, segments: int) -> void:
@@ -414,11 +450,14 @@ func _draw() -> void:
 		draw_line(Vector2(85, y), Vector2(size.x - 85, y), Color(0.025, 0.12, 0.17, 0.21))
 	if power < 0.99:
 		draw_line(Vector2(67, size.y * power), Vector2(size.x - 67, size.y * power), Color(0.40, 1.0, 0.93, (1.0 - power) * 0.8), 3)
+	var column_offset := -1.12 if state.has("drift") else -0.76
 	for i in range(1, Rules.BOARD_SIZE + 1):
-		_text(_project_world(_world_at(Vector2i(i, 1)) + Vector3(0, 0, -0.76)) + Vector2(-4, 1), char(64 + i), 12)
+		_text(_project_world(_world_at(Vector2i(i, 1)) + Vector3(0, 0, column_offset)) + Vector2(-4, 1), char(64 + i), 12)
 		_text(_project_world(_world_at(Vector2i(1, i)) + Vector3(-0.90, 0, 0)) + Vector2(-4, 4), str(i), 12)
 	for square: Vector2i in tiles:
 		_pad_lights(square)
+	if state.has("drift"):
+		_draw_drift()
 	for square: Vector2i in state.cracks:
 		_hazard(square, NORTH)
 	for square: Vector2i in state.fractures:
@@ -451,6 +490,30 @@ func _draw() -> void:
 			var start := -PI + i * TAU / Rules.FLAG_REPLIES
 			draw_arc(point, 23, start, start + TAU / Rules.FLAG_REPLIES - 0.16, 22, GOLD if i < state.replies else Color("#a5844a"), 2.2, true)
 		_text(point + Vector2(-10, 25), "%d/%d" % [state.replies, Rules.FLAG_REPLIES], 11, GOLD)
+
+
+func _draw_drift() -> void:
+	for y in [4, 6]:
+		var direction := Drift.direction(y)
+		for x in [1, 3, 5, 7, 9]:
+			var at := _world_at(Vector2i(x, y)) + Vector3(0, 0, 0.24)
+			var from := _project_world(at + Vector3(-0.22 * direction, 0, 0))
+			var to := _project_world(at + Vector3(0.22 * direction, 0, 0))
+			_arrow(from, to, LILAC)
+	for relay: Vector2i in state.drift.relays:
+		_outline(relay, GOLD)
+	var preview := hover if hover in targets else keyboard_square
+	if preview in targets and Drift.direction(preview.y) != 0:
+		var landing := Drift.landing(preview, Rules.BOARD_SIZE)
+		_outline(landing, LILAC)
+		if absi(landing.x - preview.x) == 1:
+			_arrow(_project(preview), _project(landing), LILAC)
+
+
+func _arrow(from: Vector2, to: Vector2, color: Color) -> void:
+	var back := (from - to).normalized() * 6.0
+	draw_line(from, to, color, 1.4, true)
+	draw_polyline(PackedVector2Array([to + back.rotated(-0.55), to, to + back.rotated(0.55)]), color, 1.4, true)
 
 
 func _pawn_status(pawn: Dictionary) -> void:
@@ -499,7 +562,7 @@ func _hazard(square: Vector2i, color: Color) -> void:
 func _pad_lights(square: Vector2i) -> void:
 	var at := _world_at(square)
 	var tint := Color("#4d9eab")
-	if square == state.flag:
+	if square == state.flag or (state.has("drift") and square in state.drift.relays):
 		tint = GOLD
 	elif square in state.fractures:
 		tint = LILAC

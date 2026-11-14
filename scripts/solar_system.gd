@@ -10,6 +10,7 @@ signal orbit_entered
 signal scene_transition_started
 
 const OrbitingPlanetBody = preload("res://scripts/orbiting_planet.gd")
+const ExpeditionState = preload("res://scripts/expedition.gd")
 
 enum ShipState {
 	FREE_FLIGHT,
@@ -21,6 +22,12 @@ enum ShipState {
 @export_group("Scene Navigation")
 @export_file("*.tscn") var next_scene_path: String = "res://main.tscn"
 @export var orbit_dwell_duration: float = 2.0
+
+@export_group("Planetary System")
+@export var system_index: int = 0
+@export var system_star_texture: Texture2D
+@export var system_planet_texture: Texture2D
+@export var system_planet_frame_grid: Vector2i = Vector2i(10, 6)
 
 @export_group("Flight Entry")
 @export var ship_spawn_position: Vector2 = Vector2(-5200.0, 3800.0)
@@ -56,6 +63,7 @@ enum ShipState {
 @export var ship_brake_power: float = 320.0 # retro-thrusters
 
 # Node references
+@onready var expedition: ExpeditionState = get_node("/root/Expedition")
 @onready var sun_node: Node2D = $World/Sun
 @onready var sun_sprite: Sprite2D = $World/Sun/SunSprite
 @onready var sun_glow: Node2D = $World/Sun/SunGlow
@@ -63,6 +71,7 @@ enum ShipState {
 @onready var planet_sprite: Sprite2D = $World/Planet/PlanetSprite
 @onready var planet_zone: Node2D = $World/Planet/OrbitZone
 @onready var additional_planets: Node2D = $World/AdditionalPlanets
+@onready var cinder: OrbitingPlanetBody = $World/AdditionalPlanets/Cinder
 @onready var ship_node: CharacterBody2D = $World/PlayerShip
 @onready var ship_sprite: Sprite2D = $World/PlayerShip/ShipSprite
 @onready var engine_thrusters: Node2D = $World/PlayerShip/EngineThrusters
@@ -82,6 +91,7 @@ enum ShipState {
 @onready var sun_pointer: Control = $HUDLayer/HUD/Radar/SunPointer
 @onready var planet_pointer: Control = $HUDLayer/HUD/Radar/PlanetPointer
 @onready var minimap: Control = $HUDLayer/HUD/Minimap
+@onready var destinations: PanelContainer = $HUDLayer/HUD/Destinations
 
 # Runtime state
 var _state: ShipState = ShipState.FREE_FLIGHT
@@ -97,11 +107,40 @@ var _orbit_timer: float = 0.0
 var _sun_anim_time: float = 0.0
 var _planet_anim_time: float = 0.0
 var _thruster_anim_time: float = 0.0
+var _planet_name: String = "KALYPSO"
+var _star_name: String = "SOLAR CORE"
+var _star_color: Color = Color(1.0, 0.85, 0.2)
+var _course_target: Node2D
+var _orbit_target: Node2D
 
 
 func _ready() -> void:
+	expedition.enter_system(system_index)
+	var system_data: Dictionary = expedition.current_system_data()
+	_planet_name = system_data.planet_name
+	_star_name = system_data.star_name
+	_star_color = system_data.star_color
+	if system_star_texture:
+		sun_sprite.texture = system_star_texture
+		sun_glow.set("glow_color", Color(_star_color, 0.2))
+		sun_glow.set("inner_color", Color(_star_color.lightened(0.3), 0.38))
+		sun_glow.set("flare_color", Color(_star_color, 0.2))
+	if system_planet_texture:
+		planet_sprite.texture = system_planet_texture
+		planet_sprite.hframes = system_planet_frame_grid.x
+		planet_sprite.vframes = system_planet_frame_grid.y
+	$World/Sun/SunLabel.text = _star_name
+	$World/Sun/SunLabel.add_theme_color_override("font_color", Color(_star_color, 0.75))
+	dist_sun_label.add_theme_color_override("font_color", Color(_star_color, 0.85))
+	$World/Planet/PlanetLabel.text = _planet_name + (" · HOME" if system_data.home else "")
+	$World/Planet/GravityLabel.text = "%s GRAVITY" % _planet_name
+	$HUDLayer/HUD/Radar/PlanetPointer/TagLabel.text = _planet_name
+	$HUDLayer/HUD/Radar/SunPointer/TagLabel.text = "SUN" if system_data.home else "STAR"
+	$HUDLayer/HUD/SystemLabel.text = "SYSTEM %02d / %s" % [system_index + 1, str(system_data.name).to_upper()]
 	for body: Sprite2D in [sun_sprite, planet_sprite]:
 		var rotation_material := body.material as ShaderMaterial
+		rotation_material = rotation_material.duplicate() as ShaderMaterial
+		body.material = rotation_material
 		rotation_material.set_shader_parameter("frame_grid", Vector2(body.hframes, body.vframes))
 	planet_zone.set("capture_radius", planet_capture_radius)
 	planet_zone.set("stable_orbit_radius", planet_stable_orbit_radius)
@@ -117,6 +156,18 @@ func _ready() -> void:
 	ship_node.position = ship_spawn_position
 	ship_node.rotation = (planet_node.position - ship_node.position).angle()
 	_ship_velocity = Vector2.from_angle(ship_node.rotation) * 180.0
+	var arrival := expedition.take_approach()
+	_track_course(cinder if arrival == ExpeditionState.CINDER else planet_node)
+	if arrival == system_index or (system_index == 0 and arrival == ExpeditionState.CINDER):
+		var radius := _stable_radius(_course_target)
+		ship_node.position = _course_target.position + Vector2.LEFT * (radius + 32.0)
+		ship_node.rotation = Vector2.UP.angle()
+		_ship_velocity = _destination_velocity(_course_target) + Vector2.UP * radius * planet_orbit_rot_speed
+	$HUDLayer/HUD/Destinations/Routes/Kalypso.pressed.connect(_set_course.bind(0))
+	$HUDLayer/HUD/Destinations/Routes/Cinder.pressed.connect(_set_course.bind(ExpeditionState.CINDER))
+	if system_index != 0:
+		cinder.gravity_boundary.set("capture_radius", 0.0)
+		cinder.gravity_boundary.set("stable_orbit_radius", 0.0)
 	camera.position = ship_node.position
 	var initial_zoom := lerpf(camera_cruise_zoom, camera_fast_zoom, clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0))
 	camera.zoom = Vector2.ONE * initial_zoom
@@ -210,18 +261,34 @@ func _get_planet_velocity() -> Vector2:
 	) * (planet_orbit_radius * planet_orbit_speed)
 
 
+func _destination_velocity(body: Node2D) -> Vector2:
+	return cinder.orbital_velocity() if body == cinder else _get_planet_velocity()
+
+
+func _stable_radius(body: Node2D) -> float:
+	return cinder.stable_orbit_radius if body == cinder else planet_stable_orbit_radius
+
+
+func _destination_name(body: Node2D) -> String:
+	return cinder.display_name if body == cinder else _planet_name
+
+
+func get_system_star_color() -> Color:
+	return _star_color
+
+
 func get_system_map_data() -> Array[Dictionary]:
 	var bodies: Array[Dictionary] = [{
-		"name": "KALYPSO", "position": planet_node.global_position,
+		"name": _planet_name, "position": planet_node.global_position,
 		"orbit_radius": planet_orbit_radius, "gravity_radius": planet_gravity_influence_radius,
-		"color": Color(0.35, 0.9, 1.0), "is_target": true,
+		"color": Color(0.35, 0.9, 1.0), "is_target": _course_target == planet_node,
 	}]
 	for child in additional_planets.get_children():
 		var body := child as OrbitingPlanetBody
 		bodies.append({
 			"name": body.display_name, "position": body.global_position,
 			"orbit_radius": body.orbit_radius, "gravity_radius": body.gravity_influence_radius,
-			"color": body.marker_color, "is_target": false,
+			"color": body.marker_color, "is_target": _course_target == body,
 		})
 	return bodies
 
@@ -322,22 +389,27 @@ func _process_free_flight(delta: float) -> void:
 	_ship_velocity = ship_node.velocity
 
 	# Complete the free-flight step before handing its position and momentum to orbit.
-	if not _is_accelerating() and _can_capture_orbit():
-		_begin_orbital_capture()
+	if not _is_accelerating():
+		if _can_capture_orbit(planet_node):
+			_begin_orbital_capture(planet_node)
+		elif system_index == 0 and _can_capture_orbit(cinder):
+			_begin_orbital_capture(cinder)
 
 
-func _can_capture_orbit() -> bool:
-	var offset := ship_node.position - planet_node.position
+func _can_capture_orbit(body: Node2D) -> bool:
+	var offset := ship_node.position - body.position
 	var distance := offset.length()
-	if distance > planet_capture_radius or distance < 1.0:
+	var capture_radius := cinder.capture_radius if body == cinder else planet_capture_radius
+	if distance > capture_radius or distance < 1.0:
 		return false
-	var relative_velocity := _ship_velocity - _get_planet_velocity()
+	var relative_velocity := _ship_velocity - _destination_velocity(body)
 	var radial_speed := relative_velocity.dot(offset / distance)
 	# Fast flybys and ships already departing remain under the player's control.
 	if relative_velocity.length() > 340.0 or radial_speed > orbit_absorption_speed:
 		return false
 
-	var planet_size := planet_sprite.get_rect().size * planet_sprite.scale.abs()
+	var sprite := cinder.sprite if body == cinder else planet_sprite
+	var planet_size := sprite.get_rect().size * sprite.scale.abs()
 	var ship_size := ship_sprite.get_rect().size * ship_sprite.global_scale.abs()
 	var clearance_radius := maxf(planet_size.x, planet_size.y) * 0.5 + ship_size.length() * 0.5 + 20.0
 	var inward_speed := maxf(0.0, -radial_speed)
@@ -345,17 +417,19 @@ func _can_capture_orbit() -> bool:
 	return distance > clearance_radius + stopping_distance
 
 
-func _begin_orbital_capture() -> void:
+func _begin_orbital_capture(body: Node2D) -> void:
+	_orbit_target = body
+	_track_course(body)
 	_state = ShipState.PULLING_TO_ORBIT
 	_throttle = 0.0
 	_update_thrusters(0.0)
 
-	var rel: Vector2 = ship_node.position - planet_node.position
+	var rel := ship_node.position - body.position
 	_ship_planet_angle = rel.angle()
 	_ship_orbit_dist = rel.length()
 	var radial := rel.normalized()
 	var tangent := Vector2(-radial.y, radial.x)
-	var relative_velocity := _ship_velocity - _get_planet_velocity()
+	var relative_velocity := _ship_velocity - _destination_velocity(body)
 	_orbit_radial_speed = relative_velocity.dot(radial)
 	_orbit_tangential_speed = relative_velocity.dot(tangent)
 	# Follow the incoming angular momentum, including counterclockwise approaches.
@@ -365,7 +439,7 @@ func _begin_orbital_capture() -> void:
 		_orbit_direction = -1.0 if Vector2.from_angle(ship_node.rotation).dot(tangent) < 0.0 else 1.0
 	_orbit_timer = 0.0
 
-	orbit_title_label.text = "ENTERING PLANETARY ORBIT"
+	orbit_title_label.text = "ENTERING %s ORBIT" % _destination_name(body)
 	orbit_timer_label.text = "SETTLING INTO ORBIT"
 	orbit_hint_label.text = "[W / UP] Resume flight"
 	orbit_progress_bar.value = 0.0
@@ -382,14 +456,15 @@ func _process_pulling_to_orbit(delta: float) -> void:
 	_advance_orbit(delta)
 
 	# Arrival requires a settled trajectory, not merely crossing the orbit line.
-	var target_speed := _orbit_direction * planet_stable_orbit_radius * planet_orbit_rot_speed
-	var radius_settled := absf(_ship_orbit_dist - planet_stable_orbit_radius) < 3.0
+	var radius := _stable_radius(_orbit_target)
+	var target_speed := _orbit_direction * radius * planet_orbit_rot_speed
+	var radius_settled := absf(_ship_orbit_dist - radius) < 3.0
 	var speed_settled := absf(_orbit_radial_speed) < 3.0 and absf(_orbit_tangential_speed - target_speed) < 3.0
 	if radius_settled and speed_settled:
 		_state = ShipState.IN_ORBIT
 		_update_thrusters(0.0)
 		_orbit_timer = 0.0
-		orbit_title_label.text = "PLANETARY ORBIT ESTABLISHED"
+		orbit_title_label.text = "%s ORBIT ESTABLISHED" % _destination_name(_orbit_target)
 		orbit_timer_label.text = "DESCENT IN: %.1fs" % orbit_dwell_duration
 		orbit_hint_label.text = "[SPACE / ENTER] Land Now  •  [W / UP] Resume flight"
 		orbit_entered.emit()
@@ -399,8 +474,9 @@ func _advance_orbit(delta: float) -> void:
 	var previous_radius := _ship_orbit_dist
 	var previous_radial_speed := _orbit_radial_speed
 	var previous_tangential_speed := _orbit_tangential_speed
-	var target_radial_speed := clampf((planet_stable_orbit_radius - _ship_orbit_dist) * 1.2, -orbit_absorption_speed, orbit_absorption_speed)
-	var target_tangential_speed := _orbit_direction * planet_stable_orbit_radius * planet_orbit_rot_speed
+	var radius := _stable_radius(_orbit_target)
+	var target_radial_speed := clampf((radius - _ship_orbit_dist) * 1.2, -orbit_absorption_speed, orbit_absorption_speed)
+	var target_tangential_speed := _orbit_direction * radius * planet_orbit_rot_speed
 	_orbit_radial_speed = move_toward(_orbit_radial_speed, target_radial_speed, orbit_capture_accel * delta)
 	_orbit_tangential_speed = move_toward(_orbit_tangential_speed, target_tangential_speed, orbit_capture_accel * delta)
 
@@ -411,8 +487,8 @@ func _advance_orbit(delta: float) -> void:
 	var radial := Vector2.from_angle(_ship_planet_angle)
 	var tangent := Vector2(-radial.y, radial.x)
 	var relative_velocity := radial * _orbit_radial_speed + tangent * _orbit_tangential_speed
-	ship_node.position = planet_node.position + radial * _ship_orbit_dist
-	_ship_velocity = _get_planet_velocity() + relative_velocity
+	ship_node.position = _orbit_target.position + radial * _ship_orbit_dist
+	_ship_velocity = _destination_velocity(_orbit_target) + relative_velocity
 	ship_node.velocity = _ship_velocity
 
 	if relative_velocity.length_squared() > 1.0:
@@ -459,10 +535,32 @@ func _break_orbit() -> void:
 	ship_node.velocity = _ship_velocity
 
 
+func _set_course(index: int) -> void:
+	if _state == ShipState.TRANSITIONING:
+		return
+	if system_index == 0:
+		var body: Node2D = cinder if index == ExpeditionState.CINDER else planet_node
+		if _state != ShipState.FREE_FLIGHT and _orbit_target != body:
+			_break_orbit()
+		_track_course(body)
+	elif expedition.fly_to(index, true) == OK:
+		destinations.hide()
+
+
+func _track_course(body: Node2D) -> void:
+	_course_target = body
+	var name := _destination_name(body)
+	$HUDLayer/HUD/Radar/PlanetPointer/TagLabel.text = name
+	$HUDLayer/HUD/Destinations/Routes/Label.text = "COURSE / " + name
+
+
 func _trigger_game_transition() -> void:
 	if _state == ShipState.TRANSITIONING:
 		return
 	_state = ShipState.TRANSITIONING
+	var destination := ExpeditionState.CINDER if _orbit_target == cinder else system_index
+	var duel_scene := "res://scenes/drift_circuit.tscn" if _orbit_target == cinder else next_scene_path
+	destinations.hide()
 	engine_thrusters.visible = false
 	scene_transition_started.emit()
 
@@ -474,13 +572,14 @@ func _trigger_game_transition() -> void:
 		screen_fade.modulate.a = 0.0
 		var tween = create_tween()
 		tween.tween_property(screen_fade, "modulate:a", 1.0, 0.6)
-		tween.tween_callback(func():
-			if not next_scene_path.is_empty():
-				get_tree().change_scene_to_file(next_scene_path)
-		)
+		tween.tween_callback(_land.bind(destination, duel_scene))
 	else:
-		if not next_scene_path.is_empty():
-			get_tree().change_scene_to_file(next_scene_path)
+		_land(destination, duel_scene)
+
+
+func _land(destination: int, duel_scene: String) -> void:
+	if not duel_scene.is_empty() and get_tree().change_scene_to_file(duel_scene) == OK:
+		expedition.enter_system(destination)
 
 
 func _process_transitioning(delta: float) -> void:
@@ -503,15 +602,15 @@ func _update_hud(_delta: float) -> void:
 		return
 
 	var dist_sun = ship_node.position.distance_to(sun_node.position)
-	var dist_planet = ship_node.position.distance_to(planet_node.position)
+	var dist_planet := ship_node.position.distance_to(_course_target.position)
 	var speed_val = _ship_velocity.length()
 
 	if speed_label:
 		speed_label.text = "VELOCITY: %d KM/S   THROTTLE: %d%%" % [int(speed_val), int(_throttle * 100.0)]
 	if dist_sun_label:
-		dist_sun_label.text = "SOLAR CORE: %d KM" % int(dist_sun)
+		dist_sun_label.text = "%s: %d KM" % [_star_name, int(dist_sun)]
 	if dist_planet_label:
-		dist_planet_label.text = "KALYPSO: %d KM" % int(dist_planet)
+		dist_planet_label.text = "%s: %d KM" % [_destination_name(_course_target), int(dist_planet)]
 	var local_gravity := "SOLAR"
 	var nearest_ratio := 1.0
 	for body_data in get_system_map_data():
@@ -522,15 +621,17 @@ func _update_hud(_delta: float) -> void:
 			local_gravity = body_data.name
 	gravity_status_label.text = "GRAVITY: %s" % local_gravity
 
-	_update_tracking_marker(sun_pointer, sun_node.global_position, Color(1.0, 0.85, 0.2))
-	_update_tracking_marker(planet_pointer, planet_node.global_position, Color(0.3, 0.85, 1.0))
+	_update_tracking_marker(sun_pointer, sun_node.global_position, _star_color)
+	var tracking_cinder := _course_target == cinder
+	var tint := cinder.marker_color if tracking_cinder else Color(0.3, 0.85, 1.0)
+	_update_tracking_marker(planet_pointer, _course_target.global_position, tint, tracking_cinder)
 
 
-func _update_tracking_marker(marker: Control, target_pos: Vector2, tint_col: Color) -> void:
+func _update_tracking_marker(marker: Control, target_pos: Vector2, tint_col: Color, mark_visible_body: bool = false) -> void:
 	if not marker or not camera:
 		return
 
-	var vp_size = get_viewport_rect().size
+	var vp_size := get_viewport_rect().size
 	# Project through the camera so markers match the actual zoom and smoothing.
 	var to_target: Vector2 = get_viewport().get_canvas_transform() * target_pos - vp_size * 0.5
 
@@ -539,7 +640,14 @@ func _update_tracking_marker(marker: Control, target_pos: Vector2, tint_col: Col
 	var half_h = (vp_size.y * 0.5) - margin
 
 	if absf(to_target.x) < half_w and absf(to_target.y) < half_h:
-		marker.visible = false
+		marker.visible = mark_visible_body
+		if mark_visible_body:
+			marker.modulate = tint_col
+			var target_screen := vp_size * 0.5 + to_target
+			var vert := 1.0 if target_screen.y < 160.0 else -1.0
+			var position_y := target_screen.y + vert * (cinder.surface_radius * camera.zoom.y + 30.0)
+			marker.position = Vector2(target_screen.x, clampf(position_y, margin, vp_size.y - margin))
+			marker.get_node("Chevron").rotation = -vert * PI / 2.0
 		return
 
 	marker.visible = true

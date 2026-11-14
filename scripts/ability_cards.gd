@@ -123,8 +123,12 @@ func _card(center: Vector2, power: String = "", tint: Color = Color.WHITE, width
 func _draw() -> void:
 	var center := (size / 2).round()
 	if docked:
-		_card(center - Vector2(0, 10), face)
-		_center_text(action_label, center.x, size.y - 5, 12, CYAN if action_label in ["Use power", "Choose target"] else MUTED)
+		var data: Dictionary = POWERS.get(face, {})
+		var tone: Color = data.get("color", CYAN)
+		_pixel_frame(Rect2(Vector2(4, 3), size - Vector2(8, 7)), tone, CARD_FILL)
+		draw_texture_rect(data.get("icon", BACK_ICON), Rect2(Vector2(12, 25), Vector2(24, 24)), false, tone)
+		draw_string(MONO, Vector2(44, 27), " ".join(data.get("title", [])), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, tone)
+		draw_string(MONO, Vector2(44, 48), action_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, CYAN if action_label in ["Use power", "Choose target"] else MUTED)
 		return
 	if not compact:
 		draw_rect(Rect2(Vector2(6, 6), size), Color(0, 0, 0, 0.45))
