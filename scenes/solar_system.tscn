@@ -11,12 +11,13 @@
 [ext_resource type="FontFile" path="res://art/SpaceGrotesk.ttf" id="9_space_font"]
 [ext_resource type="FontFile" path="res://art/IBMPlexMono-Regular.ttf" id="10_mono_font"]
 [ext_resource type="Script" path="res://scripts/minimap_visual.gd" id="11_minimap_script"]
-[ext_resource type="Texture2D" path="res://art/thruster.svg" id="12_thruster_texture"]
+[ext_resource type="Texture2D" path="res://art/thruster_animation.png" id="12_thruster_texture"]
 [ext_resource type="Shader" path="res://shaders/body_rotation.gdshader" id="13_body_rotation_shader"]
 [ext_resource type="Script" path="res://scripts/orbiting_planet.gd" id="14_orbiting_planet_script"]
 [ext_resource type="Texture2D" path="res://art/planet2.png" id="15_planet2_texture"]
 [ext_resource type="Texture2D" path="res://art/planet3.png" id="16_planet3_texture"]
 [ext_resource type="Texture2D" path="res://art/planet4.png" id="17_planet4_texture"]
+[ext_resource type="AudioStream" path="res://audio/thruster.mp3" id="18_thruster_sound"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_sun_rotation"]
 shader = ExtResource("13_body_rotation_shader")
@@ -311,50 +312,69 @@ scale = Vector2(0.4, 0.4)
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/PlayerShip"]
 shape = SubResource("CircleShape2D_ship")
 
+[node name="ThrusterAudio" type="AudioStreamPlayer" parent="World/PlayerShip"]
+stream = ExtResource("18_thruster_sound")
+volume_db = -4.0
+
 [node name="EngineThrusters" type="Node2D" parent="World/PlayerShip"]
 visible = false
 position = Vector2(-80, -80)
 scale = Vector2(0.3125, 0.3125)
 
 [node name="MainFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
-texture_filter = 2
+texture_filter = 1
 position = Vector2(34, 256)
-scale = Vector2(0.91, 0.65)
+rotation = 1.5707964
+scale = Vector2(3, 1.2)
 texture = ExtResource("12_thruster_texture")
 centered = false
-offset = Vector2(-246, -64)
+offset = Vector2(-64, -4)
+hframes = 9
+vframes = 3
 
 [node name="PortFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
-texture_filter = 2
+texture_filter = 1
 position = Vector2(40, 184)
-scale = Vector2(0.7, 0.5)
+rotation = 1.5707964
+scale = Vector2(2.3, 0.92)
 texture = ExtResource("12_thruster_texture")
 centered = false
-offset = Vector2(-246, -64)
+offset = Vector2(-64, -4)
+hframes = 9
+vframes = 3
 
 [node name="StarboardFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
-texture_filter = 2
+texture_filter = 1
 position = Vector2(40, 328)
-scale = Vector2(0.7, 0.5)
+rotation = 1.5707964
+scale = Vector2(2.3, 0.92)
 texture = ExtResource("12_thruster_texture")
 centered = false
-offset = Vector2(-246, -64)
+offset = Vector2(-64, -4)
+hframes = 9
+vframes = 3
 
 [node name="PortAuxiliaryFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
-texture_filter = 2
+texture_filter = 1
 position = Vector2(48, 140)
-scale = Vector2(0.392, 0.28)
+rotation = 1.5707964
+scale = Vector2(1.3, 0.52)
 texture = ExtResource("12_thruster_texture")
 centered = false
-offset = Vector2(-246, -64)
+offset = Vector2(-64, -4)
+hframes = 9
+vframes = 3
 
 [node name="StarboardAuxiliaryFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
-texture_filter = 2
+texture_filter = 1
 position = Vector2(48, 372)
-scale = Vector2(0.392, 0.28)
+rotation = 1.5707964
+scale = Vector2(1.3, 0.52)
 texture = ExtResource("12_thruster_texture")
 centered = false
-offset = Vector2(-246, -64)
+offset = Vector2(-64, -4)
+hframes = 9
+vframes = 3
 
 [node name="ShipSprite" type="Sprite2D" parent="World/PlayerShip"]
 texture_filter = 2

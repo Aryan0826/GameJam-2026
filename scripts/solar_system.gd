@@ -11,6 +11,9 @@ signal scene_transition_started
 
 const OrbitingPlanetBody = preload("res://scripts/orbiting_planet.gd")
 const ExpeditionState = preload("res://scripts/expedition.gd")
+const THRUSTER_FPS := 20.0
+const THRUSTER_IGNITION_FRAMES := 9
+const THRUSTER_LOOP_FRAMES := 5
 
 enum ShipState {
 	FREE_FLIGHT,
@@ -75,6 +78,7 @@ enum ShipState {
 @onready var ship_node: CharacterBody2D = $World/PlayerShip
 @onready var ship_sprite: Sprite2D = $World/PlayerShip/ShipSprite
 @onready var engine_thrusters: Node2D = $World/PlayerShip/EngineThrusters
+@onready var thruster_audio: AudioStreamPlayer = $World/PlayerShip/ThrusterAudio
 @onready var camera: Camera2D = $World/Camera2D
 @onready var starfield_rect: ColorRect = $StarfieldLayer/StarfieldBackground
 @onready var hud_control: Control = $HUDLayer/HUD
@@ -189,6 +193,10 @@ func _ready() -> void:
 		orbit_hud.visible = false
 		orbit_hud.modulate.a = 0.0
 	engine_thrusters.visible = false
+	var engine_sound := thruster_audio.stream.duplicate() as AudioStreamMP3
+	engine_sound.loop = true
+	engine_sound.loop_offset = 0.0
+	thruster_audio.stream = engine_sound
 
 	# Fade in from black on entry
 	if screen_fade:
@@ -313,16 +321,22 @@ func _update_thrusters(delta: float) -> void:
 	engine_thrusters.visible = entering_orbit or (_state == ShipState.FREE_FLIGHT and _is_accelerating())
 	if not engine_thrusters.visible:
 		_thruster_anim_time = 0.0
+		if thruster_audio.playing:
+			thruster_audio.stop()
 		return
 
+	if not thruster_audio.playing:
+		thruster_audio.play()
 	_thruster_anim_time += delta
+	var animation_step := floori(_thruster_anim_time * THRUSTER_FPS)
+	# Play the GIF's ignition once, then keep its full-flame cycle running.
+	var flame_frame := animation_step if animation_step < THRUSTER_IGNITION_FRAMES else THRUSTER_IGNITION_FRAMES + (animation_step - THRUSTER_IGNITION_FRAMES) % THRUSTER_LOOP_FRAMES
 	var boosting := not entering_orbit and (Input.is_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_SPACE))
 	var boost_scale := 1.3 if boosting else 1.0
-	for i in engine_thrusters.get_child_count():
-		var flame := engine_thrusters.get_child(i) as Sprite2D
-		var flicker := 1.0 + sin(_thruster_anim_time * 45.0 + i * 1.7) * 0.12
-		# Stretch around the flame's right edge to keep it attached to the nozzle.
-		flame.scale.x = flame.scale.y * 1.4 * flicker * boost_scale
+	for flame: Sprite2D in engine_thrusters.get_children():
+		flame.frame = flame_frame
+		# The sheet points down; each sprite is rotated to exhaust behind the ship.
+		flame.scale.y = flame.scale.x * 0.4 * boost_scale
 
 
 func _process_free_flight(delta: float) -> void:
@@ -572,7 +586,7 @@ func _trigger_game_transition() -> void:
 	var destination := ExpeditionState.CINDER if _orbit_target == cinder else system_index
 	var duel_scene := "res://scenes/drift_circuit.tscn" if _orbit_target == cinder else next_scene_path
 	destinations.hide()
-	engine_thrusters.visible = false
+	_update_thrusters(0.0)
 	scene_transition_started.emit()
 
 	if orbit_timer_label:
