@@ -1,13 +1,13 @@
 extends SceneTree
 ## Rebuild the How to play screenshots from actual board rendering and legal actions.
 ## Run in graphical mode: godot --path . --script tools/render_movement_guides.gd
-const Board = preload("res://scripts/board.gd")
-const Rules = preload("res://scripts/rules.gd")
+const Board = preload("res://scripts/battle/board.gd")
+const Rules = preload("res://scripts/rules/rules.gd")
 
 class Arrows extends Control:
 	var board: Control
 	var actions: Array[Dictionary] = []
-	const FONT = preload("res://art/IBMPlexMono-Regular.ttf")
+	const FONT = preload("res://art/fonts/IBMPlexMono-Regular.ttf")
 	func _draw() -> void:
 		var origin := Vector2i(5, 5)
 		var start: Vector2 = board._project(origin)
@@ -81,7 +81,7 @@ func _render() -> void:
 			area = area.expand(board._project(square))
 		area = area.grow(42)
 		var filename := "kalypso-capture-guide.png" if capture else "kalypso-movement-guide.png"
-		root.get_texture().get_image().get_region(Rect2i(area)).save_png("res://art/" + filename)
+		root.get_texture().get_image().get_region(Rect2i(area)).save_png("res://art/guides/" + filename)
 		print("Captured %s with %d legal destinations." % [filename, arrows.actions.size()])
 		board.queue_free()
 		arrows.queue_free()

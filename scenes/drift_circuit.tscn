@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="PackedScene" path="res://main.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/fractured_flag.tscn" id="1"]
 
 [node name="DriftCircuit" instance=ExtResource("1")]
 drift_circuit = true

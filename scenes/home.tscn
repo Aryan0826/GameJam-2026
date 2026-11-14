@@ -1,9 +1,9 @@
 [gd_scene load_steps=13 format=3]
 
-[ext_resource type="Script" path="res://scripts/home.gd" id="1_home"]
+[ext_resource type="Script" path="res://scripts/ui/home.gd" id="1_home"]
 [ext_resource type="Shader" path="res://shaders/starfield.gdshader" id="2_starfield"]
-[ext_resource type="FontFile" path="res://art/SpaceGrotesk.ttf" id="3_sans"]
-[ext_resource type="FontFile" path="res://art/IBMPlexMono-Regular.ttf" id="4_mono"]
+[ext_resource type="FontFile" path="res://art/fonts/SpaceGrotesk.ttf" id="3_sans"]
+[ext_resource type="FontFile" path="res://art/fonts/IBMPlexMono-Regular.ttf" id="4_mono"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_stars"]
 shader = ExtResource("2_starfield")

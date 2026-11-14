@@ -1,10 +1,10 @@
 extends SceneTree
 
-const Rules = preload("../scripts/rules.gd")
-const Drift = preload("../scripts/drift.gd")
-const DriftBot = preload("../scripts/drift_bot.gd")
+const Rules = preload("res://scripts/rules/rules.gd")
+const Drift = preload("res://scripts/rules/drift.gd")
+const DriftBot = preload("res://scripts/rules/drift_bot.gd")
 const FIRST_FLIGHT = "res://scenes/solar_system.tscn"
-const FIRST_DUEL = "res://main.tscn"
+const FIRST_DUEL = "res://scenes/fractured_flag.tscn"
 const SECOND_DUEL = "res://scenes/drift_circuit.tscn"
 
 var failures := 0
@@ -152,6 +152,7 @@ func _check_travel() -> void:
 		return
 	var duel = current_scene
 	_check(duel.drift_circuit and duel.expedition.current_system_data().planet_name == "CINDER", "Cinder descent opens Drift Circuit with Cinder as the destination.")
+	_check(_press(duel, "[ENTER] REVEAL TRANSMISSION"), "The transmission can be revealed immediately.")
 	_check(_press(duel, "Local duel"), "Cinder offers local play.")
 	_check(duel.state.has("drift") and duel.board.relay_nodes.size() == 3, "The local match has the relay board.")
 	_check(_has_label(duel.side_panel, "0 PTS  /  5 UNITS") and _has_label(duel.side_panel, "Points + units = 8 to win."),
@@ -161,25 +162,43 @@ func _check_travel() -> void:
 	await _check_lift_and_shift(duel)
 	duel._start(true)
 	duel._commit(duel.legal[0])
-	_check(_press(duel, "Return to planets"), "Departure is available while resolving a move.")
-	_check(_press(duel, "Keep playing") and duel.records.size() == 1, "Cancel keeps the same match and move.")
-	_check(_press(duel, "Return to planets") and _press(duel, "Kalypso · Fractured Flag"), "An active Cinder match can be left for Kalypso.")
+	_check(duel.busy and _press(duel, "Leave orbit"), "An active Cinder match can be left while resolving a move.")
+	if not await _await_scene(FIRST_FLIGHT):
+		return
+	flight = current_scene
+	_check(flight._course_target == flight.cinder, "Leaving Cinder returns to exploration near Cinder.")
+	_check(_press(flight, "Kalypso"), "The player can change course after leaving a duel.")
+	_position_for_landing(flight, flight.planet_node)
 	if not await _await_scene(FIRST_DUEL):
 		return
 	duel = current_scene
 	_check(not duel.drift_circuit and duel.expedition.current_system == 0, "Kalypso descent opens the original challenge.")
+	_press(duel, "[ENTER] REVEAL TRANSMISSION")
 	_check(_press(duel, "Local duel") and duel.handoff, "Kalypso still uses its private local draft.")
-	_check(_press(duel, "Return to planets") and _press(duel, "Cinder · Drift Circuit"), "Kalypso can be left before the draft is complete.")
+	_check(_press(duel, "Leave orbit"), "Kalypso can be left before the draft is complete.")
+	if not await _await_scene(FIRST_FLIGHT):
+		return
+	flight = current_scene
+	_check(_press(flight, "Cinder"), "Cinder remains selectable after leaving Kalypso.")
+	_position_for_landing(flight, flight.cinder)
 	if not await _await_scene(SECOND_DUEL):
 		return
 	duel = current_scene
-	_check(_press(duel, "Accept challenge") and not duel.local_mode, "Cinder can be replayed in solo mode after leaving Kalypso.")
+	_press(duel, "[ENTER] REVEAL TRANSMISSION")
+	_check(_press(duel, "[ENTER] ACCEPT CHALLENGE") and not duel.local_mode, "Cinder can be replayed in solo mode after leaving Kalypso.")
 	if duel.state.active == 1:
 		duel._commit(duel.legal[0])
 	var deadline := Time.get_ticks_msec() + 2500
 	while not duel.records.any(func(action): return action.get("pawn", 5) < 5) and Time.get_ticks_msec() < deadline:
 		await process_frame
 	_check(duel.records.any(func(action): return action.get("pawn", 5) < 5), "The live solo scene completes an Alien move.")
+
+
+func _position_for_landing(flight: Node2D, body: Node2D) -> void:
+	var radius: float = flight._stable_radius(body)
+	flight.ship_node.position = body.position + Vector2.LEFT * (radius + 32.0)
+	flight.ship_node.rotation = Vector2.UP.angle()
+	flight._ship_velocity = flight._destination_velocity(body) + Vector2.UP * radius * flight.planet_orbit_rot_speed
 
 
 func _safe_drift_round(scores: Array) -> Dictionary:

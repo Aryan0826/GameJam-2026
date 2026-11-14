@@ -13,12 +13,12 @@ config_version=5
 config/name="Conqueror's Chess"
 run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://art/flight/horizon.png"
 
 [autoload]
 
-Expedition="*res://scripts/expedition.gd"
-Soundtrack="*res://scripts/soundtrack.gd"
+Expedition="*res://scripts/core/expedition.gd"
+Soundtrack="*res://scripts/core/soundtrack.gd"
 
 [display]
 

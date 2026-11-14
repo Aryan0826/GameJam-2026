@@ -1,6 +1,6 @@
 extends SceneTree
 
-const Board = preload("../scripts/board.gd")
+const Board = preload("res://scripts/battle/board.gd")
 var failures := 0
 var checks := 0
 var clicks: Array[Vector2i] = []

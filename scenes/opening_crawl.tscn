@@ -1,10 +1,10 @@
 [gd_scene format=3 uid="uid://c8yj3a2vqx8pm"]
 
-[ext_resource type="Script" uid="uid://0d4gqbmn2i4w" path="res://scripts/opening_crawl.gd" id="1_crawl_script"]
+[ext_resource type="Script" uid="uid://0d4gqbmn2i4w" path="res://scripts/ui/opening_crawl.gd" id="1_crawl_script"]
 [ext_resource type="Shader" uid="uid://oarsx800moml" path="res://shaders/starfield.gdshader" id="2_starfield_shader"]
 [ext_resource type="Shader" uid="uid://di6kwpui1m5l8" path="res://shaders/crawl_fade.gdshader" id="3_crawl_fade_shader"]
-[ext_resource type="FontFile" uid="uid://idm1c8bjbsku" path="res://art/SpaceGrotesk.ttf" id="4_space_font"]
-[ext_resource type="FontFile" uid="uid://x8fqv78r8sfs" path="res://art/IBMPlexMono-Regular.ttf" id="5_mono_font"]
+[ext_resource type="FontFile" uid="uid://idm1c8bjbsku" path="res://art/fonts/SpaceGrotesk.ttf" id="4_space_font"]
+[ext_resource type="FontFile" uid="uid://x8fqv78r8sfs" path="res://art/fonts/IBMPlexMono-Regular.ttf" id="5_mono_font"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_starfield"]
 shader = ExtResource("2_starfield_shader")

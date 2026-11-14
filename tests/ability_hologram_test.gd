@@ -1,6 +1,6 @@
 extends SceneTree
-const Main = preload("res://scripts/main.gd")
-const Rules = preload("res://scripts/rules.gd")
+const Main = preload("res://scripts/battle/battle.gd")
+const Rules = preload("res://scripts/rules/rules.gd")
 var failures := 0
 var checks := 0
 

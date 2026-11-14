@@ -1,8 +1,8 @@
 extends SceneTree
 
-const Main = preload("../scripts/main.gd")
-const Rules = preload("../scripts/rules.gd")
-const Cards = preload("../scripts/ability_cards.gd")
+const Main = preload("res://scripts/battle/battle.gd")
+const Rules = preload("res://scripts/rules/rules.gd")
+const Cards = preload("res://scripts/battle/ability_cards.gd")
 var checks := 0
 var failures := 0
 var capture := false
