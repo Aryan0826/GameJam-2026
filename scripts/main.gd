@@ -16,6 +16,10 @@ const NORTH = Color("#ff937e")
 const SOUTH = Color("#83e1fa")
 const PANEL = Color("#111e29")
 const LINE = Color("#3d5b68")
+const ALIEN_GREEN = Color("#9cff83")
+const ALIEN_DIM = Color("#75ad83")
+const ALIEN_PANEL = Color("#0c1c15")
+const ALIEN_LINE = Color("#3b7950")
 const SIDES = ["Aliens", "Pilots"]
 const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the beacon."],
@@ -51,7 +55,7 @@ Roll once per round before moving or using a drafted ability. After rolling, the
 Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
 
 [color=#f8d587]CONTROLS[/color]
-Click a unit, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
+Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
 
 @onready var expedition: ExpeditionState = get_node("/root/Expedition")
 
@@ -481,14 +485,14 @@ func _draw_play() -> void:
 	if state.fractures.is_empty() and state.cracks.is_empty():
 		drops = "Roll before moving. Skip turn is always available."
 	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() or not state.fractures.is_empty() else MUTED)
-	_panel(side_panel, Rect2(846, 359, 430, 282))
+	_panel(side_panel, Rect2(846, 359, 430, 225))
 	_label(side_panel, Rect2(864, 369, 396, 25), "TURN CHOICES", 12, MUTED, MONO)
-	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 16, INK, SANS, true)
+	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 15, INK, SANS, true)
 	if selected >= 0 and selected in state.pawns:
 		var p: Dictionary = state.pawns[selected]
 		_action_button(Rect2(864, 462, 189, 38), "Move / capture", "standard")
 		if p.ability != "":
-			_action_button(Rect2(864, 509, 189, 38), SPELLS[p.ability][0], "ability")
+			_action_button(Rect2(864, 507, 189, 36), SPELLS[p.ability][0], "ability")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
@@ -499,21 +503,25 @@ func _draw_play() -> void:
 		elif details.is_empty() and action_group == "power" and not face.is_empty():
 			details = SPELLS[face][1]
 		if not details.is_empty():
-			_label(side_panel, Rect2(865, 595, 387, 36), details, 13, MUTED, SANS, true)
+			_label(side_panel, Rect2(864, 546, 394, 35), details, 13, MUTED, SANS, true)
 	else:
-		_label(side_panel, Rect2(864, 473, 188, 40), "Hold the beacon through three enemy turns.", 16, GOLD, bold, true)
-		_label(side_panel, Rect2(864, 518, 188, 67), "Select a unit to move. Power targets appear after Use power.", 14, MUTED, SANS, true)
+		_label(side_panel, Rect2(864, 510, 394, 70), "For a move, select a unit first. For power, click Use power, then choose a highlighted target.", 15, MUTED, SANS, true)
 	if not face.is_empty():
 		_action_button(Rect2(1062, 462, 196, 38), "Use power", "power")
-	var skip := _button(side_panel, Rect2(1062, 509, 196, 38), "Finish / skip turn", _skip_turn)
-	skip.disabled = busy or state.phase != "playing" or (not local_mode and state.active == 0)
-	_panel(side_panel, Rect2(846, 654, 430, 145))
-	_label(side_panel, Rect2(864, 665, 270, 22), "FLIGHT LOG", 12, MUTED, MONO)
-	_button(side_panel, Rect2(1162, 663, 97, 27), "View log", _show_log)
+	_panel(side_panel, Rect2(846, 592, 430, 140), ALIEN_PANEL, ALIEN_LINE, 12)
+	_label(side_panel, Rect2(864, 600, 270, 22), "ALIEN FLIGHT LOG", 12, ALIEN_GREEN, MONO)
+	var log_button := _button(side_panel, Rect2(1162, 598, 97, 27), "View log", _show_log)
+	log_button.add_theme_stylebox_override("normal", _style(Color("#14281a"), ALIEN_LINE, 8))
+	log_button.add_theme_stylebox_override("hover", _style(Color("#1e3925"), ALIEN_GREEN, 8))
+	log_button.add_theme_stylebox_override("pressed", _style(Color("#284b30"), ALIEN_GREEN, 8))
+	log_button.add_theme_color_override("font_color", ALIEN_GREEN)
+	log_button.add_theme_color_override("font_hover_color", Color("#d0ffc4"))
 	var latest := messages.slice(0, 3)
 	for i in range(latest.size()):
-		var line := _label(side_panel, Rect2(864, 695 + i * 30, 389, 27), latest[i], 14, INK if i == 0 else MUTED)
+		var line := _label(side_panel, Rect2(864, 630 + i * 25, 389, 24), latest[i], 13, ALIEN_GREEN if i == 0 else ALIEN_DIM, MONO)
 		line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	var skip := _button(side_panel, Rect2(846, 744, 430, 42), "Finish / skip turn", _skip_turn)
+	skip.disabled = busy or state.phase != "playing" or (not local_mode and state.active == 0)
 
 
 func _team_card(x: float, y: float, side: int) -> void:
