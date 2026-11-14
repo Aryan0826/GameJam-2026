@@ -14,6 +14,7 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 
 - During solar-system flight, hold **W / Up** to accelerate; the ship coasts on release. Exhaust runs while accelerating and during automatic orbit entry. Hold **Shift / Space** while accelerating to boost, **A / D** or **Left / Right** to steer, and **S / Down** to brake. Descent begins after **2 seconds** in stable orbit.
 - Click a pawn, choose an action in the right panel if needed, and click a highlighted target. The arrow keys move the board cursor, Enter selects, and Esc clears the selection.
+- Click and drag on the board to rotate the camera horizontally and tilt it vertically. Release without dragging to select a pawn or target.
 - **Roll ability** before moving or using a drafted ability; roll once per round. Choose a path: **Move → Use power** (both), **Move → Finish / skip turn** (move only), or **Use power → Finish / skip turn** (power only). To move, select a unit, click **Move / capture**, then a highlighted destination. To use power, click **Use power** and a highlighted target: your unit for Infected Trail, an enemy for Spy or Long Capture. The die panel names the power.
 - In the draft, select two different pawns, assign them different abilities, and lock your choices. In local mode, pass the device when prompted.
 - **Take Over Aliens** queues the switch to a second player for the next Alien turn boundary. **Rematch** keeps the current mode, swaps the starter, and rolls a new setup.
