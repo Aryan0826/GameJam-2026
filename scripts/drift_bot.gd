@@ -55,7 +55,7 @@ static func _score(state: Dictionary, side: int) -> float:
 	var focus: int = state.drift.focus
 	for pawn: Dictionary in state.pawns.values():
 		var friendly: bool = pawn.side == side
-		score += 13.0 if friendly else -13.0
+		score += 32.0 if friendly else -32.0
 		for i in relays.size():
 			var staging := Drift.feeder(relays[i], Rules.BOARD_SIZE)
 			var delta: Vector2i = (staging - pawn.pos).abs()
