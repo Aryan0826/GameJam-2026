@@ -1,246 +1,373 @@
 extends Control
+## A 3D arena rendered into the existing 2D HUD. Input uses camera rays to the tile plane.
 
 signal square_pressed(square: Vector2i)
-signal square_hovered(square: Vector2i)
 
+const Rules = preload("rules.gd")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
-const PAWN = preload("res://art/pawn.svg")
-const CELL = 70.0
-const ORIGIN = Vector2(76, 58)
-const NORTH = Color("#ff937e")
-const SOUTH = Color("#83e1fa")
-const FLAG = Color("#f8d587")
-const LILAC = Color("#b99dfd")
-const SPELL_ICON = {"shield": "S", "blink": "B", "sprint": "R", "borrow_tomorrow": "T"}
+const NORTH = Color("#ff9479")
+const SOUTH = Color("#73d9fa")
+const GOLD = Color("#ffda8f")
+const LILAC = Color("#bd9dff")
+const SPELL_ICON = {"shield": "S", "fracture": "F", "teleport": "P", "borrow_tomorrow": "T"}
+const TOP := 0.14
 
 var state: Dictionary = {}
 var targets: Dictionary = {}
 var selected := -1
 var second := -1
 var preview_to := Vector2i.ZERO
-var marked := -1
 var keyboard_square := Vector2i.ZERO
 var hover := Vector2i.ZERO
-var effects: Array[Dictionary] = []
 var motion := true
-var clock := 0.0
 var draft_slots: Dictionary = {}
+var clock := 0.0
+var viewport_3d: SubViewport
+var world: Node3D
+var camera: Camera3D
+var tiles: Dictionary = {}
+var pieces: Dictionary = {}
+var landings: Dictionary = {}
+var palette: Dictionary = {}
+var tile_mesh: BoxMesh
+var pawn_mesh: ArrayMesh
+var flag_node: Node3D
+var falling: Array[Node3D] = []
 
 
 func _ready() -> void:
-	mouse_exited.connect(func(): hover = Vector2i.ZERO)
 	focus_mode = Control.FOCUS_ALL
+	mouse_exited.connect(func():
+		hover = Vector2i.ZERO
+		queue_redraw())
+	viewport_3d = SubViewport.new()
+	viewport_3d.size = Vector2i(size)
+	viewport_3d.transparent_bg = true
+	viewport_3d.own_world_3d = true
+	viewport_3d.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(viewport_3d)
+	world = Node3D.new()
+	viewport_3d.add_child(world)
+	camera = Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 10.45
+	camera.position = Vector3(0, 12, 6.2)
+	world.add_child(camera)
+	camera.look_at(Vector3(0, 0, 0.11))
+	var light := DirectionalLight3D.new()
+	light.rotation_degrees = Vector3(-52, -32, 0)
+	light.light_energy = 0.94
+	light.shadow_enabled = true
+	world.add_child(light)
+	var environment := WorldEnvironment.new()
+	environment.environment = Environment.new()
+	environment.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.environment.ambient_light_color = Color("#a7b9e8")
+	environment.environment.ambient_light_energy = 0.62
+	world.add_child(environment)
+	palette = {
+		"light": _material(Color("#394e70")), "dark": _material(Color("#202f49")),
+		"flag": _material(Color("#846739")), "crack": _material(Color("#7b3d4d")),
+		"fracture": _material(Color("#743f76")), "infected": _material(Color("#584287")),
+		"north": _material(NORTH.darkened(0.12), 0.22), "south": _material(SOUTH.darkened(0.11), 0.22),
+		"north_dim": _material(NORTH.darkened(0.62)), "south_dim": _material(SOUTH.darkened(0.60)),
+		"gold": _material(GOLD, 0.30)
+	}
+	tile_mesh = BoxMesh.new()
+	tile_mesh.size = Vector3(0.967, 0.28, 0.967)
+	pawn_mesh = _lathe()
+	_build_flag()
 
 
-func _process(delta: float) -> void:
-	if motion:
-		clock += delta
-		while not effects.is_empty() and clock - effects.front().start > 0.63:
-			effects.pop_front()
+func _material(color: Color, metallic: float = 0.0) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 0.48
+	material.metallic = metallic
+	return material
+
+
+func _lathe() -> ArrayMesh:
+	var rings := PackedVector2Array([
+		Vector2(0, 0), Vector2(0.29, 0), Vector2(0.32, 0.055), Vector2(0.32, 0.12),
+		Vector2(0.29, 0.17), Vector2(0.23, 0.19), Vector2(0.19, 0.22),
+		Vector2(0.125, 0.40), Vector2(0.13, 0.47), Vector2(0.21, 0.48),
+		Vector2(0.21, 0.54), Vector2(0.13, 0.57), Vector2(0.14, 0.60),
+		Vector2(0.179, 0.67), Vector2(0.175, 0.73), Vector2(0.13, 0.80), Vector2(0, 0.85)
+	])
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for ring in range(rings.size() - 1):
+		for i in 24:
+			var a := i * TAU / 24.0
+			var b := (i + 1) * TAU / 24.0
+			var low_a := _vertex(rings[ring], a)
+			var low_b := _vertex(rings[ring], b)
+			var high_a := _vertex(rings[ring + 1], a)
+			var high_b := _vertex(rings[ring + 1], b)
+			for vertex in [low_a, low_b, high_a, high_a, low_b, high_b]:
+				surface.add_vertex(vertex)
+	surface.generate_normals()
+	return surface.commit()
+
+
+func _vertex(profile: Vector2, angle: float) -> Vector3:
+	return Vector3(cos(angle) * profile.x, profile.y, sin(angle) * profile.x)
+
+
+func _mesh(parent: Node3D, geometry: Mesh, material: Material, at: Vector3) -> MeshInstance3D:
+	var model := MeshInstance3D.new()
+	model.mesh = geometry
+	model.material_override = material
+	model.position = at
+	parent.add_child(model)
+	return model
+
+
+func _build_flag() -> void:
+	flag_node = Node3D.new()
+	world.add_child(flag_node)
+	var pole := CylinderMesh.new()
+	pole.top_radius = 0.035
+	pole.bottom_radius = 0.045
+	pole.height = 0.56
+	_mesh(flag_node, pole, palette.gold, Vector3(-0.15, 0.29, 0))
+	var pennant := PrismMesh.new()
+	pennant.size = Vector3(0.30, 0.26, 0.055)
+	var marker := _mesh(flag_node, pennant, palette.gold, Vector3(0.0, 0.44, 0))
+	marker.rotation.z = -PI / 2.0
+	var stand := CylinderMesh.new()
+	stand.top_radius = 0.12
+	stand.bottom_radius = 0.17
+	stand.height = 0.06
+	_mesh(flag_node, stand, palette.gold, Vector3(-0.15, 0.03, 0))
+
+
+func reset_visuals() -> void:
+	landings.clear()
+	for node in pieces.values() + tiles.values() + falling:
+		if is_instance_valid(node):
+			node.queue_free()
+	falling.clear()
+	tiles.clear()
+	pieces.clear()
+
+
+func sync() -> void:
+	if state.is_empty():
+		return
+	for y in range(1, Rules.BOARD_SIZE + 1):
+		for x in range(1, Rules.BOARD_SIZE + 1):
+			var square := Vector2i(x, y)
+			if square in state.holes:
+				if square in tiles:
+					_remove_model(tiles[square], true)
+					tiles.erase(square)
+				continue
+			if square not in tiles:
+				tiles[square] = _mesh(world, tile_mesh, palette.dark, _world_at(square, 0.0))
+			var key := "light" if (x + y) % 2 == 0 else "dark"
+			if square == state.flag:
+				key = "flag"
+			elif square in state.fractures:
+				key = "fracture"
+			elif square in state.cracks:
+				key = "crack"
+			elif square in state.infected:
+				key = "infected"
+			tiles[square].material_override = palette[key]
+	flag_node.position = _world_at(state.flag)
+	flag_node.visible = true
+	for id in pieces.keys():
+		if id not in state.pawns:
+			_remove_model(pieces[id], false)
+			pieces.erase(id)
+	for pawn: Dictionary in state.pawns.values():
+		var key := "north" if pawn.side == 0 else "south"
+		if state.phase == "draft" and pawn.side != state.active:
+			key += "_dim"
+		var destination := _world_at(pawn.pos)
+		var model: MeshInstance3D
+		if pawn.id in pieces:
+			model = pieces[pawn.id]
+		else:
+			model = _mesh(world, pawn_mesh, palette[key], destination)
+			pieces[pawn.id] = model
+		model.material_override = palette[key]
+		if pawn.pos == state.flag:
+			flag_node.visible = false
+		if pawn.id not in landings:
+			if model.get_meta("destination", Vector3.INF) != destination:
+				model.position = destination
+				model.set_meta("destination", destination)
+			continue
+		var landing: Dictionary = landings[pawn.id]
+		landings.erase(pawn.id)
+		model.position = _world_at(landing.from)
+		model.set_meta("destination", destination)
+		_hop(model, destination, landing.kind == "capture", landing.get("teleport", false))
 	queue_redraw()
+
+
+func show_events(events: Array) -> void:
+	landings.clear()
+	if not motion:
+		return
+	var teleported := {}
+	for event: Dictionary in events:
+		if event.kind == "ability" and event.ability == "teleport":
+			teleported[event.pawn] = true
+		elif event.kind in ["step", "capture", "returned"]:
+			landings[event.pawn] = event.duplicate()
+			landings[event.pawn].teleport = event.pawn in teleported
+
+
+func _hop(model: MeshInstance3D, destination: Vector3, impact: bool, teleport: bool) -> void:
+	var tween := create_tween().bind_node(model)
+	if teleport:
+		tween.tween_property(model, "scale", Vector3.ONE * 0.09, 0.10)
+		tween.tween_callback(func(): model.position = destination)
+		tween.tween_property(model, "scale", Vector3.ONE, 0.24).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		return
+	var apex := model.position.lerp(destination, 0.5) + Vector3.UP * (0.55 if impact else 0.35)
+	tween.tween_property(model, "position", apex, 0.14).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(model, "position", destination, 0.19).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+
+func _remove_model(model: Node3D, tile: bool) -> void:
+	if not motion:
+		model.queue_free()
+		return
+	falling.append(model)
+	var tween := create_tween().bind_node(model).set_parallel()
+	tween.tween_property(model, "position", model.position - Vector3.UP * 1.7, 0.46).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_property(model, "rotation", Vector3(0.38, 0.12, -0.35), 0.46)
+	tween.tween_property(model, "scale", Vector3.ONE * (0.22 if tile else 0.02), 0.46)
+	tween.chain().tween_callback(func():
+		falling.erase(model)
+		model.queue_free())
+
+
+func _world_at(square: Vector2i, height: float = TOP) -> Vector3:
+	return Vector3(square.x - 5, height, square.y - 5)
+
+
+func _project(square: Vector2i, height: float = TOP) -> Vector2:
+	return camera.unproject_position(_world_at(square, height))
+
+
+func _square_at(local_pos: Vector2) -> Vector2i:
+	var ground = Plane(Vector3.UP, TOP).intersects_ray(camera.project_ray_origin(local_pos), camera.project_ray_normal(local_pos))
+	if ground == null:
+		return Vector2i.ZERO
+	var square := Vector2i(floori(ground.x + 5.5), floori(ground.z + 5.5))
+	if square.x < 1 or square.y < 1 or square.x > Rules.BOARD_SIZE or square.y > Rules.BOARD_SIZE:
+		return Vector2i.ZERO
+	return square
 
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		var p := _square_at(event.position)
-		if p != hover:
-			hover = p
-			square_hovered.emit(p)
+		hover = _square_at(event.position)
+		queue_redraw()
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var p := _square_at(event.position)
-		if p != Vector2i.ZERO:
+		var square := _square_at(event.position)
+		if square != Vector2i.ZERO:
 			grab_focus()
 			keyboard_square = Vector2i.ZERO
-			square_pressed.emit(p)
+			square_pressed.emit(square)
 			accept_event()
 
 
-func show_events(events: Array) -> void:
-	if not motion:
-		return
-	for event: Dictionary in events:
-		if event.kind in ["step", "capture", "returned", "return_failed", "shield_break", "collapse", "infection", "spy", "ability", "flag"]:
-			var visual := event.duplicate()
-			visual.start = clock
-			effects.append(visual)
-
-
-func _square_at(local_pos: Vector2) -> Vector2i:
-	var p := Vector2i((local_pos - ORIGIN).floor() / CELL).clamp(Vector2i.ZERO, Vector2i(8, 7)) + Vector2i.ONE
-	if Rect2(ORIGIN, Vector2(9, 8) * CELL).has_point(local_pos):
-		return p
-	return Vector2i.ZERO
-
-
-func center(p: Vector2i) -> Vector2:
-	return ORIGIN + Vector2(p - Vector2i.ONE) * CELL + Vector2.ONE * CELL / 2.0
-
-
-func _mono(at: Vector2, value: String, size_px: int, color: Color) -> void:
-	draw_string(MONO, at, value, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, color)
+func _process(delta: float) -> void:
+	if visible and not state.is_empty():
+		clock += delta if motion else 0.0
+		queue_redraw()
 
 
 func _draw() -> void:
-	if state.is_empty():
+	if state.is_empty() or not is_instance_valid(camera):
 		return
-	var draft: bool = state.phase == "draft"
-	var frame := Rect2(ORIGIN - Vector2(6, 6), Vector2(9, 8) * CELL + Vector2(12, 12))
-	draw_rect(frame, Color("#101624"))
-	draw_rect(frame, Color("#52607a"), false, 1)
-	for x in range(1, 10):
-		_mono(center(Vector2i(x, 1)) + Vector2(-4, -44), char(64 + x), 12, Color("#a9b4ce"))
-	for y in range(1, 9):
-		_mono(center(Vector2i(1, y)) + Vector2(-54, 5), str(y), 12, Color("#a9b4ce"))
-		for x in range(1, 10):
-			_draw_tile(Vector2i(x, y))
-
-	if not draft:
-		for pawn: Dictionary in state.pawns.values():
-			if not pawn.borrow.is_empty():
-				var origin: Vector2 = center(pawn.borrow.origin)
-				draw_dashed_line(origin, center(pawn.pos), LILAC, 2, 6)
-				draw_arc(origin, 23, 0.0, TAU, 32, LILAC, 2, true)
-				_mono(origin + Vector2(-14, 5), "ECHO", 10, LILAC)
-
-	for p: Vector2i in targets:
-		var c := center(p)
-		if targets[p] == "capture" or targets[p] == "mark":
-			draw_arc(c, 25, 0.0, TAU, 36, Color("#ffad97") if targets[p] == "capture" else LILAC, 2.5, true)
-			for angle in [0.0, PI / 2.0, PI, PI * 1.5]:
-				var spoke := Vector2.from_angle(angle)
-				draw_line(c + spoke * 23, c + spoke * 30, Color("#ffad97") if targets[p] == "capture" else LILAC, 2, true)
-		else:
-			draw_circle(c, 10, Color("#aaf5ff"), false, 1.8, true)
-			draw_circle(c, 4, Color("#aaf5ff"), true, -1, true)
-
+	draw_texture_rect(viewport_3d.get_texture(), Rect2(Vector2.ZERO, size), false)
+	for i in range(1, Rules.BOARD_SIZE + 1):
+		_text(_project(Vector2i(i, 1)) + Vector2(-4, -37), char(64 + i), 13)
+		_text(_project(Vector2i(1, i)) + Vector2(-54, 3), str(i), 13)
+	for square: Vector2i in state.cracks:
+		_hazard(square, NORTH)
+	for square: Vector2i in state.fractures:
+		_hazard(square, LILAC)
+	for square: Vector2i in state.infected:
+		var point := _project(square)
+		draw_arc(point, 14, 0, TAU, 24, LILAC, 1.3, true)
+		draw_line(point + Vector2(-7, -7), point + Vector2(7, 7), LILAC, 1.5, true)
+		draw_line(point + Vector2(-7, 7), point + Vector2(7, -7), LILAC, 1.5, true)
+	for square: Vector2i in [hover, keyboard_square]:
+		if square != Vector2i.ZERO:
+			_outline(square, Color("#bfcee7"))
+	for square: Vector2i in targets:
+		var point := _project(square)
+		match targets[square]:
+			"capture", "mark", "fracture":
+				_outline(square, NORTH if targets[square] == "capture" else LILAC)
+				draw_arc(point, 19, clock, clock + TAU - 0.35, 30, NORTH if targets[square] == "capture" else LILAC, 2, true)
+			_:
+				draw_circle(point, 7, SOUTH, false, 2, true)
+				draw_circle(point, 3, SOUTH, true, -1, true)
 	if preview_to != Vector2i.ZERO and selected in state.pawns:
-		var pawn: Dictionary = state.pawns[selected]
-		draw_dashed_line(center(pawn.pos), center(preview_to), LILAC, 2, 5)
-		_draw_piece(pawn, center(preview_to), 0.45, false)
-
+		draw_dashed_line(_project(state.pawns[selected].pos), _project(preview_to), LILAC, 2, 5)
+		draw_circle(_project(preview_to), 15, LILAC, false, 2, true)
 	for pawn: Dictionary in state.pawns.values():
-		var tint := 1.0
-		if draft and pawn.side != state.active:
-			tint = 0.43
-		_draw_piece(pawn, _animated_center(pawn), tint, not draft)
-
+		_pawn_status(pawn)
 	if state.holder in state.pawns:
-		var holder: Dictionary = state.pawns[state.holder]
-		var point := center(holder.pos)
-		for i in range(2):
-			var start := -PI + i * PI + 0.15
-			var end := start + PI - 0.3
-			draw_arc(point, 30, start, end, 28, FLAG if i < state.replies else Color("#866e49"), 3, true)
-		_mono(point + Vector2(-9, 30), "%d/2" % state.replies, 11, FLAG)
-
-	for fx in effects:
-		_draw_effect(fx)
+		var point := _project(state.flag) + Vector2(0, 7)
+		for i in Rules.FLAG_REPLIES:
+			var start := -PI + i * TAU / Rules.FLAG_REPLIES
+			draw_arc(point, 23, start, start + TAU / Rules.FLAG_REPLIES - 0.16, 22, GOLD if i < state.replies else Color("#a5844a"), 2.2, true)
+		_text(point + Vector2(-10, 25), "%d/%d" % [state.replies, Rules.FLAG_REPLIES], 11, GOLD)
 
 
-func _draw_tile(p: Vector2i) -> void:
-	var c := center(p)
-	var tile := Rect2(c - Vector2.ONE * 34, Vector2.ONE * 68)
-	if p in state.holes:
-		draw_rect(tile, Color("#0a0e18"))
-		draw_rect(tile.grow(-1), Color("#242d42"), false, 1)
-		draw_line(c - Vector2.ONE * 6, c + Vector2.ONE * 6, Color("#384156"), 1, true)
-		draw_line(c + Vector2(-6, 6), c + Vector2(6, -6), Color("#384156"), 1, true)
-		return
-	var base := Color("#273953") if (p.x + p.y) % 2 == 0 else Color("#1e2d44")
-	var edge := Color("#3c4b64")
-	if p.x >= 3 and p.x <= 7 and p.y >= 3 and p.y <= 6:
-		base = base.lightened(0.055)
-	if p in state.cracks:
-		base = Color("#402b39")
-		edge = Color("#99606a")
-	if p in state.infected:
-		base = Color("#493763")
-		edge = LILAC
-	if p == state.flag:
-		base = Color("#514434")
-		edge = FLAG
-	if p in state.portals:
-		base = Color("#382e52")
-		edge = Color("#7b68a6")
-	draw_rect(tile, base)
-	draw_rect(tile, edge, false, 1)
-	draw_line(tile.position + Vector2(4, 3), tile.position + Vector2(18, 3), edge.lightened(0.15), 1)
-	if p in state.cracks:
-		var path := PackedVector2Array([c + Vector2(-32, -16), c + Vector2(-18, -8), c + Vector2(-8, 9), c + Vector2(5, 6), c + Vector2(14, 23), c + Vector2(31, 28)])
-		draw_polyline(path, Color("#f19583"), 1.4, true)
-		draw_line(c + Vector2(5, 6), c + Vector2(14, -8), Color("#f19583"), 1.4, true)
-	if p in state.infected:
-		for i in range(6):
-			var spot := c + Vector2.from_angle(i * TAU / 6.0) * 19
-			draw_circle(spot, 2.8, LILAC, true, -1, true)
-			draw_line(spot, c, Color("#947bb7"), 1, true)
-	if p in state.portals:
-		draw_arc(c, 20, clock * 0.8, clock * 0.8 + TAU - 0.5, 40, LILAC, 1.4, true)
-		draw_arc(c, 13, -clock - 0.8, -clock + TAU - 1.4, 32, Color("#8b78c4"), 1.3, true)
-		draw_circle(c, 3, LILAC, true, -1, true)
-	if p == state.flag and state.holder == -1:
-		draw_line(c + Vector2(-8, 15), c + Vector2(-8, -16), FLAG, 2.3, true)
-		draw_colored_polygon(PackedVector2Array([c + Vector2(-7, -15), c + Vector2(15, -15), c + Vector2(8, -8), c + Vector2(15, 0), c + Vector2(-7, 0)]), FLAG)
-		draw_line(c + Vector2(-14, 15), c + Vector2(-2, 15), FLAG, 2.0, true)
-	if p == hover or p == keyboard_square:
-		draw_rect(tile.grow(-2), Color("#c8d7eb"), false, 1.5)
-
-
-func _animated_center(pawn: Dictionary) -> Vector2:
-	for i in range(effects.size() - 1, -1, -1):
-		var fx := effects[i]
-		if fx.get("pawn", -1) == pawn.id and fx.kind in ["step", "capture", "returned"] and fx.has("from") and fx.has("to") and fx.to == pawn.pos:
-			var t := clampf((clock - fx.start) / 0.27, 0.0, 1.0)
-			return center(fx.from).lerp(center(fx.to), 1.0 - pow(1.0 - t, 3.0))
-	return center(pawn.pos)
-
-
-func _draw_piece(pawn: Dictionary, c: Vector2, alpha: float, show_status: bool) -> void:
-	var color := NORTH if pawn.side == 0 else SOUTH
-	color.a = alpha
-	var focused: bool = pawn.id in [selected, second, marked]
-	if focused:
-		draw_circle(c, 29, Color(color, 0.17), true, -1, true)
-		draw_arc(c, 29, 0.0, TAU, 40, color, 2, true)
-	draw_circle(c + Vector2(1, 3), 22, Color(0.025, 0.04, 0.08, alpha * 0.9), true, -1, true)
-	draw_circle(c, 22, Color(color.darkened(0.77), alpha), true, -1, true)
-	draw_arc(c, 22, 0.0, TAU, 38, Color(color, alpha * 0.64), 1, true)
-	var pawn_image := Rect2(c - Vector2(15, 17), Vector2(30, 30))
-	draw_texture_rect(PAWN, pawn_image, false, color)
-	var direction := 1.0 if pawn.side == 0 else -1.0
-	var tip := c + Vector2(0, 17 * direction)
-	draw_line(tip + Vector2(-3, -2 * direction), tip + Vector2(0, direction), color, 1, true)
-	draw_line(tip + Vector2(3, -2 * direction), tip + Vector2(0, direction), color, 1, true)
+func _pawn_status(pawn: Dictionary) -> void:
+	var foot := _project(pawn.pos)
+	var team := NORTH if pawn.side == 0 else SOUTH
+	if pawn.id in [selected, second]:
+		_outline(pawn.pos, team)
 	if pawn.id in draft_slots:
-		_badge(c + Vector2(19, -16), draft_slots[pawn.id], LILAC)
-	if not show_status:
+		_badge(foot + Vector2(18, -23), draft_slots[pawn.id], LILAC)
+	if state.phase == "draft":
 		return
 	if pawn.charged:
-		_badge(c + Vector2(19, -16), SPELL_ICON.get(pawn.ability, "?"), LILAC if not pawn.spy else Color("#9ca4b7"))
+		_badge(foot + Vector2(18, -23), SPELL_ICON[pawn.ability], LILAC)
 	if pawn.shield:
-		draw_arc(c, 26, 0.0, TAU, 36, SOUTH, 2, true)
-		_badge(c + Vector2(-19, -16), "S", SOUTH)
-	if pawn.spy:
-		_badge(c + Vector2(-19, 16), "X", NORTH)
+		draw_arc(foot + Vector2(0, -13), 23, 0, TAU, 35, SOUTH, 2, true)
+	if pawn.spy > 0:
+		_badge(foot + Vector2(-18, -23), str(pawn.spy), GOLD)
 	if not pawn.borrow.is_empty():
-		_badge(c + Vector2(19, 16), "T", LILAC)
+		var origin := _project(pawn.borrow.origin)
+		draw_dashed_line(origin, foot, LILAC, 1.8, 5)
+		draw_arc(origin, 15, 0, TAU, 25, LILAC, 1.5, true)
+		_text(origin + Vector2(-12, 4), "ECHO", 10, LILAC)
 
 
-func _badge(at: Vector2, letter: String, color: Color) -> void:
-	draw_rect(Rect2(at - Vector2.ONE * 7, Vector2.ONE * 15), Color("#16192a"))
-	draw_rect(Rect2(at - Vector2.ONE * 7, Vector2.ONE * 15), color, false, 1)
-	_mono(at + Vector2(-3, 4), letter, 10, color)
+func _outline(square: Vector2i, color: Color) -> void:
+	var points := PackedVector2Array()
+	for corner: Vector3 in [Vector3(-0.46, 0, -0.46), Vector3(0.46, 0, -0.46), Vector3(0.46, 0, 0.46), Vector3(-0.46, 0, 0.46), Vector3(-0.46, 0, -0.46)]:
+		points.append(camera.unproject_position(_world_at(square) + corner))
+	draw_polyline(points, color, 1.6, true)
 
 
-func _draw_effect(fx: Dictionary) -> void:
-	var t := clampf((clock - fx.start) / 0.62, 0.0, 1.0)
-	if fx.kind == "collapse":
-		for p: Vector2i in fx.get("tiles", []):
-			var c := center(p)
-			draw_rect(Rect2(c - Vector2.ONE * 34, Vector2.ONE * 68), Color(NORTH, (1.0 - t) * 0.49))
-			for i in range(5):
-				var direction := Vector2.from_angle(i * TAU / 5.0)
-				draw_circle(c + direction * (10 + 29 * t), 3 * (1.0 - t), Color(NORTH, 1.0 - t), true, -1, true)
-	elif fx.has("to"):
-		var color := NORTH if fx.kind in ["capture", "shield_break"] else LILAC
-		draw_arc(center(fx.to), 15 + 27 * t, 0, TAU, 36, Color(color, (1.0 - t) * 0.9), 2.5, true)
+func _hazard(square: Vector2i, color: Color) -> void:
+	var point := _project(square)
+	var line := PackedVector2Array([point + Vector2(-26, -15), point + Vector2(-11, -8), point + Vector2(-6, 4),
+		point + Vector2(5, 1), point + Vector2(13, 15), point + Vector2(25, 19)])
+	draw_polyline(line, color, 1.5, true)
+	draw_line(point + Vector2(5, 1), point + Vector2(16, -9), color, 1.5, true)
+
+
+func _badge(point: Vector2, title: String, color: Color) -> void:
+	draw_rect(Rect2(point - Vector2.ONE * 7, Vector2.ONE * 15), Color("#16192a"))
+	draw_rect(Rect2(point - Vector2.ONE * 7, Vector2.ONE * 15), color, false, 1)
+	_text(point + Vector2(-3, 4), title, 10, color)
+
+
+func _text(point: Vector2, title: String, px: int, color: Color = Color("#b7c6e3")) -> void:
+	draw_string(MONO, point, title, HORIZONTAL_ALIGNMENT_LEFT, -1, px, color)
