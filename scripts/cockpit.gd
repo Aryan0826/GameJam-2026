@@ -52,13 +52,15 @@ func _configure_system_art() -> void:
 		return
 	var planet_frame := AtlasTexture.new()
 	planet_frame.atlas = load(str(system_data.planet_art)) as Texture2D
-	planet_frame.region = Rect2(0, 0, 250, 250)
+	planet_frame.region = Rect2(Vector2.ZERO, Vector2.ONE * float(system_data.planet_frame_size))
 	_planet_art = planet_frame
+	_planet_color = Color.WHITE
+	if str(system_data.star_art).is_empty():
+		return
 	var star_frame := AtlasTexture.new()
 	star_frame.atlas = load(str(system_data.star_art)) as Texture2D
 	star_frame.region = Rect2(0, 0, 500, 500)
 	_star_art = star_frame
-	_planet_color = Color.WHITE
 	_star_color = Color.WHITE
 	_star_line_color = Color(system_data.star_color, 0.3)
 

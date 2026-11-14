@@ -11,6 +11,8 @@ const ROTATION_SHADER = preload("res://shaders/body_rotation.gdshader")
 @export var gravity_influence_radius: float = 550.0
 @export var gravity_strength: float = 18000.0
 @export var surface_radius: float = 153.0
+@export var capture_radius := 0.0
+@export var stable_orbit_radius := 0.0
 @export var marker_color: Color = Color("#edb96a")
 
 @onready var sun: Node2D = get_node("../../Sun")
@@ -31,6 +33,10 @@ func _ready() -> void:
 	sprite.material = rotation_material
 	gravity_boundary.set("gravity_radius", gravity_influence_radius)
 	gravity_boundary.set("gravity_color", Color(marker_color, 0.35))
+	gravity_boundary.set("capture_radius", capture_radius)
+	gravity_boundary.set("stable_orbit_radius", stable_orbit_radius)
+	gravity_boundary.set("proximity_color", Color(marker_color, 0.68))
+	gravity_boundary.set("orbit_color", Color(marker_color, 0.44))
 	planet_label.text = display_name
 	planet_label.add_theme_color_override("font_color", marker_color)
 	gravity_label.position.y = -gravity_influence_radius - 28.0
@@ -51,6 +57,10 @@ func _process(delta: float) -> void:
 func advance_orbit(delta: float) -> void:
 	_orbit_angle = wrapf(_orbit_angle + orbit_speed * delta, -PI, PI)
 	global_position = sun.global_position + Vector2.from_angle(_orbit_angle) * orbit_radius
+
+
+func orbital_velocity() -> Vector2:
+	return Vector2.from_angle(_orbit_angle).orthogonal() * (-orbit_radius * orbit_speed)
 
 
 func gravity_at(point: Vector2) -> Vector2:

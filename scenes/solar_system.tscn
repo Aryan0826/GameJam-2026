@@ -224,6 +224,8 @@ rotation_duration = 44.0
 gravity_influence_radius = 700.0
 gravity_strength = 23000.0
 surface_radius = 187.0
+capture_radius = 550.0
+stable_orbit_radius = 355.0
 marker_color = Color(0.9, 0.45, 0.5, 1)
 
 [node name="PlanetSprite" type="Sprite2D" parent="World/AdditionalPlanets/Cinder"]
@@ -501,6 +503,39 @@ theme_override_fonts/font = ExtResource("10_mono_font")
 theme_override_font_sizes/font_size = 13
 text = "SYSTEM 01 / KALYPSO"
 horizontal_alignment = 1
+
+[node name="Destinations" type="PanelContainer" parent="HUDLayer/HUD"]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -239.0
+offset_top = -149.0
+offset_right = -25.0
+offset_bottom = -25.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hud_panel")
+
+[node name="Routes" type="VBoxContainer" parent="HUDLayer/HUD/Destinations"]
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="HUDLayer/HUD/Destinations/Routes"]
+theme_override_fonts/font = ExtResource("10_mono_font")
+theme_override_font_sizes/font_size = 12
+text = "SET COURSE"
+
+[node name="Kalypso" type="Button" parent="HUDLayer/HUD/Destinations/Routes"]
+custom_minimum_size = Vector2(180, 29)
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_fonts/font = ExtResource("9_space_font")
+text = "Kalypso"
+
+[node name="Cinder" type="Button" parent="HUDLayer/HUD/Destinations/Routes"]
+custom_minimum_size = Vector2(180, 29)
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_fonts/font = ExtResource("9_space_font")
+text = "Cinder"
 
 [node name="OrbitHUD" type="PanelContainer" parent="HUDLayer/HUD"]
 layout_mode = 1

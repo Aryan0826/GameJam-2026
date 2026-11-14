@@ -6,6 +6,7 @@
 
 [node name="AzureReach" instance=ExtResource("1_flight")]
 system_index = 1
+next_scene_path = "res://scenes/drift_circuit.tscn"
 system_star_texture = ExtResource("2_star")
 system_planet_texture = ExtResource("3_planet")
 system_planet_frame_grid = Vector2i(50, 1)

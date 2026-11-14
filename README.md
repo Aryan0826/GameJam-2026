@@ -4,6 +4,12 @@ A pawn-only tactics duel on a collapsing 3D orbital arena. Five pawns per side s
 
 ## Play
 
+Kalypso hosts **The Fractured Flag** and the red planet Cinder hosts **Drift Circuit**. Select **Cinder** in the flight HUD to turn on its red pointer and mark it on the minimap. Fly toward the planet and release thrust inside its capture ring to enter orbit. Press **Enter / Space** in stable orbit or wait for the descent, then choose **Accept challenge** or **Local duel**.
+
+Use **Return to planets** from either duel to choose another destination. **Keep playing** closes the menu. Choosing a planet ends the active match and returns the Horizon to flight near the chosen planet.
+
+In Drift Circuit, row 4 moves right and row 6 moves left after both sides act. Pieces wrap around the edges. Each occupied gold relay scores one point after the shift. Reach five points with a lead to win, with a draw after round 12 if neither side wins.
+
 Open `project.godot` in Godot 4.7.2 Standard and press **F5**. The opening crawl leads into the solar-system flight and then the Horizon cockpit. Choose **Accept challenge** to face the Aliens or **Local duel** for two people on one device. **Replay prologue** returns to the opening crawl.
 
 For the Windows build, extract the ZIP and run `ConquerorsChess.exe` beside its `ConquerorsChess.pck`.
@@ -13,8 +19,8 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 ## Controls
 
 - During solar-system flight, hold **W / Up** to accelerate; the ship coasts on release. Exhaust runs while accelerating and during automatic orbit entry. Hold **Shift / Space** while accelerating to boost, **A / D** or **Left / Right** to steer, and **S / Down** to brake. Descent begins after **2 seconds** in stable orbit.
-- The rocket begins in open space with a wide camera view. The planets orbit the sun in this order: Ember, Kalypso (home), Cinder, and Aurelia. Their separate orbits and colored gravity boundaries appear on the minimap. Kalypso is the landing destination; the gravity indicator identifies the local planetary well.
-- After the first battle, choose **Travel to Azure Reach** after a win or draw, or **Withdraw to Azure Reach** after a loss. The second system uses the same flight, gravity, orbit entry, two-second descent, and chess duel, with a cyan star and the planet Verdant. **Rematch** stays in the current system; **Replay prologue** restarts the journey in Kalypso.
+- The rocket begins in open space with a wide camera view. The planets orbit the sun in this order: Ember, Kalypso (home), Cinder, and Aurelia. Their separate orbits and colored gravity boundaries appear on the minimap. The gravity indicator identifies the local planetary well.
+- After the Kalypso battle, choose **Travel to Cinder** or **Withdraw to Cinder** to return to flight near the red planet. **Rematch** stays at the current planet. **Replay prologue** restarts the journey.
 - Click a pawn, choose an action in the right panel if needed, and click a highlighted target. The arrow keys move the board cursor, Enter selects, and Esc clears the selection.
 - Click and drag on the board to rotate the camera horizontally and tilt it vertically. Release without dragging to select a pawn or target.
 - **Roll ability** before moving or using a drafted ability; roll once per round. Choose a path: **Move → Use power** (both), **Move → Finish / skip turn** (move only), or **Use power → Finish / skip turn** (power only). To move, select a unit, click **Move / capture**, then a highlighted destination. To use power, click **Use power** and a highlighted target: your unit for Infected Trail, an enemy for Spy or Long Capture. The die panel names the power.
