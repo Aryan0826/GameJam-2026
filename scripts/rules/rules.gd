@@ -180,7 +180,7 @@ static func ability_reason(state: Dictionary, pawn: Dictionary) -> String:
 		"teleport": return "No open landing tile available"
 		"missile":
 			if _enemy_on_flag(state):
-				return "Missiles locked while an enemy is on the flag."
+				return "Doom Bringer is locked while an enemy is on the flag."
 			return "No intact enemy or empty tile available"
 	return "Ability unavailable"
 
@@ -261,6 +261,11 @@ static func _enemy_at(state: Dictionary, occupancy: Dictionary, pawn: Dictionary
 		and (target != state.flag or pawn.spy == 0))
 
 
+static func draft_pair_allowed(first: String, second: String) -> bool:
+	return (first in SPELLS and second in SPELLS and first != second
+		and not (first in ["teleport", "missile"] and second in ["teleport", "missile"]))
+
+
 static func _draft_actions(state: Dictionary) -> Array[Dictionary]:
 	var actions: Array[Dictionary] = []
 	var start: int = state.active * PAWNS_PER_SIDE
@@ -268,7 +273,7 @@ static func _draft_actions(state: Dictionary) -> Array[Dictionary]:
 		for second in range(id + 1, start + PAWNS_PER_SIDE):
 			for spell: String in SPELLS:
 				for other: String in SPELLS:
-					if spell != other:
+					if draft_pair_allowed(spell, other):
 						actions.append({"kind": "draft", "pawns": [id, second], "spells": [spell, other]})
 	return actions
 
@@ -440,7 +445,8 @@ static func _resolve_action(state: Dictionary, action: Dictionary, events: Array
 	if kind in SPELLS:
 		pawn.charged = false
 	if kind in SPELLS or kind in SPECIALS:
-		_event(events, "ability", "%s used %s." % [SIDE_NAMES[state.active], kind.capitalize()],
+		var ability_name := "Doom Bringer" if kind == "missile" else kind.capitalize()
+		_event(events, "ability", "%s used %s." % [SIDE_NAMES[state.active], ability_name],
 			{"pawn": pawn.id, "from": origin, "to": target, "ability": kind, "side": pawn.side})
 	match kind:
 		"shield":
@@ -458,7 +464,7 @@ static func _resolve_action(state: Dictionary, action: Dictionary, events: Array
 			state.cracks.erase(target)
 			state.fractures.erase(target)
 			state.infected.erase(target)
-			_event(events, "missile", "%s missile destroyed %s%s." % [SIDE_NAMES[state.active], _tile(target), " and its enemy ship" if victim >= 0 else ""],
+			_event(events, "missile", "%s Doom Bringer destroyed %s%s." % [SIDE_NAMES[state.active], _tile(target), " and its enemy ship" if victim >= 0 else ""],
 				{"pawn": pawn.id, "from": origin, "to": target, "victim": victim, "side": state.active})
 			_check_elimination(state)
 			if state.phase == "finished":

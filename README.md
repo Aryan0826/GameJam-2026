@@ -40,7 +40,7 @@ Each result shows a crew or alien lineup under a colored spotlight, a short exch
 
 Hold the center flag with the same ship through three opposing turns, or eliminate every opposing ship. The match draws after eight rounds if neither side wins. The outer rims collapse in stages, and ships on falling tiles are lost. Empty flag squares can only be entered from an adjacent square.
 
-1. Draft a different single use ability for each of two ships, then lock the draft. Local players pass the device between private drafts.
+1. Draft a different single use ability for each of two ships, then lock the draft. Each player may choose **Doom Bringer or Teleport**, but cannot draft both across their fleet. Local players pass the device between private drafts.
 2. **Shuffle** to draw a power. Select a ship for a regular move or choose its drafted ability from its hologram. The drafted ability uses the move for that turn.
 3. Click the drawn card and a highlighted target to use the power. You can move then use the power, move only, or use the power alone.
 4. Choose **Finish / skip turn** to pass control.
@@ -50,9 +50,9 @@ Hold the center flag with the same ship through three opposing turns, or elimina
 | **Shield** | Blocks one capture. Entering the flag clears it. |
 | **Fracture Tile** | Marks a tile outside the flag to fall after the next turn. |
 | **Teleport** | Jumps to an empty, intact, uninfected square outside the flag. |
-| **Missile Strike** | Destroys one empty or enemy tile immediately, removing even a shielded enemy. Cannot target friendly ships or the flag. All launches are locked while an enemy occupies the flag. |
+| **Doom Bringer** | Destroys one empty or enemy tile immediately, removing even a shielded enemy. Cannot target friendly ships or the flag. All launches are locked while an enemy occupies the flag. |
 
-To launch, draft **Missile Strike** onto a ship. After shuffling, select that ship, choose **Launch missile** in its hologram, then click a highlighted enemy or empty tile. The launcher stays in place. This single use ability replaces your move; you can still use the drawn power before finishing your turn.
+To launch, draft **Doom Bringer** onto a ship. After shuffling, select that ship, choose **Use Doom Bringer** in its hologram, then click a highlighted enemy or empty tile. The launcher stays in place. This single use ability replaces your move; you can still use the drawn power before finishing your turn.
 
 | Drawn power | Effect |
 | --- | --- |
@@ -125,4 +125,4 @@ Developed by the Horizon game jam team. See the [asset credits](ASSET_CREDITS.md
 
 Story and travel checks: `godot --headless --path . --script tests/expedition_story_test.gd`. UI wrapping, message controls, natural descent and skipping: `godot --headless --path . --script tests/ui_descent_test.gd`. Rebuild actual previews with `godot --path . --script tools/render_story_preview.gd -- /absolute/output/folder` or `tools/render_descent_preview.gd`.
 
-The descent uses Jahobr’s 2017 CC0 star animation and DMolybdenum’s public domain Atlantis cockpit panorama. Full source links and adaptation details are in [descent credits](art/descent/SOURCE.md) and the in-game Asset credits. Missile Strike uses the supplied PixelProjectiles rocket (whose README describes AI-assisted, programmatically generated artwork) and Luis Zuno’s CC0 explosion animation; see [missile asset details](art/effects/missile/SOURCE.md).
+The descent uses Jahobr’s 2017 CC0 star animation and DMolybdenum’s public domain Atlantis cockpit panorama. Full source links and adaptation details are in [descent credits](art/descent/SOURCE.md) and the in-game Asset credits. Doom Bringer uses the supplied PixelProjectiles rocket (whose README describes AI-assisted, programmatically generated artwork) and Luis Zuno’s CC0 explosion animation; see [missile asset details](art/effects/missile/SOURCE.md).

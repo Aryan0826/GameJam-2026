@@ -60,7 +60,7 @@ The project received these files without a source link or separate license notic
 | `art/flight/bodies/sun_sheet.png` | `sun.png` | 32-frame Solar Core rotation |
 | `art/flight/bodies/system_two_star.png`, `system_two_planet.png` | `4185252325 (1).png` and `4185252325.png` | Azure Reach’s cyan star and Verdant |
 
-## Missile Strike
+## Doom Bringer
 
 | Project file | Supplied source | License and treatment |
 | --- | --- | --- |

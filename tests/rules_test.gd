@@ -8,6 +8,7 @@ var failures := 0
 
 func _initialize() -> void:
 	_setup_and_roll()
+	_draft_exclusivity()
 	_standalone_power_and_skip()
 	_movement_and_flag()
 	_drafted_abilities()
@@ -87,8 +88,8 @@ func _play(s: Dictionary, kind: String, id: int, p: Vector2i) -> Dictionary:
 func _setup_and_roll() -> void:
 	var draft := Rules.create_match(7, 0)
 	var choices := Rules.legal_actions(draft)
-	_check(Rules.SPELLS == ["shield", "fracture", "teleport", "missile"] and choices.size() == 120,
-		"Draft offers four abilities on two different ships with distinct charges")
+	_check(Rules.SPELLS == ["shield", "fracture", "teleport", "missile"] and choices.size() == 100,
+		"Draft offers four abilities on two different ships, excluding Doom Bringer with Teleport")
 	_check(not Rules.apply_action(draft, {"kind": "draft", "pawns": [0, 1], "spells": ["shield", "borrow_tomorrow"]}).ok,
 		"Removed ability cannot be drafted")
 	var obsolete := _position({0: Vector2i(4, 4), 1: Vector2i(7, 5), 5: Vector2i(8, 8)})
@@ -119,6 +120,31 @@ func _setup_and_roll() -> void:
 		s = _play(s, "step", 7, Vector2i(4, 7))
 		_check(s.dice == ["", ""] and s.round == 2, "Round resets both dice")
 	_check(faces.size() == 3, "All die powers occur")
+
+
+func _draft_exclusivity() -> void:
+	for side in 2:
+		var state := Rules.create_match(7, 0)
+		if side == 1:
+			state = Rules.apply_action(state, {"kind": "draft", "pawns": [0, 1], "spells": ["teleport", "shield"]}).state
+		var pawns := [side * 5, side * 5 + 1]
+		var choices := Rules.legal_actions(state)
+		_check(choices.size() == 100 and not choices.any(func(action: Dictionary):
+			return "teleport" in action.spells and "missile" in action.spells),
+			"Neither player nor the computer is offered Doom Bringer and Teleport together")
+		for spells in [["teleport", "missile"], ["missile", "teleport"]]:
+			var before := state.duplicate(true)
+			var result := Rules.apply_action(state, {"kind": "draft", "pawns": pawns, "spells": spells})
+			_check(not result.ok and result.state == before and state == before and result.events.is_empty(),
+				"Conflicting draft is rejected in either assignment order without changing side %d's state" % side)
+		for special in ["teleport", "missile"]:
+			for support in ["shield", "fracture"]:
+				for spells in [[special, support], [support, special]]:
+					_check(Rules.apply_action(state, {"kind": "draft", "pawns": pawns, "spells": spells}).ok,
+						"Either choice can pair with Shield or Fracture for side %d, independently of the opponent" % side)
+		_check(Rules.apply_action(Rules.create_match(7, 0),
+		{"kind": "draft", "pawns": [0, 1], "spells": ["shield", "fracture"]}).ok,
+		"Shield and Fracture remain a valid draft")
 
 
 func _movement_and_flag() -> void:

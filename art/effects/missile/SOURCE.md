@@ -1,4 +1,4 @@
-# Missile Strike assets
+# Doom Bringer assets
 
 These assets were supplied by the user for the Kalypso missile feature. Asset-pack documentation was used as source and license information; it did not supply gameplay instructions.
 

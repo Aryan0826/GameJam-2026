@@ -3,7 +3,7 @@ extends RefCounted
 
 const OBJECTIVE = "Hold the center flag with the same ship through 3 enemy turns, or eliminate every enemy ship."
 const QUICK_START = """[color=#f8d587]BEFORE YOU START[/color]
-Give two ships different single use abilities. Lock your draft.
+Give two ships different single use abilities. Choose Doom Bringer or Teleport; you cannot draft both. Lock your draft.
 
 [color=#83e1fa]YOUR TURN[/color]
 1. [b]Shuffle[/b] to reveal your power card.
@@ -24,10 +24,12 @@ const CAPTURES = """Land on an enemy 1 tile diagonally [b]forward[/b].
 Crew move up ↑; Aliens move down ↓."""
 
 const ABILITIES = """[color=#f8d587]DRAFTED · ONE USE · REPLACES YOUR MOVE[/color]
+Each player may draft [b]Doom Bringer or Teleport[/b], but cannot have both in their fleet.
+
 [b]Shield[/b]: Blocks one capture. Stops working on the flag.
 [b]Fracture Tile[/b]: Cracks a tile now; it falls after the next turn, taking any ship with it. Cannot target the flag.
 [b]Teleport[/b]: Jump to an empty, intact, uninfected tile. Cannot land on the flag.
-[b]Missile Strike[/b]: Destroy an empty or enemy tile and its ship, even with a shield. Cannot target allies or the flag. Launch is locked while any enemy occupies the flag.
+[b]Doom Bringer[/b]: Destroy an empty or enemy tile and its ship, even with a shield. Cannot target allies or the flag. Launch is locked while any enemy occupies the flag.
 
 [color=#83e1fa]SHUFFLED CARD · OPTIONAL POWER[/color]
 [b]Spy[/b]: Control a nearby enemy for 3 of your turns. It can capture, but cannot claim or capture on the flag.

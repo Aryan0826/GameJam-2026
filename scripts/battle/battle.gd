@@ -32,12 +32,13 @@ const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the beacon."],
 	"fracture": ["Fracture Tile", "Mark a tile to fall after the next turn, along with any unit on it."],
 	"teleport": ["Teleport", "Jump to any open tile outside the beacon."],
-	"missile": ["Missile Strike", "Destroy a tile and its enemy. Locked while an enemy is on the flag."],
+	"missile": ["Doom Bringer", "Destroy a tile and its enemy. Locked while an enemy is on the flag."],
 	"infected_trail": ["Infected Trail", "Infect the 3 × 3 area around a selected unit through the enemy turn."],
 	"spy": ["Spy", "Take control of a nearby enemy unit for your next three turns. It cannot score the beacon."],
 	"long_capture": ["Long Capture", "Capture diagonally in any direction, from one or two squares away."],
 }
 const DRAFT_SPELLS = Rules.SPELLS
+const DRAFT_CHOICE_RULE = "Choose Doom Bringer or Teleport; you cannot draft both."
 const IMAGE_CREDIT = "NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team"
 const IMAGE_URL = "https://esahubble.org/images/heic1509a/"
 const RULES_TEXT = """[color=#f8d587]WIN THE DUEL[/color]
@@ -52,7 +53,9 @@ Move one tile orthogonally or one or two diagonally in any direction. A two tile
 Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any unit on a falling tile is removed.
 
 [color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
-Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant. Missile Strike destroys one empty or enemy tile immediately, including a shielded enemy. It cannot target allies or the beacon, and cannot launch while an enemy occupies the beacon.
+Give two ships different abilities. Each player may draft Doom Bringer or Teleport, but cannot have both in their fleet.
+
+Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant. Doom Bringer destroys one empty or enemy tile immediately, including a shielded enemy. It cannot target allies or the beacon, and cannot launch while an enemy occupies the beacon.
 
 [color=#f8d587]SHUFFLE FOR AN ABILITY[/color]
 Shuffle once per round before moving or using a drafted ability. The cards shuffle, then flip to reveal your special power. Each of the three powers has an equal chance. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
@@ -846,7 +849,6 @@ func _sync_ability_hologram() -> void:
 	var title: String = SPELLS[pawn.ability][0]
 	var caption := "Use " + title
 	if pawn.ability == "fracture": caption = "Use Fracture"
-	elif pawn.ability == "missile": caption = "Launch missile"
 	var hint := "Choose a landing tile"
 	if pawn.ability == "shield": hint = "Click this ship to raise its shield"
 	elif pawn.ability == "fracture": hint = "Choose a tile to fracture"
@@ -894,7 +896,8 @@ func _draw_draft() -> void:
 	_panel(side_panel, Rect2(846, 148, 430, 651))
 	_label(side_panel, Rect2(868, 166, 380, 28), "%s  /  PRIVATE DRAFT" % SIDES[state.active].to_upper(), 14, color, MONO)
 	_label(side_panel, Rect2(868, 200, 380, 46), "Configure landing team", 30, INK, bold)
-	_label(side_panel, Rect2(869, 254, 376, 53), "Select a unit on the grid, then an ability. Assign a different ability to a second unit.", 17, MUTED, SANS, true)
+	_label(side_panel, Rect2(869, 254, 376, 26), "Assign two different abilities to two ships.", 17, MUTED, SANS, true)
+	_label(side_panel, Rect2(869, 284, 376, 34), DRAFT_CHOICE_RULE, 14, GOLD, SANS, true)
 	var y := 326
 	for spell: String in DRAFT_SPELLS:
 		var title: String = SPELLS[spell][0]
@@ -902,7 +905,9 @@ func _draw_draft() -> void:
 		if assigned != null:
 			title += "  ·  " + _coord(state.pawns[assigned].pos)
 		var control := _button(side_panel, Rect2(869, y, 382, 32), title, _assign.bind(spell), assigned != null)
-		control.disabled = selected < 0 or handoff
+		var conflict := _draft_conflict(spell)
+		control.disabled = selected < 0 or handoff or conflict
+		control.tooltip_text = DRAFT_CHOICE_RULE if conflict else SPELLS[spell][1]
 		_label(side_panel, Rect2(870, y + 36, 376, 33), SPELLS[spell][1], 14, MUTED, SANS, true)
 		y += 82
 	var lock := _button(side_panel, Rect2(869, 697, 382, 48), "Lock draft  ·  %d / 2" % assignments.size(), _lock_draft, true)
@@ -1115,7 +1120,7 @@ func _action_hint() -> String:
 	if action_group == "ability" and p.ability == "fracture":
 		return "Select a tile to drop after the next turn."
 	if action_group == "ability" and p.ability == "missile":
-		return "Select a highlighted enemy or empty tile to destroy with one missile."
+		return "Select a highlighted enemy or empty tile to destroy with Doom Bringer."
 	if _group_actions(action_group).is_empty():
 		return "This unit has no legal target for the selected action."
 	if action_group == "standard":
@@ -1217,8 +1222,19 @@ func _pawn_at(square: Vector2i) -> int:
 	return -1
 
 
+func _draft_conflict(spell: String) -> bool:
+	for pawn: int in assignments:
+		var other: String = assignments[pawn]
+		if pawn != selected and other != spell and not Rules.draft_pair_allowed(spell, other):
+			return true
+	return false
+
+
 func _assign(spell: String) -> void:
 	if selected < 0 or handoff:
+		return
+	if _draft_conflict(spell):
+		_note(DRAFT_CHOICE_RULE)
 		return
 	if assignments.get(selected, "") == spell:
 		assignments.erase(selected)
@@ -1349,7 +1365,7 @@ func _show_credits() -> void:
 	audio_list.append_text("\n\n[color=#f8d587]CREW & ENVOYS[/color]\n[url=https://opengameart.org/content/sci-fi-roguelike-pixel-art]Sci-Fi RogueLike Pixel Art · Emcee Flesher · CC0[/url]\nOriginal pixel characters, scaled with nearest-neighbor filtering. Hologram scanlines and result spotlights use Godot primitives. No AI-generated artwork.")
 
 	audio_list.append_text("\n\n[color=#f8d587]DESCENT SEQUENCE[/color]\n[url=https://commons.wikimedia.org/wiki/File:StarfieldSimulation.gif]Starfield Simulation · Jahobr · CC0 · 2017[/url]\nOriginal star animation looped and converted to video.\n[url=https://commons.wikimedia.org/wiki/File:Space_Shuttle_Atlantis_OV-104_main_flight_deck.png]Atlantis flight deck · DMolybdenum · Public domain[/url]\nPanorama reprojected to a centered forward view, darkened, and windows masked. No AI generated assets.")
-	audio_list.append_text("\n\n[color=#f8d587]MISSILE STRIKE[/color]\nRocket · supplied PixelProjectiles v1.0 · game-use license included. The pack describes AI-assisted, programmatically generated pixel art.\nExplosion Pack 1 · Luis Zuno (Ansimuz) · CC0.\nOriginal sprite strips animated and rotated in Godot. Full notices in art/effects/missile.")
+	audio_list.append_text("\n\n[color=#f8d587]DOOM BRINGER[/color]\nRocket · supplied PixelProjectiles v1.0 · game-use license included. The pack describes AI-assisted, programmatically generated pixel art.\nExplosion Pack 1 · Luis Zuno (Ansimuz) · CC0.\nOriginal sprite strips animated and rotated in Godot. Full notices in art/effects/missile.")
 
 
 func _show_map() -> void:

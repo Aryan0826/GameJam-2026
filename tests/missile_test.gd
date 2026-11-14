@@ -24,7 +24,7 @@ func _check(condition: bool, message: String) -> void:
 
 func _position(side: int = 1) -> Dictionary:
 	var state := Rules.create_match(7, side)
-	state = Rules.apply_action(state, {"kind": "draft", "pawns": [0, 1], "spells": ["missile", "teleport"]}).state
+	state = Rules.apply_action(state, {"kind": "draft", "pawns": [0, 1], "spells": ["missile", "fracture"]}).state
 	state = Rules.apply_action(state, {"kind": "draft", "pawns": [5, 6], "spells": ["missile", "shield"]}).state
 	state.dice = ["infected_trail", "infected_trail"]
 	state.pawns[0].pos = Vector2i(4, 3)
@@ -60,6 +60,8 @@ func _rules() -> void:
 		"After a missile, the player can use the drawn power or finish, without taking a second move")
 	_check(result.events.any(func(event: Dictionary): return event.kind == "missile" and event.victim == 0 and event.from == before.pawns[5].pos and event.to == target),
 		"Deterministic impact event identifies the launcher, target and victim")
+	_check(result.events.any(func(event: Dictionary): return event.kind == "ability" and event.text == "Crew used Doom Bringer."),
+		"The flight log uses the Doom Bringer name")
 	_check(Rules.apply_action(before, _shot(1, target)) == result, "Missile state and events replay deterministically")
 	_check(not Rules.apply_action(result.state, _shot(1, Vector2i(1, 1))).ok, "Cannot fire twice in one turn")
 	var next: Dictionary = Rules.apply_action(result.state, {"kind": "skip"}).state
@@ -148,6 +150,69 @@ func _capture(name: String) -> void:
 	root.get_texture().get_image().save_png(capture_dir.path_join(name + ".png"))
 
 
+func _draft_button(game: Control, title: String) -> Button:
+	for button in game.side_panel.find_children("*", "Button", true, false):
+		if button.text.begins_with(title):
+			return button
+	return null
+
+
+func _draft_choices(game: Control) -> void:
+	for side in 2:
+		game.state = Rules.create_match(7, 0)
+		if side == 1:
+			game.state = Rules.apply_action(game.state, {"kind": "draft", "pawns": [0, 1], "spells": ["teleport", "shield"]}).state
+		game.assignments.clear()
+		game._clear_selection()
+		game.legal = Rules.legal_actions(game.state)
+		game._refresh()
+		var first := side * 5
+		var second := first + 1
+		game._square_pressed(game.state.pawns[first].pos)
+		game._assign("missile")
+		_check(game.assignments.get(first) == "missile" and game.board.draft_slots.get(first) == "D",
+			"Doom Bringer uses its new name and D marker in either player's private draft")
+		game._square_pressed(game.state.pawns[second].pos)
+		var teleport := _draft_button(game, "Teleport")
+		_check(teleport != null and teleport.disabled and teleport.tooltip_text == Main.DRAFT_CHOICE_RULE,
+			"Doom Bringer disables Teleport on another ship with an explanation")
+		var before: Dictionary = game.assignments.duplicate(true)
+		game._assign("teleport")
+		_check(game.assignments == before and game.feedback.text == Main.DRAFT_CHOICE_RULE,
+			"Direct assignment cannot bypass the fleet restriction")
+		game._assign("shield")
+		_check(game.assignments.size() == 2 and not _draft_button(game, "Lock draft").disabled,
+			"Doom Bringer can still be paired with Shield and locked")
+		game._square_pressed(game.state.pawns[first].pos)
+		_check(not _draft_button(game, "Teleport").disabled, "The same ship can switch from Doom Bringer to Teleport")
+		game._assign("teleport")
+		_check(game.assignments.get(first) == "teleport" and game.assignments.get(second) == "shield",
+			"Switching the exclusive choice preserves the supporting ability")
+		game._square_pressed(game.state.pawns[second].pos)
+		var doom_bringer := _draft_button(game, "Doom Bringer")
+		_check(doom_bringer != null and doom_bringer.disabled, "Teleport disables Doom Bringer on another ship")
+		before = game.assignments.duplicate(true)
+		game._assign("missile")
+		_check(game.assignments == before, "Reverse assignment order also preserves the valid draft")
+		game._square_pressed(game.state.pawns[first].pos)
+		game._assign("teleport")
+		game._square_pressed(game.state.pawns[second].pos)
+		_check(not _draft_button(game, "Doom Bringer").disabled, "Removing Teleport makes Doom Bringer available again")
+		game._assign("missile")
+		game._square_pressed(game.state.pawns[first].pos)
+		game._assign("missile")
+		_check(game.assignments.size() == 1 and game.assignments.get(first) == "missile",
+			"An existing Doom Bringer assignment can still move to a different ship")
+		game._square_pressed(game.state.pawns[second].pos)
+		game._assign("fracture")
+		game._lock_draft()
+		_check(game.state.phase == ("draft" if side == 0 else "playing") and game.assignments.is_empty(),
+			"A valid Doom Bringer and Fracture draft locks for either side")
+		game.handoff = false
+		game._close_overlay(false)
+		game.chrome.show()
+
+
 func _run() -> void:
 	_rules()
 	root.size = Vector2i(1320, 850)
@@ -159,7 +224,8 @@ func _run() -> void:
 		game._communication_tween.kill()
 	_setup(game, false)
 	game._square_pressed(game.state.pawns[5].pos)
-	_check(game.ability_hologram.visible and game.ability_hologram.heading.text == "MISSILE STRIKE", "Drafted missile appears in the existing ship hologram")
+	_check(game.ability_hologram.visible and game.ability_hologram.heading.text == "DOOM BRINGER"
+		and game.ability_hologram.ability_button.text == "Use Doom Bringer", "Doom Bringer appears by name in the existing ship hologram")
 	game._choose_hologram_action("ability")
 	_check(game.ability_hologram.description.text == "Choose an enemy or empty tile", "Missile targeting prompt explains valid targets")
 	_check(game.board.targets.get(game.state.pawns[0].pos) == "missile" and game.state.flag not in game.board.targets,
@@ -214,8 +280,9 @@ func _run() -> void:
 			break
 	game._square_pressed(game.state.pawns[0].pos)
 	game._assign("missile")
-	_check(game.assignments.get(0) == "missile" and game.board.draft_slots.get(0) == "M", "Missile can be selected in the actual private draft")
+	_check(game.assignments.get(0) == "missile" and game.board.draft_slots.get(0) == "D", "Doom Bringer can be selected in the actual private draft")
 	await _capture("draft")
+	_draft_choices(game)
 	game._show_kalypso_guide(2)
 	await _capture("abilities-guide")
 	game._close_overlay(false)
