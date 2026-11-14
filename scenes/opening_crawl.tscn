@@ -99,7 +99,9 @@ As he approaches a new planetary system, its alien inhabitants transmit an unexp
 
 If the General wins, they will surrender their planets to Earth without a fight. If he loses, he must withdraw his forces and leave their worlds in peace.
 
-The terms are clear. The next chapter of Earth's expansion will be decided one move at a time."
+The terms are clear. The next chapter of Earth's expansion will be decided one move at a time.
+
+The General has arrived at a new system to conquer..."
 font = ExtResource("4_space_font")
 outline_size = 4
 vertical_alignment = 0
@@ -132,7 +134,7 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -320.0
+offset_left = -420.0
 offset_top = -40.0
 offset_right = -20.0
 offset_bottom = -14.0
@@ -141,7 +143,7 @@ grow_vertical = 0
 theme_override_colors/font_color = Color(1, 1, 1, 0.4)
 theme_override_fonts/font = ExtResource("5_mono_font")
 theme_override_font_sizes/font_size = 13
-text = "[SPACE] Fast Forward  •  [ESC/ENTER] Skip"
+text = "[HOLD SPACE] Speed up  •  [ESC/ENTER] Skip"
 horizontal_alignment = 2
 
 [node name="MusicPlayer" type="AudioStreamPlayer" parent="." unique_id=2077258044]

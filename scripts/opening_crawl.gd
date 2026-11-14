@@ -22,12 +22,13 @@ signal crawl_finished
 	"without a fight. If he loses, he must withdraw his forces " +
 	"and leave their worlds in peace.\n\n" +
 	"The terms are clear. The next chapter of Earth's expansion " +
-	"will be decided one move at a time."
+	"will be decided one move at a time.\n\n" +
+	"The General has arrived at a new system to conquer..."
 )
 
 @export_group("Timing & Speed")
-## Duration in seconds for the yellow text crawl itself (runs for a full 20s on its own).
-@export var crawl_duration: float = 20.0
+## Duration in seconds for the yellow text crawl itself.
+@export var crawl_duration: float = 45.0
 ## Duration for the cyan intro text before disappearing. Set to 0 to skip intro.
 @export var intro_duration: float = 2.5
 
@@ -42,7 +43,7 @@ signal crawl_finished
 @export_file("*.tscn") var next_scene_path: String = "res://scenes/solar_system.tscn"
 @export var allow_skip: bool = true
 @export var allow_speedup: bool = true
-@export var speedup_multiplier: float = 2.5
+@export var speedup_multiplier: float = 8.0
 
 @export_group("Audio")
 @export var music_stream: AudioStream
@@ -144,7 +145,7 @@ func _process(delta: float) -> void:
 	if _is_completed:
 		return
 
-	# Fast-forward speedup multiplier if holding Space or Up
+	# Hold Space or Up to speed up the text; release to return to normal speed.
 	var current_speed: float = 1.0
 	if allow_speedup and (
 		Input.is_action_pressed("ui_select") or
@@ -153,7 +154,7 @@ func _process(delta: float) -> void:
 	):
 		current_speed = speedup_multiplier
 
-	# Advance crawl progression for the full 20 seconds on its own
+	# Advance the crawl over its configured duration.
 	if _is_crawl_active:
 		_elapsed_time += delta * current_speed
 		var progress: float = clampf(_elapsed_time / maxf(1.0, crawl_duration), 0.0, 1.0)
