@@ -313,7 +313,7 @@ shape = SubResource("CircleShape2D_ship")
 
 [node name="EngineThrusters" type="Node2D" parent="World/PlayerShip"]
 visible = false
-position = Vector2(-51, 23)
+position = Vector2(-39, 22)
 
 [node name="PortFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
 texture_filter = 1
@@ -327,7 +327,7 @@ vframes = 3
 
 [node name="StarboardFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
 texture_filter = 1
-position = Vector2(7, 12)
+position = Vector2(27, -14)
 rotation = 1.5707964
 scale = Vector2(0.55, 0.22)
 texture = ExtResource("12_thruster_texture")
@@ -337,7 +337,7 @@ hframes = 9
 vframes = 3
 
 [node name="ShipSprite" type="Sprite2D" parent="World/PlayerShip"]
-texture_filter = 2
+texture_filter = 1
 scale = Vector2(1.5, 1.5)
 texture = ExtResource("8_ship_texture")
 

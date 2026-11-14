@@ -80,6 +80,7 @@ enum ShipState {
 @onready var ship_node: CharacterBody2D = $World/PlayerShip
 @onready var ship_sprite: Sprite2D = $World/PlayerShip/ShipSprite
 @onready var engine_thrusters: Node2D = $World/PlayerShip/EngineThrusters
+@onready var _thruster_mount: Vector2 = engine_thrusters.position
 @onready var camera: Camera2D = $World/Camera2D
 @onready var starfield_rect: ColorRect = $StarfieldLayer/StarfieldBackground
 @onready var hud_control: Control = $HUDLayer/HUD
@@ -184,6 +185,7 @@ func _ready() -> void:
 		ship_node.rotation = Vector2.UP.angle()
 		_ship_velocity = _destination_velocity(_course_target) + Vector2.UP * radius * planet_orbit_rot_speed
 	ship_node.velocity = _ship_velocity
+	_update_ship_orientation()
 	$HUDLayer/HUD/Destinations/Routes/Kalypso.pressed.connect(_set_course.bind(0))
 	$HUDLayer/HUD/Destinations/Routes/Cinder.pressed.connect(_set_course.bind(ExpeditionState.CINDER))
 	if system_index != 0:
@@ -210,6 +212,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_ship_orientation()
 	_update_thrusters(delta)
 	_update_engine_audio(delta)
 	_sun_anim_time = fposmod(_sun_anim_time + delta, sun_rotation_duration)
@@ -331,6 +334,15 @@ func get_system_map_data() -> Array[Dictionary]:
 			"color": body.marker_color, "is_target": _course_target == body,
 		})
 	return bodies
+
+
+func _update_ship_orientation() -> void:
+	# Keep the side-view cockpit above the hull when the heading points left.
+	# Mirroring local Y preserves the nose direction and the flight controls.
+	var facing_left := Vector2.from_angle(ship_node.rotation).x < 0.0
+	ship_sprite.flip_v = facing_left
+	engine_thrusters.position.y = -_thruster_mount.y if facing_left else _thruster_mount.y
+	engine_thrusters.scale.y = -1.0 if facing_left else 1.0
 
 
 func _is_accelerating() -> bool:
