@@ -1250,7 +1250,7 @@ func _show_result() -> void:
 		_button(box, Rect2(31, 252, 620, 46), travel_title, _travel_to_next_system, true)
 	_button(box, Rect2(31, rematch_y, 620, 46), "Rematch", func(): _start(local_mode, true), not next_available)
 	_button(box, Rect2(31, footer_y, 620, 41), "View board", func(): _close_overlay(false))
-	_button(box, Rect2(31, footer_y + 57, 620, 41), "Return to planets", _show_departure)
+	_button(box, Rect2(31, footer_y + 57, 620, 41), "Return to planets", _leave_current_orbit)
 
 
 func _travel_to_next_system() -> void:
