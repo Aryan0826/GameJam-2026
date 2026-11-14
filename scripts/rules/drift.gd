@@ -1,10 +1,18 @@
 extends RefCounted
 ## Board geometry for Drift Circuit. Relays move after a claim.
 
-const TOTAL_TO_WIN := 8
+const TOTAL_TO_WIN := 10
 const ROUND_LIMIT := 12
 const CENTER := 0
 const SPLIT := 1
+
+
+static func total(state: Dictionary, side: int) -> int:
+	var points: int = state.drift.scores[side]
+	for pawn: Dictionary in state.pawns.values():
+		if pawn.side == side:
+			points += 1
+	return points
 
 
 static func relays(layout: int, mirrored: bool) -> Array[Vector2i]:

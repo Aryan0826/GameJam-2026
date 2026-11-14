@@ -8,7 +8,7 @@ File names describe how the game uses each clip. Edits are listed below. The Ken
 | --- | --- | --- | --- |
 | `art/audio/music/observing-the-star.ogg` | [ObservingTheStar.ogg](https://opengameart.org/content/another-space-background-track) by yd | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Menu, prologue and free flight loop |
 | `art/audio/music/my-very-own-dead-ship.ogg` | [MyVeryOwnDeadShip.ogg](https://opengameart.org/content/background-space-track) by yd | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Cockpit and both duels loop |
-| `art/audio/effects/rocket-thrust.ogg` | User-supplied `nasa-rocket-engine-30s.mp3` | Original publisher and license unverified | Thruster, boost, and orbital insertion. Source excerpt from 4.0–9.5 s, mixed to mono, high-pass filtered, and crossfaded into a 5 s loop. |
+| `art/audio/effects/rocket-thrust.ogg` | [spaceEngineLow_000.ogg](https://opengameart.org/content/sci-fi-sounds) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Unmodified five second engine clip, looped for thrust, boost and orbit entry. Replaces the supplied clip whose source was not confirmed. Kenney published this pack in 2020; its metadata identifies conventional GameSynth sound synthesis. |
 | `art/audio/effects/infected-trail.ogg` | [Bubbling Acid](https://opengameart.org/content/bubbling-acid) (`Acid Bubble.wav`) by spookymodem (Joseph Krebs in the file metadata) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Infected Trail. Trimmed to 1.55 s, faded in and out, and converted to Ogg Vorbis. |
 | `art/audio/effects/descent.ogg` | [doorOpen_001.ogg](https://kenney.nl/assets/sci-fi-sounds) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Orbital descent |
 | `art/audio/effects/transmission.ogg` | [computerNoise_002.ogg](https://kenney.nl/assets/sci-fi-sounds) by Kenney | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Comms typing |
@@ -43,11 +43,15 @@ File names describe how the game uses each clip. Edits are listed below. The Ken
 | `art/fonts/SpaceGrotesk.ttf` | [Space Grotesk](https://github.com/floriankarsten/space-grotesk) by Florian Karsten | [SIL OFL 1.1](art/fonts/OFL-SpaceGrotesk.txt) | Unmodified variable font, rendered at regular and bold weights |
 | `art/fonts/IBMPlexMono-Regular.ttf` | [IBM Plex Mono](https://github.com/IBM/plex) by IBM Corp. | [SIL OFL 1.1](art/fonts/OFL-IBMPlexMono.txt) | Unmodified regular font |
 
-The beveled landing pads are built with a mesh defined in `scripts/battle/board.gd`. The cockpit frame, ship telemetry graphs and gauges, patrol silhouette, envoy portrait, chart, cracks, status markers, and movement previews are drawn with Godot primitives. A copy of the asset credits is accessible from the game's footer.
+The beveled landing pads are built with a mesh defined in `scripts/battle/board.gd`. The cockpit frame, ship telemetry graphs and gauges, patrol silhouette, chart, cracks, status markers, and movement previews are drawn with Godot primitives. A copy of the asset credits is accessible from the game's footer.
 
 `art/guides/kalypso-movement-guide.png` and `art/guides/kalypso-capture-guide.png` are screenshots of the actual Godot board using the credited fleet meshes and font above. Arrows and markers show all 12 legal movement destinations or both forward captures in separate teaching positions. Rebuild them with `godot --path . --script tools/render_movement_guides.gd`. No AI-generated imagery is used.
 
-`art/results/characters.png`: unmodified [Sci-Fi RogueLike Pixel Art](https://opengameart.org/content/sci-fi-roguelike-pixel-art) character sheet by Emcee Flesher, used under the offered [CC0](https://creativecommons.org/publicdomain/zero/1.0/) option. Existing crew and alien sprites are selected with atlas regions and enlarged with nearest-neighbor filtering for Captain Valeria, Navigator Sol, envoys Lyra and Vesper, and the result lineups. Hologram scanlines and result spotlights use Godot primitives. No AI-generated artwork. See [source details](art/results/SOURCE.md).
+`art/guides/drift-movement-guide.png` and `art/guides/drift-capture-guide.png` use the same screenshot process on the real Drift Circuit board, with its gold relays and shifting lanes. Rebuild with `godot --path . --script tools/render_movement_guides.gd -- drift`. Models remain Kenney Space Kit (CC0); labels use IBM Plex Mono (SIL OFL 1.1). See [guide sources](art/guides/SOURCE.md).
+
+`scripts/battle/combat_feedback.gd` draws the red loss blink and green capture blink with Godot rectangles and animates a brief board shake. Optional controller vibration uses Godot's input API. These are project code effects with no external graphic, video, or audio files and no AI generated imagery. Existing capture and collapse audio retains the Kenney Sci-fi Sounds CC0 credits above. The FX setting disables the blink, shake, and controller vibration.
+
+`art/results/characters.png`: unmodified [Sci-Fi RogueLike Pixel Art](https://opengameart.org/content/sci-fi-roguelike-pixel-art) character sheet by Emcee Flesher, used under the offered [CC0](https://creativecommons.org/publicdomain/zero/1.0/) option. Existing crew and alien sprites are selected with atlas regions and enlarged with nearest-neighbor filtering for Captain Valeria, Navigator Sol, envoys Lyra and Vesper, the live board portrait, and the result lineups. Hologram scanlines and result spotlights use Godot primitives. No AI-generated artwork. See [source details](art/results/SOURCE.md).
 
 ## Supplied flight artwork
 
@@ -65,3 +69,14 @@ The project received these files without a source link or separate license notic
 `art/descent/star-flight.ogv` adapts [StarfieldSimulation.gif](https://commons.wikimedia.org/wiki/File:StarfieldSimulation.gif) by **Jahobr**, April 20, 2017, under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The author provides the original MATLAB rendering code. The existing animation is looped, resized, and encoded as a silent Ogg Theora video. It shows forward motion through white stars on black space. It is conventional animation, not camera footage or AI generated video.
 
 `art/descent/cockpit-frame.png` adapts [Space Shuttle Atlantis OV-104 main flight deck.png](https://commons.wikimedia.org/wiki/File:Space_Shuttle_Atlantis_OV-104_main_flight_deck.png) by **DMolybdenum / Daniel Molybdenum**, December 8, 2019. The author released the panorama as a Public Domain Work on Flickr, as recorded by Wikimedia Commons. Reprojected to a centered forward perspective, darkened, desaturated, and windows manually masked. Full provenance and adaptation details: [descent source record](art/descent/SOURCE.md).
+
+
+## Uncharted Wilds interface
+
+The title screen, window title, opening title, pause screen and Windows export use the name Uncharted Wilds. The Fractured Flag and Drift Circuit remain the two planet challenge names. Horizon remains the crew ship's name.
+
+The shared interface theme and pause menu use the existing [Space Grotesk by Florian Karsten](https://github.com/floriankarsten/space-grotesk) for readable text and [IBM Plex Mono by IBM](https://github.com/IBM/plex) for cockpit labels. Both are human designed typefaces, free under SIL OFL 1.1, with the original license notices bundled in `art/fonts`. No generated font images or letter shapes are used.
+
+The compact live alien portrait now uses the same Emcee Flesher sprite sheet as the story: Lyra for Kalypso and Vesper for Cinder. The earlier project drawn pink face is no longer shown. The pause panel and Coming soon labels use Godot controls and the credited fonts. No new graphic assets are used.
+
+Planet and space scenery files remain unchanged at the user's request. Their unresolved source entries above remain explicit; this update does not certify an unknown source as free or non AI.

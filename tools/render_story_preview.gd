@@ -50,7 +50,7 @@ func _run() -> void:
 			game.state.winner = winner
 			game.state.reason = ("drift_tie" if system == 2 else "round_cap") if winner < 0 else "relays" if system == 2 else "flag"
 			if system == 2:
-				game.state.drift.scores = [3, 3] if winner < 0 else [1, 3] if winner == 1 else [3, 1]
+				game.state.drift.scores = [5, 5] if winner < 0 else [3, 5] if winner == 1 else [5, 3]
 			game.state.round = 4
 			game._show_result()
 			await _capture(planet + ("-victory" if winner == 1 else "-defeat" if winner == 0 else "-draw"))
@@ -61,7 +61,7 @@ func _run() -> void:
 			game.state = game.state.duplicate(true)
 			game.state.winner = 1
 			game.state.reason = "relays"
-			game.state.drift.scores = [1, 3]
+			game.state.drift.scores = [3, 5]
 			game._show_result()
 			game._result_line = game._result_story.size() - 1
 			game._render_result_story()

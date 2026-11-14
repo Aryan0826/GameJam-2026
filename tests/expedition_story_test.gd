@@ -73,7 +73,7 @@ func _run() -> void:
 			game._advance_communication()
 			steps += 1
 		_check(game._communication_ready and not game._communication_local.disabled, "Every first-contact line can be read before accepting")
-		_check(game._terminal_screen.text.contains("Unproven") and game._terminal_screen.text.contains("8 total" if system == 2 else "3 enemy turns"), "The briefing gives the current win condition and loss consequence")
+		_check(game._terminal_screen.text.contains("Unproven") and game._terminal_screen.text.contains("10 points" if system == 2 else "3 enemy turns"), "The briefing gives the current win condition and loss consequence")
 		game._show_rules()
 		game._close_overlay()
 		_check(game._communication_ready, "Returning from How to play preserves a completed briefing")

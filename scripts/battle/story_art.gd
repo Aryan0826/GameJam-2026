@@ -7,6 +7,7 @@ var cinder := false
 var outcome := -1
 var lineup := false
 var motion := true
+var compact := false
 var elapsed := 0.0
 
 
@@ -39,6 +40,8 @@ func _draw() -> void:
 	var tint := Color("#ffc18c") if cinder and role == "envoy" else Color("#a0edb4") if role == "envoy" else Color("#83e1fa")
 	var center := size * Vector2(0.5, 0.47)
 	var side := floorf(minf(size.x * 0.78, size.y * 0.70) / 16) * 16
+	if compact:
+		side = floorf(minf(size.x * 0.8, size.y * 0.82) / 16) * 16
 	draw_rect(Rect2(Vector2.ZERO, size), Color("#0a1b22"))
 	draw_rect(Rect2(Vector2.ZERO, size), Color(tint, 0.35), false, 1)
 	for i in 5:

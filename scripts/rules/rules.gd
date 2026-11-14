@@ -141,9 +141,7 @@ static func _play_drift_turn(state: Dictionary, action: Dictionary, events: Arra
 			_event(events, "relay_relocated", "Relays moved · %s." % " / ".join(relocations))
 		_event(events, "drift_score", "Rows shifted · Aliens +%d / Crew +%d." % points)
 
-	var totals := [state.drift.scores[0], state.drift.scores[1]]
-	for pawn: Dictionary in state.pawns.values():
-		totals[pawn.side] += 1
+	var totals := [Drift.total(state, 0), Drift.total(state, 1)]
 	var reached_goal := [totals[0] >= Drift.TOTAL_TO_WIN, totals[1] >= Drift.TOTAL_TO_WIN]
 	if reached_goal[0] and reached_goal[1]:
 		_finish(state, -1, "drift_tie")

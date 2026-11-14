@@ -216,6 +216,7 @@ horizontal_alignment = 1
 
 [node name="Cinder" type="Node2D" parent="World/AdditionalPlanets"]
 script = ExtResource("14_orbiting_planet_script")
+challenge_available = true
 display_name = "CINDER"
 orbit_radius = 8600.0
 orbit_speed = 0.0115
@@ -342,6 +343,7 @@ scale = Vector2(1.5, 1.5)
 texture = ExtResource("8_ship_texture")
 
 [node name="Camera2D" type="Camera2D" parent="World"]
+process_callback = 0
 zoom = Vector2(0.65, 0.65)
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0

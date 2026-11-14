@@ -9,6 +9,8 @@ const Cockpit = preload("res://scripts/battle/cockpit.gd")
 const AbilityCards = preload("res://scripts/battle/ability_cards.gd")
 const AbilityHologram = preload("res://scripts/battle/ability_hologram.gd")
 const KalypsoGuide = preload("res://scripts/battle/kalypso_guide.gd")
+const DriftGuide = preload("res://scripts/battle/drift_guide.gd")
+const CombatFeedback = preload("res://scripts/battle/combat_feedback.gd")
 const Story = preload("res://scripts/core/expedition_story.gd")
 const StoryArt = preload("res://scripts/battle/story_art.gd")
 const ExpeditionState = preload("res://scripts/core/expedition.gd")
@@ -59,39 +61,7 @@ Shuffle once per round before moving or using a drafted ability. The cards shuff
 Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
 
 [color=#f8d587]CONTROLS[/color]
-Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
-
-const DRIFT_QUICK_START = """[color=#f8d587]TAKE YOUR TURN[/color]
-Aliens and Crew alternate one move or capture. Select one of your units, then choose a highlighted destination.
-
-[color=#f8d587]WATCH THE LANES[/color]
-After both sides act, every unit on row 4 moves one tile right and every unit on row 6 moves one tile left. Both rows wrap at the edges; row 5 stays put.
-
-[color=#f8d587]SCORE AND WIN[/color]
-After the shift, each occupied relay scores one point for its side, then moves to another column on its row. Your winning total is relay points plus surviving units.
-
-[color=#f8d587]CONTROLS[/color]
-Click a unit and a highlighted destination. Drag to rotate the board; use arrow keys and Enter to select. Esc clears a selection or closes help. Multiplayer / Computer switches Alien control on the next Alien turn."""
-
-const DRIFT_MOVEMENT = """[color=#f8d587]MOVE[/color]
-Move one tile orthogonally or diagonally. A two tile diagonal can jump over a unit. Select a unit to see its legal destinations.
-
-[color=#f8d587]CAPTURE[/color]
-Capture one tile diagonally forward. Aliens move down; Crew move up. Capturing removes the enemy unit.
-
-[color=#83e1fa]PLAN THE SHIFT[/color]
-On rows 4 and 6, a highlighted destination previews where your unit will land after the lane moves."""
-
-const DRIFT_SCORING = """[color=#f8d587]AFTER BOTH SIDES ACT[/color]
-Rows 4 and 6 shift, carrying their units with them. Relays score on their post-shift squares; row 5 does not move, but its relay can still score.
-
-[color=#f8d587]EARN POINTS[/color]
-Each occupied relay adds one point to its occupant’s side. A relay then relocates along the same row. Each relay can score once per round.
-
-[color=#f8d587]WIN OR DRAW[/color]
-Your total is relay points plus every unit you still have. Reach %d to win. If both sides reach the goal on the same shift, or nobody wins by round %d, the match is a draw.
-
-Rematches alternate between the Center and Split relay layouts."""
+Click a unit, choose an action, then click its target. Click and drag on the board to rotate and tilt the camera. Arrow keys move the board cursor and Enter selects. Esc pauses the game or closes help. In solo, Multiplayer switches alien control to Player 2; Computer returns control to the AI. Changes take effect on the next alien turn boundary."""
 
 @export var drift_circuit := false
 @onready var soundtrack: Node = get_node("/root/Soundtrack")
@@ -113,6 +83,7 @@ var mode_button: Button
 var takeover_button: Button
 var motion_button: Button
 var feedback: Label
+var combat_feedback: Control
 var signal_text: Label
 var beacon_label: Label
 var beacon_lamps: Array[Panel] = []
@@ -161,6 +132,7 @@ var _result_next: Button
 
 
 func _ready() -> void:
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	soundtrack.music("arena")
 	if not drift_circuit:
 		expedition.enter_system(0)
@@ -200,8 +172,10 @@ func _build_frame() -> void:
 	_label(chrome, Rect2(66, 42, 490, 46), "Drift Circuit" if drift_circuit else "The Fractured Flag", 36, INK, bold)
 	round_label = _label(chrome, Rect2(69, 91, 440, 23), "", 14, SOUTH, MONO)
 	_panel(chrome, Rect2(66, 124, 482, 87), Color(0.035, 0.068, 0.11, 0.95), LINE, 5)
-	var head := Cockpit.new()
-	head.envoy = true
+	var head := StoryArt.new()
+	head.name = "LiveEnvoyPortrait"
+	head.cinder = drift_circuit
+	head.compact = true
 	head.motion = false
 	_place(chrome, head, Rect2(75, 133, 78, 68))
 	_label(chrome, Rect2(163, 130, 370, 18), "ALIEN ENVOY  /  LIVE", 11, GOLD, MONO)
@@ -215,7 +189,7 @@ func _build_frame() -> void:
 	for lamp in beacon_lamps:
 		lamp.visible = not drift_circuit
 	mode_button = _button(chrome, Rect2(680, 811, 95, 31), "Solo", _show_modes)
-	takeover_button = _button(chrome, Rect2(783, 811, 150, 31), "Multiplayer" if drift_circuit else "Take Over Aliens", _takeover)
+	takeover_button = _button(chrome, Rect2(783, 811, 150, 31), "Multiplayer", _takeover)
 	_button(chrome, Rect2(941, 811, 104, 31), "How to play", _show_rules)
 	motion_button = _button(chrome, Rect2(1051, 811, 76, 31), "FX on", _toggle_motion)
 	feedback = _label(chrome, Rect2(72, 812, 590, 26), "", 14, GOLD)
@@ -238,6 +212,10 @@ func _build_frame() -> void:
 	ability_hologram = AbilityHologram.new()
 	_place(chrome, ability_hologram, Rect2(board.position, board.size))
 	ability_hologram.action_chosen.connect(_choose_hologram_action)
+	combat_feedback = CombatFeedback.new()
+	combat_feedback.name = "CombatFeedback"
+	combat_feedback.board = board
+	_place(self, combat_feedback, Rect2(0, 0, 1320, 850))
 	overlay = _layer(self)
 
 
@@ -433,7 +411,7 @@ func _render_terminal() -> void:
 		heading = "DEPARTURE CONFIRMED" if _communication_departing else "CHALLENGE BRIEFING"
 		visible_text = "Return to flight. You can come back whenever your crew is ready." if _communication_departing else Story.terms(expedition.current_system)
 		if not _communication_departing and expedition.standing(expedition.current_system) == "allied":
-			visible_text = "Friendly rematch. Your alliance is secure, whatever the result.\n\n" + ("Reach 8 total: relay points + surviving ships." if drift_circuit else "Hold the flag through 3 enemy turns, or eliminate their fleet.")
+			visible_text = "Friendly rematch. Your alliance is secure, whatever the result.\n\n" + ("Reach %d points: relay points + surviving ships." % Drift.TOTAL_TO_WIN if drift_circuit else "Hold the flag through 3 enemy turns, or eliminate their fleet.")
 	var transcript := "[font_size=15][color=%s]%s[/color][/font_size]\n\n%s" % [message.color, heading, visible_text]
 	if _terminal_screen.text != transcript:
 		_terminal_screen.text = transcript
@@ -539,6 +517,7 @@ func _show_story() -> void:
 
 
 func _start(local: bool, rematch: bool = false) -> void:
+	combat_feedback.stop()
 	generation += 1
 	soundtrack.stop_cue("shuffle")
 	shuffling = false
@@ -582,10 +561,7 @@ func _start(local: bool, rematch: bool = false) -> void:
 func _enter_turn() -> void:
 	legal = Rules.legal_actions(state)
 	if state.phase == "playing" and state.active == 0 and takeover_queued:
-		if drift_circuit:
-			local_mode = not local_mode
-		else:
-			local_mode = true
+		local_mode = not local_mode
 		takeover_queued = false
 		_note("Aliens are now controlled by Player 2." if local_mode else "Aliens are now controlled by the computer.")
 	_refresh()
@@ -606,7 +582,7 @@ func _schedule_action(action: Dictionary, delay: float) -> void:
 	busy = true
 	var stamp := generation
 	_refresh()
-	await get_tree().create_timer(delay).timeout
+	await get_tree().create_timer(delay, false).timeout
 	if stamp != generation:
 		return
 	busy = false
@@ -630,7 +606,7 @@ func _commit(action: Dictionary) -> void:
 			card_reveal.start_shuffle()
 		_refresh()
 		if motion:
-			await get_tree().create_timer(AbilityCards.SHUFFLE_TIME + AbilityCards.FLIP_TIME / 2).timeout
+			await get_tree().create_timer(AbilityCards.SHUFFLE_TIME + AbilityCards.FLIP_TIME / 2, false).timeout
 			if stamp != generation:
 				return
 			soundtrack.stop_cue("shuffle")
@@ -645,6 +621,7 @@ func _commit(action: Dictionary) -> void:
 	var was_draft: bool = state.phase == "draft"
 	var played_round: int = state.round
 	var shifting: bool = result.events.any(func(event: Dictionary): return event.kind == "drift_score")
+	_show_combat_feedback(state, result.state, result.events)
 	state = result.state
 	records.append(action.duplicate(true))
 	var rolled: bool = action.kind == "roll"
@@ -677,7 +654,7 @@ func _commit(action: Dictionary) -> void:
 		card_reveal.reveal(state.dice[state.active])
 		_refresh()
 		if card_reveal.visible:
-			await get_tree().create_timer(AbilityCards.FLIP_TIME / 2 + AbilityCards.REVEAL_HOLD).timeout
+			await get_tree().create_timer(AbilityCards.FLIP_TIME / 2 + AbilityCards.REVEAL_HOLD, false).timeout
 			if stamp != generation:
 				return
 		card_reveal.hide()
@@ -695,11 +672,16 @@ func _commit(action: Dictionary) -> void:
 	var turn_delay := 0.65 if motion else 0.10
 	if motion and shifting:
 		turn_delay = Arena.DRIFT_DELAY + Arena.DRIFT_DURATION + 0.15
-	await get_tree().create_timer(turn_delay).timeout
+	await get_tree().create_timer(turn_delay, false).timeout
 	if stamp != generation:
 		return
 	busy = false
 	_enter_turn()
+
+
+func _show_combat_feedback(before: Dictionary, after: Dictionary, events: Array) -> void:
+	var view_side: int = before.active if local_mode else 1
+	combat_feedback.respond(before, after, events, view_side, motion)
 
 
 func _play_action_audio(events: Array) -> void:
@@ -751,18 +733,17 @@ func _play_action_audio(events: Array) -> void:
 
 
 func _takeover() -> void:
-	if state.phase != "playing" or takeover_queued or (local_mode and not drift_circuit):
+	if state.phase != "playing" or takeover_queued:
 		return
 	takeover_queued = true
-	if drift_circuit:
-		_note("Computer control will resume on the next Alien turn." if local_mode else "Multiplayer will begin on the next Alien turn.")
-	else:
-		_note("Takeover queued for the next Alien turn.")
+	_note("Computer control will resume on the next Alien turn." if local_mode else "Multiplayer will begin on the next Alien turn.")
 	_refresh()
 
 
 func _toggle_motion() -> void:
 	motion = not motion
+	if not motion:
+		combat_feedback.stop()
 	board.motion = motion
 	cockpit.motion = motion
 	motion_button.text = "FX on" if motion else "FX off"
@@ -771,7 +752,7 @@ func _toggle_motion() -> void:
 func _note(value: String) -> void:
 	feedback.text = value
 	var msg := value
-	get_tree().create_timer(4.0).timeout.connect(func():
+	get_tree().create_timer(4.0, false).timeout.connect(func():
 		if feedback.text == msg:
 			feedback.text = "")
 
@@ -801,14 +782,11 @@ func _refresh() -> void:
 			flag_status = "STOLEN UNIT  /  NO SCORE"
 		status_label.text = "BEACON  %s     /     %s" % [_coord(state.flag), flag_status]
 	mode_button.text = "Local" if local_mode else "Solo"
-	takeover_button.disabled = draft or (local_mode and not drift_circuit) or takeover_queued or state.phase != "playing"
-	if drift_circuit:
-		if takeover_queued:
-			takeover_button.text = "Bot queued" if local_mode else "MP queued"
-		else:
-			takeover_button.text = "Computer" if local_mode else "Multiplayer"
+	takeover_button.disabled = draft or takeover_queued or state.phase != "playing"
+	if takeover_queued:
+		takeover_button.text = "Bot queued" if local_mode else "MP queued"
 	else:
-		takeover_button.text = "Takeover queued" if takeover_queued else "Take Over Aliens"
+		takeover_button.text = "Computer" if local_mode else "Multiplayer"
 	_clear(side_panel)
 	if draft:
 		_draw_draft()
@@ -1006,7 +984,8 @@ func _draw_drift_play() -> void:
 	_team_card(1067, 148, 1)
 	_panel(side_panel, Rect2(846, 238, 430, 108))
 	_label(side_panel, Rect2(864, 249, 394, 22), "WIN CONDITION", 12, LILAC, MONO)
-	_label(side_panel, Rect2(864, 273, 394, 32), "Points + units = 8 to win.", 21, GOLD, bold)
+	_label(side_panel, Rect2(864, 273, 394, 32), "%d points to win." % Drift.TOTAL_TO_WIN, 21, GOLD, bold)
+	_label(side_panel, Rect2(864, 307, 394, 27), "+1 per relay. Lose a ship, lose 1 point.", 14, MUTED)
 	_panel(side_panel, Rect2(846, 359, 430, 225))
 	_label(side_panel, Rect2(864, 371, 394, 56), _action_hint(), 16, INK, SANS, true)
 	_label(side_panel, Rect2(864, 488, 390, 70), "Claimed relays jump to a new square on the same row. Hover over a highlighted move to preview its landing.", 16, MUTED, SANS, true)
@@ -1048,16 +1027,12 @@ func _team_card(x: float, y: float, side: int) -> void:
 	for pawn: Dictionary in state.pawns.values():
 		if pawn.side == side:
 			count += 1
-	var summary := "%d PTS  /  %d UNITS" % [state.drift.scores[side], count] if drift_circuit else "%d UNITS IN PLAY" % count
+	var summary := "%d POINTS" % _drift_total(side) if drift_circuit else "%d UNITS IN PLAY" % count
 	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), summary, 13, MUTED, MONO)
 
 
 func _drift_total(side: int) -> int:
-	var total: int = state.drift.scores[side]
-	for pawn: Dictionary in state.pawns.values():
-		if pawn.side == side:
-			total += 1
-	return total
+	return Drift.total(state, side)
 
 
 func _shuffle_ability() -> void:
@@ -1248,6 +1223,7 @@ func _coord(p: Vector2i) -> String:
 
 
 func _modal(kind: String, title: String, height: float = 520) -> Panel:
+	combat_feedback.stop()
 	_clear(overlay)
 	overlay_kind = kind
 	var dim := ColorRect.new()
@@ -1281,23 +1257,20 @@ func _show_drift_guide(page: int) -> void:
 	var box := _modal("rules", "Drift Circuit · How to play", 740)
 	_panel(box, Rect2(31, 89, 620, 83), Color("#192a32"), LINE, 4)
 	_label(box, Rect2(45, 94, 590, 20), "GOAL", 12, GOLD, MONO)
-	_label(box, Rect2(45, 116, 590, 50), "Reach %d total points: relay scores plus surviving units." % Drift.TOTAL_TO_WIN, 19, INK, SANS, true)
-	var tabs := ["Quick start", "Movement", "Scoring"]
+	_label(box, Rect2(45, 116, 590, 50), DriftGuide.OBJECTIVE % Drift.TOTAL_TO_WIN, 19, INK, SANS, true)
+	var tabs := ["Quick start", "Moves", "Scoring"]
 	for index in tabs.size():
 		var tab := _button(box, Rect2(31 + index * 210, 185, 200, 36), tabs[index], _show_drift_guide.bind(index), page == index)
 		tab.name = "GuideTab%d" % index
 	if page == 0:
-		_rich(box, Rect2(31, 238, 620, 418), DRIFT_QUICK_START, 18)
+		_rich(box, Rect2(31, 238, 620, 418), DriftGuide.QUICK_START % Drift.TOTAL_TO_WIN, 18)
 	elif page == 1:
-		_rich(box, Rect2(31, 235, 620, 104), DRIFT_MOVEMENT, 17)
-		_drift_guide_lane(box, 349, 4)
-		_drift_guide_lane(box, 485, 6)
-		_rich(box, Rect2(31, 624, 620, 38), "Arrow keys move the board cursor; Enter selects. Hover over a highlighted move to preview the shift.", 14)
+		_show_guide_moves(box, true)
 	else:
-		_rich(box, Rect2(31, 238, 620, 298), DRIFT_SCORING % [Drift.TOTAL_TO_WIN, Drift.ROUND_LIMIT], 17)
-		var titles: Array[String] = ["RELAY", "FLEET", "LIMIT"]
-		var values: Array[String] = ["+1", "+1", "%d / %d" % [Drift.TOTAL_TO_WIN, Drift.ROUND_LIMIT]]
-		var details: Array[String] = ["per occupied relay", "per surviving unit", "goal / round cap"]
+		_rich(box, Rect2(31, 238, 620, 298), DriftGuide.SCORING % [Drift.TOTAL_TO_WIN, Drift.ROUND_LIMIT], 17)
+		var titles: Array[String] = ["RELAY CLAIM", "SHIP CAPTURED", "WINNING SCORE"]
+		var values: Array[String] = ["+1", "−1", str(Drift.TOTAL_TO_WIN)]
+		var details: Array[String] = ["point after the shift", "point for the lost ship", "points to win"]
 		for index in titles.size():
 			var x := 31 + index * 210
 			_panel(box, Rect2(x, 550, 200, 106), Color("#192a32"), LINE, 5)
@@ -1305,16 +1278,6 @@ func _show_drift_guide(page: int) -> void:
 			_label(box, Rect2(x + 12, 577, 176, 34), values[index], 25, INK, bold)
 			_label(box, Rect2(x + 12, 614, 176, 31), details[index], 13, MUTED, SANS, true)
 	_button(box, Rect2(31, 680, 620, 41), "Back to game" if not state.is_empty() else "Back", _close_overlay)
-
-
-func _drift_guide_lane(parent: Node, y: float, row: int) -> void:
-	var rightward := row == 4
-	var arrows := "A → B → C → D → E → F → G → H → I → A" if rightward else "A ← B ← C ← D ← E ← F ← G ← H ← I ← A"
-	var direction_text := "SHIFTS RIGHT · WRAPS I TO A" if rightward else "SHIFTS LEFT · WRAPS A TO I"
-	_panel(parent, Rect2(31, y, 620, 126), Color("#192a32"), LINE, 5)
-	_label(parent, Rect2(46, y + 9, 590, 18), "ROW %d  /  %s" % [row, direction_text], 12, GOLD, MONO)
-	_label(parent, Rect2(46, y + 36, 590, 30), arrows, 15, INK, MONO)
-	_label(parent, Rect2(46, y + 76, 590, 36), "Every unit on this row rides with the tiles after both sides act.", 14, MUTED, SANS, true)
 
 
 func _show_kalypso_guide(page: int) -> void:
@@ -1329,25 +1292,30 @@ func _show_kalypso_guide(page: int) -> void:
 	if page == 0:
 		_rich(box, Rect2(31, 238, 620, 418), KalypsoGuide.QUICK_START, 18)
 	elif page == 1:
-		var examples := [
-			["MOVE", "res://art/guides/kalypso-movement-guide.png", KalypsoGuide.MOVEMENT],
-			["CAPTURE", "res://art/guides/kalypso-capture-guide.png", KalypsoGuide.CAPTURES],
-		]
-		for index in examples.size():
-			var x := 31 + index * 320
-			_label(box, Rect2(x, 235, 300, 24), examples[index][0], 15, SOUTH if index == 0 else NORTH, MONO)
-			var screenshot := TextureRect.new()
-			screenshot.name = "MovementScreenshot" if index == 0 else "CaptureScreenshot"
-			screenshot.texture = load(examples[index][1])
-			screenshot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			screenshot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			screenshot.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			_place(box, screenshot, Rect2(x, 266, 300, 259))
-			_rich(box, Rect2(x, 535, 300, 91), examples[index][2], 16)
-		_rich(box, Rect2(31, 632, 620, 38), "Enter the flag from an adjacent tile or by capture. Click a ship to see legal targets; drag the board to rotate.", 14)
+		_show_guide_moves(box, false)
 	else:
 		_rich(box, Rect2(31, 238, 620, 425), KalypsoGuide.ABILITIES, 17)
 	_button(box, Rect2(31, 680, 620, 41), "Back to game" if not state.is_empty() else "Back", _close_overlay)
+
+
+func _show_guide_moves(box: Panel, drift: bool) -> void:
+	var examples := [
+		["MOVE", "res://art/guides/drift-movement-guide.png" if drift else "res://art/guides/kalypso-movement-guide.png", DriftGuide.MOVEMENT if drift else KalypsoGuide.MOVEMENT],
+		["CAPTURE", "res://art/guides/drift-capture-guide.png" if drift else "res://art/guides/kalypso-capture-guide.png", DriftGuide.CAPTURES if drift else KalypsoGuide.CAPTURES],
+	]
+	for index in examples.size():
+		var x := 31 + index * 320
+		_label(box, Rect2(x, 235, 300, 24), examples[index][0], 15, SOUTH if index == 0 else NORTH, MONO)
+		var screenshot := TextureRect.new()
+		screenshot.name = "MovementScreenshot" if index == 0 else "CaptureScreenshot"
+		screenshot.texture = load(examples[index][1])
+		screenshot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		screenshot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		screenshot.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		_place(box, screenshot, Rect2(x, 266, 300, 259))
+		_rich(box, Rect2(x, 535, 300, 91), examples[index][2], 16)
+	var footer := DriftGuide.LANES if drift else "Enter the flag from an adjacent tile or by capture. Click a ship to see legal targets; drag the board to rotate."
+	_rich(box, Rect2(31, 632, 620, 38), footer, 14)
 
 
 func _show_credits() -> void:
@@ -1355,10 +1323,12 @@ func _show_credits() -> void:
 	var audio_list := _rich(box, Rect2(31, 92, 620, 317), "[color=#f8d587]COCKPIT AND SYSTEM[/color]\n[url=https://kenney.nl/assets/space-kit]Space Kit · Kenney · CC0[/url]\n[url=https://opengameart.org/content/spaceship-interior-0]Spaceship Interior · cheerful sprite · CC0[/url]\n[url=https://screamingbrainstudios.itch.io/tiny-planet-pack]Tiny Planet Pack · Screaming Brain Studios · CC0[/url]\n[url=https://opengameart.org/content/sideview-sci-fi-patreon-collection]Horizon sprite · Luis Zuno (Ansimuz) · CC0[/url]\n[url=https://klenchandrei.itch.io/exhaust-free]Rocket exhaust · KlenchAndrei · CC0[/url]\n[url=https://opengameart.org/content/sci-fi-roguelike-pixel-art]Result portraits · Emcee Flesher · CC0[/url]\n[url=https://github.com/halfmage/pixelarticons/tree/v1.8.1]Ability icons · Gerrit Halfmann · MIT[/url]\n\n[color=#f8d587]WESTERLUND 2[/color]\n[url=" + IMAGE_URL + "]" + IMAGE_CREDIT + "[/url]\nHubble observation. CC BY 4.0. Cropped and tinted.\n\n[color=#f8d587]TYPE[/color]\n[url=https://github.com/floriankarsten/space-grotesk]Space Grotesk · Florian Karsten[/url]\n[url=https://github.com/IBM/plex]IBM Plex Mono · IBM Corp.[/url]\nBoth SIL Open Font License 1.1.")
 	_button(box, Rect2(31, 427, 620, 41), "Back", _close_overlay)
 	audio_list.append_text("\n\n[color=#f8d587]AUDIO[/color]\n[url=https://opengameart.org/content/another-space-background-track]Observing the Star · yd · CC0[/url]\n[url=https://opengameart.org/content/background-space-track]My Very Own Dead Ship · yd · CC0[/url]\n[url=https://kenney.nl/assets/sci-fi-sounds]Sci-fi Sounds[/url], [url=https://kenney.nl/assets/interface-sounds]Interface Sounds[/url], [url=https://kenney.nl/assets/casino-audio]Casino Audio[/url] and [url=https://kenney.nl/assets/music-jingles]Music Jingles[/url] · Kenney · CC0.")
-	audio_list.append_text("\n[url=https://opengameart.org/content/bubbling-acid]Bubbling Acid · spookymodem · CC BY 3.0[/url] (trimmed and faded)\nRocket thrust · supplied MP3 · trimmed and looped")
+	audio_list.append_text("\n[url=https://opengameart.org/content/bubbling-acid]Bubbling Acid · spookymodem · CC BY 3.0[/url] (trimmed and faded)\nEngine sound · Kenney · CC0 · spaceEngineLow_000.ogg")
 	audio_list.append_text("\n\n[color=#f8d587]CREW & ENVOYS[/color]\n[url=https://opengameart.org/content/sci-fi-roguelike-pixel-art]Sci-Fi RogueLike Pixel Art · Emcee Flesher · CC0[/url]\nOriginal pixel characters, scaled with nearest-neighbor filtering. Hologram scanlines and result spotlights use Godot primitives. No AI-generated artwork.")
 
 	audio_list.append_text("\n\n[color=#f8d587]DESCENT SEQUENCE[/color]\n[url=https://commons.wikimedia.org/wiki/File:StarfieldSimulation.gif]Starfield Simulation · Jahobr · CC0 · 2017[/url]\nOriginal star animation looped and converted to video.\n[url=https://commons.wikimedia.org/wiki/File:Space_Shuttle_Atlantis_OV-104_main_flight_deck.png]Atlantis flight deck · DMolybdenum · Public domain[/url]\nPanorama reprojected to a centered forward view, darkened, and windows masked. No AI generated assets.")
+
+	audio_list.append_text("\n\n[color=#f8d587]GUIDES AND COMBAT FEEDBACK[/color]\nGuide images are screenshots of our boards using the credited Kenney models. Arrows, red loss blinks, green capture blinks, and board shake are drawn and animated with Godot primitives. No AI generated assets.")
 
 
 func _show_map() -> void:
@@ -1431,7 +1401,7 @@ func _copy_replay() -> void:
 	}
 	if drift_circuit:
 		replay["mode"] = "drift"
-		replay["rules_version"] = 5
+		replay["rules_version"] = 6
 		replay["layout"] = state.drift.layout
 		replay["bot_focus"] = state.drift.focus
 	DisplayServer.clipboard_set(JSON.stringify(replay))
@@ -1471,9 +1441,9 @@ func _show_story_result(already_allied: bool) -> void:
 		"round_cap":
 			description = "Neither side won within 8 rounds."
 		"relays":
-			description = "Relay points + surviving ships reached 8 after the shift."
+			description = "The winning side reached %d points after the shift." % Drift.TOTAL_TO_WIN
 		"drift_tie":
-			description = "Both sides reached 8 on the same shift."
+			description = "Both sides reached %d points on the same shift." % Drift.TOTAL_TO_WIN
 		"drift_limit":
 			description = "Neither side won within 12 rounds."
 	if local_mode and state.winner >= 0 and not drift_circuit:

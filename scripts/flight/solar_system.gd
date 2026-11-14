@@ -118,6 +118,8 @@ var _star_name: String = "SOLAR CORE"
 var _star_color: Color = Color(1.0, 0.85, 0.2)
 var _course_target: Node2D
 var _orbit_target: Node2D
+var _hud_elapsed := 0.0
+var _previous_camera_position := Vector2.ZERO
 var _engine_sound: AudioStreamPlayer
 
 
@@ -191,10 +193,17 @@ func _ready() -> void:
 	if system_index != 0:
 		cinder.gravity_boundary.set("capture_radius", 0.0)
 		cinder.gravity_boundary.set("stable_orbit_radius", 0.0)
+	ship_node.reset_physics_interpolation()
+	planet_node.reset_physics_interpolation()
+	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	camera.process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS
+	camera.position_smoothing_enabled = false
 	camera.position = ship_node.position
+	_previous_camera_position = camera.position
 	var initial_zoom := lerpf(camera_cruise_zoom, camera_fast_zoom, clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0))
 	camera.zoom = Vector2.ONE * initial_zoom
 	camera.reset_smoothing()
+	camera.reset_physics_interpolation()
 
 	# Initial UI states
 	if orbit_hud:
@@ -212,7 +221,6 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	_update_ship_orientation()
 	_update_thrusters(delta)
 	_update_engine_audio(delta)
 	_sun_anim_time = fposmod(_sun_anim_time + delta, sun_rotation_duration)
@@ -220,24 +228,12 @@ func _process(delta: float) -> void:
 	_update_body_rotation(sun_sprite, _sun_anim_time / sun_rotation_duration)
 	_update_body_rotation(planet_sprite, _planet_anim_time / planet_rotation_duration)
 
-	# Smooth camera follow and dynamic velocity-based zoom
-	if camera and ship_node:
-		camera.position = ship_node.position
-		var speed_ratio = clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0)
-		var target_zoom = lerpf(camera_cruise_zoom, camera_fast_zoom, speed_ratio)
-		camera.zoom = camera.zoom.lerp(Vector2(target_zoom, target_zoom), 2.2 * delta)
 
 	# Starfield parallax
 	if starfield_rect and starfield_rect.material is ShaderMaterial:
-		starfield_rect.material.set_shader_parameter("camera_offset", ship_node.position)
+		var view_position := _previous_camera_position.lerp(camera.position, Engine.get_physics_interpolation_fraction())
+		starfield_rect.material.set_shader_parameter("camera_offset", view_position)
 
-	# Redraw custom visual components
-	if sun_glow:
-		sun_glow.queue_redraw()
-	if planet_zone:
-		planet_zone.queue_redraw()
-	if minimap:
-		minimap.queue_redraw()
 
 	_update_hud(delta)
 
@@ -269,6 +265,7 @@ func _update_body_rotation(sprite: Sprite2D, progress: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_previous_camera_position = camera.position
 	# 1. Update Planet's orbit around the Sun
 	_update_planet_position(delta)
 	for child in additional_planets.get_children():
@@ -285,6 +282,13 @@ func _physics_process(delta: float) -> void:
 			_process_in_orbit(delta)
 		ShipState.TRANSITIONING:
 			_process_transitioning(delta)
+
+	_update_ship_orientation()
+	# Update the camera on the same physics clock as the ship. Godot interpolates both.
+	camera.position = ship_node.position
+	var speed_ratio := clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0)
+	var target_zoom := lerpf(camera_cruise_zoom, camera_fast_zoom, speed_ratio)
+	camera.zoom = camera.zoom.lerp(Vector2.ONE * target_zoom, 1.0 - exp(-2.2 * delta))
 
 
 func _update_planet_position(delta: float) -> void:
@@ -657,33 +661,35 @@ func _show_orbit_hud(visible_state: bool) -> void:
 		tween.tween_callback(func(): orbit_hud.visible = false)
 
 
-func _update_hud(_delta: float) -> void:
+func _update_hud(delta: float) -> void:
 	if not ship_node:
 		return
 
-	var dist_sun = ship_node.position.distance_to(sun_node.position)
-	var dist_planet := ship_node.position.distance_to(_course_target.position)
-	var speed_val = _ship_velocity.length()
+	_hud_elapsed += delta
+	if delta == 0.0 or _hud_elapsed >= 0.1:
+		_hud_elapsed = fmod(_hud_elapsed, 0.1)
+		var dist_sun = ship_node.position.distance_to(sun_node.position)
+		var dist_planet := ship_node.position.distance_to(_course_target.position)
+		var speed_val = _ship_velocity.length()
 
-	if speed_label:
-		speed_label.text = "VELOCITY: %d KM/S   THROTTLE: %d%%" % [int(speed_val), int(_throttle * 100.0)]
-	if dist_sun_label:
-		dist_sun_label.text = "%s: %d KM" % [_star_name, int(dist_sun)]
-	if dist_planet_label:
-		var destination := ExpeditionState.CINDER if _course_target == cinder else system_index
-		var standing: String = expedition.standing(destination)
-		var tag := " / " + ("ALLY" if standing == "allied" else "UNPROVEN") if standing != "unknown" else ""
-		dist_planet_label.text = "%s: %d KM%s" % [_destination_name(_course_target), int(dist_planet), tag]
-	var local_gravity := "SOLAR"
-	var nearest_ratio := 1.0
-	for body_data in get_system_map_data():
-		var body_position: Vector2 = body_data.position
-		var ratio: float = ship_node.global_position.distance_to(body_position) / float(body_data.gravity_radius)
-		if ratio < nearest_ratio:
-			nearest_ratio = ratio
-			local_gravity = body_data.name
-	gravity_status_label.text = "GRAVITY: %s" % local_gravity
-
+		if speed_label:
+			speed_label.text = "VELOCITY: %d KM/S   THROTTLE: %d%%" % [int(speed_val), int(_throttle * 100.0)]
+		if dist_sun_label:
+			dist_sun_label.text = "%s: %d KM" % [_star_name, int(dist_sun)]
+		if dist_planet_label:
+			var destination := ExpeditionState.CINDER if _course_target == cinder else system_index
+			var standing: String = expedition.standing(destination)
+			var tag := " / " + ("ALLY" if standing == "allied" else "UNPROVEN") if standing != "unknown" else ""
+			dist_planet_label.text = "%s: %d KM%s" % [_destination_name(_course_target), int(dist_planet), tag]
+		var local_gravity := "SOLAR"
+		var nearest_ratio := 1.0
+		for body_data in get_system_map_data():
+			var body_position: Vector2 = body_data.position
+			var ratio: float = ship_node.global_position.distance_to(body_position) / float(body_data.gravity_radius)
+			if ratio < nearest_ratio:
+				nearest_ratio = ratio
+				local_gravity = body_data.name
+		gravity_status_label.text = "GRAVITY: %s" % local_gravity
 	_update_tracking_marker(sun_pointer, sun_node.global_position, _star_color)
 	var tracking_cinder := _course_target == cinder
 	var tint := cinder.marker_color if tracking_cinder else Color(0.3, 0.85, 1.0)
