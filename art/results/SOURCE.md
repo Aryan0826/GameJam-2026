@@ -1,4 +1,4 @@
-# Crew and alien result artwork
+# Crew, envoy, and result artwork
 
 Sci-Fi RogueLike Pixel Art by Emcee Flesher.
 Source: https://opengameart.org/content/sci-fi-roguelike-pixel-art
@@ -8,3 +8,5 @@ The source offers CC0 and OGA-BY 3.0; this project uses the CC0 option.
 CC0: https://creativecommons.org/publicdomain/zero/1.0/
 
 characters.png is the unmodified source sheet. Godot AtlasTextures select existing 16 x 16 characters: crew at (0,0) and (0,16); aliens at (16,0) and (32,0). Nearest-neighbor scaling preserves their original pixels. No AI-generated artwork.
+
+Story roles use these existing characters without repainting: Captain Valeria (blue suit), Navigator Sol (white suit), Kalypso envoy Lyra (green alien), and Cinder envoy Vesper (purple alien). Names and dialogue are project writing. Hologram scanlines, platforms, stars, and result spotlights are Godot drawing primitives in `scripts/battle/story_art.gd`; no image-generation tools or generated assets are used.
