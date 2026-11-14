@@ -2,6 +2,7 @@ extends Control
 ## Fixed camera layers for the windshield and the rover's dashboard.
 
 const PHOTO = preload("res://art/westerlund-2.jpg")
+const ExpeditionState = preload("res://scripts/expedition.gd")
 const PLANET = preload("res://art/cockpit/planet.png")
 const MOON = preload("res://art/cockpit/moon.png")
 const GIANT = preload("res://art/cockpit/giant.png")
@@ -15,6 +16,8 @@ const AQUA = Color("#81eada")
 const AMBER = Color("#f0b17b")
 const EDGE = Color("#677684")
 
+@onready var expedition: ExpeditionState = get_node("/root/Expedition")
+
 var mode := "approach"
 var clearance := ""
 var motion := true
@@ -23,15 +26,41 @@ var alert := 0.0
 var stars: PackedVector2Array
 var map_only := false
 var envoy := false
+var _planet_art: Texture2D = PLANET
+var _star_art: Texture2D = STAR
+var _planet_color: Color = Color("#eedcfa")
+var _star_color: Color = Color("#ffcfac")
+var _star_line_color: Color = Color(1.0, 0.66, 0.39, 0.30)
+var _planet_name: String = "KALYPSO"
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if not envoy:
+		_configure_system_art()
 	var random := RandomNumberGenerator.new()
 	random.seed = 3016
 	for i in 100:
 		stars.append(Vector2(random.randi_range(34, 1280), random.randi_range(24, 490)))
+
+
+func _configure_system_art() -> void:
+	var system_data: Dictionary = expedition.current_system_data()
+	_planet_name = system_data.planet_name
+	if str(system_data.planet_art).is_empty():
+		return
+	var planet_frame := AtlasTexture.new()
+	planet_frame.atlas = load(str(system_data.planet_art)) as Texture2D
+	planet_frame.region = Rect2(0, 0, 250, 250)
+	_planet_art = planet_frame
+	var star_frame := AtlasTexture.new()
+	star_frame.atlas = load(str(system_data.star_art)) as Texture2D
+	star_frame.region = Rect2(0, 0, 500, 500)
+	_star_art = star_frame
+	_planet_color = Color.WHITE
+	_star_color = Color.WHITE
+	_star_line_color = Color(system_data.star_color, 0.3)
 
 
 func _process(delta: float) -> void:
@@ -62,8 +91,8 @@ func _draw() -> void:
 
 	var drift := Vector2(roundf(sin(time * 0.23) * 10), roundf(cos(time * 0.19) * 6))
 	var star_pos := Vector2(696, 89) if active else Vector2(631, 130)
-	_body(STAR, star_pos + drift * 0.3, 37 if active else 60, Color("#ffcfac"))
-	draw_line(star_pos + Vector2(-29, 0), star_pos + Vector2(29, 0), Color(1.0, 0.66, 0.39, 0.30), 1)
+	_body(_star_art, star_pos + drift * 0.3, 37 if active else 60, _star_color)
+	draw_line(star_pos + Vector2(-29, 0), star_pos + Vector2(29, 0), _star_line_color, 1)
 	_ringed(Vector2(1130, 96 if active else 143) + drift * 0.45, 52 if active else 89)
 	_body(OUTER, Vector2(842, 64 if active else 102) - drift * 0.15, 19 if active else 34, Color("#b4c7ff"))
 
@@ -72,7 +101,7 @@ func _draw() -> void:
 	var diameter := 270.0 if active else 440.0
 	for i in range(4, 0, -1):
 		draw_arc(center, diameter * 0.493 + 4 * i, -PI, 0.17, 90, Color(0.76, 0.37, 0.92, 0.055 * (5 - i)), 2)
-	_body(PLANET, center, diameter, Color("#eedcfa"))
+	_body(_planet_art, center, diameter, _planet_color)
 	draw_arc(center, diameter * 0.493, -2.8, -0.34, 90, Color(1.0, 0.54, 0.86, 0.52), 2)
 	_body(MOON, center + Vector2(-193, -74) if not active else center + Vector2(-157, -59), 68 if not active else 43, Color("#bccbe5"))
 	_windshield(horizon)
@@ -182,8 +211,8 @@ func _draw_map() -> void:
 			var angle := step * TAU / 96
 			orbit.append(origin + Vector2(cos(angle), sin(angle) * 0.38) * i)
 		draw_polyline(orbit, Color("#40556d"), 1, true)
-	_body(STAR, origin, 49)
-	_body(PLANET, origin + Vector2(-91, -25), 42)
+	_body(_star_art, origin, 49)
+	_body(_planet_art, origin + Vector2(-91, -25), 42)
 	_body(MOON, origin + Vector2(-123, -43), 15)
 	_ringed(origin + Vector2(110, -52), 31)
 	_body(OUTER, origin + Vector2(219, 33), 26)
@@ -191,7 +220,7 @@ func _draw_map() -> void:
 	_poly([rover + Vector2(-5, 4), rover + Vector2(0, -6), rover + Vector2(5, 4)], AQUA)
 	draw_dashed_line(rover + Vector2(8, 0), rover + Vector2(62, 0), AQUA, 1, 3)
 	_caption(rover + Vector2(68, 4), "HORIZON", AQUA)
-	_caption(origin + Vector2(-193, -46), "ARENA WORLD", AMBER)
+	_caption(origin + Vector2(-193, -46), _planet_name, AMBER)
 	_caption(origin + Vector2(-11, 40), "LOCAL STAR", AMBER)
 
 

@@ -10,6 +10,7 @@ signal orbit_entered
 signal scene_transition_started
 
 const OrbitingPlanetBody = preload("res://scripts/orbiting_planet.gd")
+const ExpeditionState = preload("res://scripts/expedition.gd")
 
 enum ShipState {
 	FREE_FLIGHT,
@@ -21,6 +22,12 @@ enum ShipState {
 @export_group("Scene Navigation")
 @export_file("*.tscn") var next_scene_path: String = "res://main.tscn"
 @export var orbit_dwell_duration: float = 2.0
+
+@export_group("Planetary System")
+@export var system_index: int = 0
+@export var system_star_texture: Texture2D
+@export var system_planet_texture: Texture2D
+@export var system_planet_frame_grid: Vector2i = Vector2i(10, 6)
 
 @export_group("Flight Entry")
 @export var ship_spawn_position: Vector2 = Vector2(-5200.0, 3800.0)
@@ -56,6 +63,7 @@ enum ShipState {
 @export var ship_brake_power: float = 320.0 # retro-thrusters
 
 # Node references
+@onready var expedition: ExpeditionState = get_node("/root/Expedition")
 @onready var sun_node: Node2D = $World/Sun
 @onready var sun_sprite: Sprite2D = $World/Sun/SunSprite
 @onready var sun_glow: Node2D = $World/Sun/SunGlow
@@ -97,11 +105,38 @@ var _orbit_timer: float = 0.0
 var _sun_anim_time: float = 0.0
 var _planet_anim_time: float = 0.0
 var _thruster_anim_time: float = 0.0
+var _planet_name: String = "KALYPSO"
+var _star_name: String = "SOLAR CORE"
+var _star_color: Color = Color(1.0, 0.85, 0.2)
 
 
 func _ready() -> void:
+	expedition.enter_system(system_index)
+	var system_data: Dictionary = expedition.current_system_data()
+	_planet_name = system_data.planet_name
+	_star_name = system_data.star_name
+	_star_color = system_data.star_color
+	if system_star_texture:
+		sun_sprite.texture = system_star_texture
+		sun_glow.set("glow_color", Color(_star_color, 0.2))
+		sun_glow.set("inner_color", Color(_star_color.lightened(0.3), 0.38))
+		sun_glow.set("flare_color", Color(_star_color, 0.2))
+	if system_planet_texture:
+		planet_sprite.texture = system_planet_texture
+		planet_sprite.hframes = system_planet_frame_grid.x
+		planet_sprite.vframes = system_planet_frame_grid.y
+	$World/Sun/SunLabel.text = _star_name
+	$World/Sun/SunLabel.add_theme_color_override("font_color", Color(_star_color, 0.75))
+	dist_sun_label.add_theme_color_override("font_color", Color(_star_color, 0.85))
+	$World/Planet/PlanetLabel.text = _planet_name + (" · HOME" if system_data.home else "")
+	$World/Planet/GravityLabel.text = "%s GRAVITY" % _planet_name
+	$HUDLayer/HUD/Radar/PlanetPointer/TagLabel.text = _planet_name
+	$HUDLayer/HUD/Radar/SunPointer/TagLabel.text = "SUN" if system_data.home else "STAR"
+	$HUDLayer/HUD/SystemLabel.text = "SYSTEM %02d / %s" % [system_index + 1, str(system_data.name).to_upper()]
 	for body: Sprite2D in [sun_sprite, planet_sprite]:
 		var rotation_material := body.material as ShaderMaterial
+		rotation_material = rotation_material.duplicate() as ShaderMaterial
+		body.material = rotation_material
 		rotation_material.set_shader_parameter("frame_grid", Vector2(body.hframes, body.vframes))
 	planet_zone.set("capture_radius", planet_capture_radius)
 	planet_zone.set("stable_orbit_radius", planet_stable_orbit_radius)
@@ -210,9 +245,13 @@ func _get_planet_velocity() -> Vector2:
 	) * (planet_orbit_radius * planet_orbit_speed)
 
 
+func get_system_star_color() -> Color:
+	return _star_color
+
+
 func get_system_map_data() -> Array[Dictionary]:
 	var bodies: Array[Dictionary] = [{
-		"name": "KALYPSO", "position": planet_node.global_position,
+		"name": _planet_name, "position": planet_node.global_position,
 		"orbit_radius": planet_orbit_radius, "gravity_radius": planet_gravity_influence_radius,
 		"color": Color(0.35, 0.9, 1.0), "is_target": true,
 	}]
@@ -509,9 +548,9 @@ func _update_hud(_delta: float) -> void:
 	if speed_label:
 		speed_label.text = "VELOCITY: %d KM/S   THROTTLE: %d%%" % [int(speed_val), int(_throttle * 100.0)]
 	if dist_sun_label:
-		dist_sun_label.text = "SOLAR CORE: %d KM" % int(dist_sun)
+		dist_sun_label.text = "%s: %d KM" % [_star_name, int(dist_sun)]
 	if dist_planet_label:
-		dist_planet_label.text = "KALYPSO: %d KM" % int(dist_planet)
+		dist_planet_label.text = "%s: %d KM" % [_planet_name, int(dist_planet)]
 	var local_gravity := "SOLAR"
 	var nearest_ratio := 1.0
 	for body_data in get_system_map_data():
@@ -522,7 +561,7 @@ func _update_hud(_delta: float) -> void:
 			local_gravity = body_data.name
 	gravity_status_label.text = "GRAVITY: %s" % local_gravity
 
-	_update_tracking_marker(sun_pointer, sun_node.global_position, Color(1.0, 0.85, 0.2))
+	_update_tracking_marker(sun_pointer, sun_node.global_position, _star_color)
 	_update_tracking_marker(planet_pointer, planet_node.global_position, Color(0.3, 0.85, 1.0))
 
 

@@ -4,6 +4,7 @@ const Rules = preload("res://scripts/rules.gd")
 const Bot = preload("res://scripts/bot.gd")
 const Arena = preload("res://scripts/board.gd")
 const Cockpit = preload("res://scripts/cockpit.gd")
+const ExpeditionState = preload("res://scripts/expedition.gd")
 const SANS = preload("res://art/SpaceGrotesk.ttf")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
 
@@ -51,6 +52,8 @@ Infected Trail blocks entry into the 3 × 3 area around a selected unit through 
 
 [color=#f8d587]CONTROLS[/color]
 Click a unit, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
+
+@onready var expedition: ExpeditionState = get_node("/root/Expedition")
 
 var state: Dictionary = {}
 var legal: Array[Dictionary] = []
@@ -223,14 +226,18 @@ func _show_home() -> void:
 	_clear(overlay)
 	overlay_kind = "home"
 	_panel(overlay, Rect2(65, 117, 508, 576), Color(0.027, 0.060, 0.10, 0.96), LINE, 12)
-	_label(overlay, Rect2(94, 140, 445, 24), "INCOMING TRANSMISSION  /  ORBITAL ARENA", 13, SOUTH, MONO)
+	var system_data: Dictionary = expedition.current_system_data()
+	_label(overlay, Rect2(94, 140, 445, 24), "SYSTEM %02d / %s" % [expedition.current_system + 1, str(system_data.name).to_upper()], 13, SOUTH, MONO)
 	_label(overlay, Rect2(91, 179, 440, 118), "Conqueror’s\nChess", 53, INK, bold)
 	var head := Cockpit.new()
 	head.envoy = true
 	head.motion = false
 	_place(overlay, head, Rect2(95, 325, 78, 68))
 	_label(overlay, Rect2(188, 322, 354, 21), "ALIEN ENVOY", 13, GOLD, MONO)
-	_label(overlay, Rect2(188, 349, 354, 95), "“Commander Valeria, the Horizon has reached our arena. Win the trial and we will stand with Kalypso. Lose, and your crew is ours.”", 20, INK, SANS, true)
+	var transmission := "“Commander Valeria, the Horizon has reached our arena. Win the trial and we will stand with Kalypso. Lose, and your crew is ours.”"
+	if expedition.current_system > 0:
+		transmission = "“Commander Valeria, a new fleet awaits at %s. Win this trial to secure another alliance for Kalypso.”" % str(system_data.planet_name).capitalize()
+	_label(overlay, Rect2(188, 349, 354, 95), transmission, 20, INK, SANS, true)
 	_button(overlay, Rect2(94, 476, 448, 49), "Accept challenge", func(): _start(false), true)
 	_button(overlay, Rect2(94, 540, 215, 43), "Local duel", func(): _start(true))
 	_button(overlay, Rect2(324, 540, 218, 43), "How to play", _show_rules)
@@ -240,6 +247,7 @@ func _show_home() -> void:
 
 
 func _show_story() -> void:
+	expedition.reset_journey()
 	get_tree().change_scene_to_file("res://scenes/opening_crawl.tscn")
 
 
@@ -775,7 +783,7 @@ func _show_credits() -> void:
 
 
 func _show_map() -> void:
-	var box := _modal("map", "Orbital chart", 438)
+	var box := _modal("map", "%s chart" % expedition.current_system_data().name, 438)
 	var chart := Cockpit.new()
 	chart.map_only = true
 	chart.motion = false
@@ -832,6 +840,10 @@ func _copy_replay() -> void:
 
 
 func _show_result() -> void:
+	if state.is_empty() or state.phase != "finished":
+		return
+	expedition.record_battle(int(state.winner))
+	var next_available := expedition.has_next_system()
 	var title := "Trial unresolved"
 	var outcome := "The Horizon remains in orbit pending a decision."
 	match state.winner:
@@ -843,12 +855,15 @@ func _show_result() -> void:
 			title = "Horizon detained"
 			outcome = "The envoy has dispatched a patrol to take custody."
 			cockpit.clearance = "detained"
+			if next_available:
+				title = "Trial lost"
+				outcome = "The fleet refused an alliance. The Horizon can withdraw to the next system."
 	_clear(overlay)
 	overlay_kind = "result"
 	var dim := ColorRect.new()
 	dim.color = Color(0.025, 0.032, 0.07, 0.84)
 	_place(overlay, dim, Rect2(0, 237, 1320, 570))
-	var box := _panel(overlay, Rect2(319, 306, 682, 383), PANEL, LINE, 12)
+	var box := _panel(overlay, Rect2(319, 276 if next_available else 306, 682, 442 if next_available else 383), PANEL, LINE, 12)
 	_label(box, Rect2(29, 19, 622, 59), title, 39, INK, bold)
 	var description: String = {
 		"flag": "The beacon held through three opposing turns.",
@@ -859,9 +874,25 @@ func _show_result() -> void:
 	_label(box, Rect2(31, 86, 620, 62), outcome, 21, INK, SANS, true)
 	_label(box, Rect2(31, 146, 620, 53), description, 17, MUTED, SANS, true)
 	_label(box, Rect2(31, 209, 620, 25), "ROUND %02d   /   SEED %d" % [state.round, state.seed], 14, GOLD, MONO)
-	_button(box, Rect2(31, 252, 620, 46), "Rematch", func(): _start(local_mode, true), true)
-	_button(box, Rect2(31, 311, 302, 41), "View board", func(): _close_overlay(false))
-	_button(box, Rect2(348, 311, 303, 41), "Copy replay data", _copy_replay)
+	if next_available:
+		var travel_title := "%s to %s" % ["Withdraw" if state.winner == 0 else "Travel", expedition.next_system_name()]
+		_button(box, Rect2(31, 252, 620, 46), travel_title, _travel_to_next_system, true)
+	var rematch_y := 311 if next_available else 252
+	var footer_y := 370 if next_available else 311
+	_button(box, Rect2(31, rematch_y, 620, 46), "Rematch", func(): _start(local_mode, true), not next_available)
+	_button(box, Rect2(31, footer_y, 302, 41), "View board", func(): _close_overlay(false))
+	_button(box, Rect2(348, footer_y, 303, 41), "Copy replay data", _copy_replay)
+
+
+func _travel_to_next_system() -> void:
+	if busy or state.is_empty() or state.phase != "finished" or not expedition.has_next_system():
+		return
+	busy = true
+	generation += 1
+	var scene_error := get_tree().change_scene_to_file(expedition.next_system_scene())
+	if scene_error != OK:
+		busy = false
+		_note("Could not open the next planetary system.")
 
 
 func _rich(parent: Node, rect: Rect2, value: String) -> void:

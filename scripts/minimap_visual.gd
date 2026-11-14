@@ -36,7 +36,10 @@ func _draw() -> void:
 	var scale_factor = radar_radius / world_radius
 
 	# 3. Sun marker
-	draw_circle(center, 4.0, Color(1.0, 0.85, 0.2, 0.95))
+	var star_color: Color = Color(1.0, 0.85, 0.2, 0.95)
+	if solar_system.has_method("get_system_star_color"):
+		star_color = solar_system.call("get_system_star_color")
+	draw_circle(center, 4.0, star_color)
 
 	# 4. Every planet, its solar orbit, and its gravity boundary.
 	if sun and solar_system.has_method("get_system_map_data"):
