@@ -8,20 +8,21 @@ signal intro_finished
 signal crawl_finished
 
 @export_group("Story Content")
-@export var intro_text: String = "A short time ago in a star system far, far away..."
+@export var intro_text: String = "Earth has reached the stars. Now, its borders must follow."
 @export var episode_text: String = "EPISODE I"
-@export var title_text: String = "THE FRACTURED FLAG"
+@export var title_text: String = "THE CONQUEROR'S GAMBIT"
 @export_multiline var body_text: String = (
-	"The scientists of planet KALYPSO have achieved the impossible: " +
-	"the secret of interstellar travel has finally been unlocked.\n\n" +
-	"With their homeworld's ancient energy reserves depleted, " +
-	"COMMANDER VALERIA is chosen to helm the flagship HORIZON " +
-	"on humanity's first deep space expedition.\n\n" +
-	"Entering uncharted space, the expedition discovers a collapsing " +
-	"orbital arena and encounters an enigmatic ALIEN FLEET.\n\n" +
-	"To forge a vital alliance and ensure their people's survival, " +
-	"the Commander must now take the board, hold the fractured flag, " +
-	"and emerge victorious...."
+	"EARTH has mastered interstellar travel. A GENERAL aboard the flagship " +
+	"HORIZON leads a campaign to expand its domain, conquering planets " +
+	"in one system before moving to the next.\n\n" +
+	"As he approaches a new planetary system, its alien inhabitants " +
+	"transmit an unexpected challenge. They will settle the conflict " +
+	"on a CHESSBOARD.\n\n" +
+	"If the General wins, they will surrender their planets to Earth " +
+	"without a fight. If he loses, he must withdraw his forces " +
+	"and leave their worlds in peace.\n\n" +
+	"The terms are clear. The next chapter of Earth's expansion " +
+	"will be decided one move at a time."
 )
 
 @export_group("Timing & Speed")
