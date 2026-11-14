@@ -1028,18 +1028,29 @@ func _draw_drift_play() -> void:
 
 
 func _draw_flight_log() -> void:
-	_panel(side_panel, Rect2(846, 592, 430, 140), ALIEN_PANEL, ALIEN_LINE, 12)
-	_label(side_panel, Rect2(864, 600, 270, 22), "ALIEN FLIGHT LOG", 12, ALIEN_GREEN, MONO)
-	var log_button := _button(side_panel, Rect2(1162, 598, 97, 27), "View log", _show_log)
+	var panel := _panel(side_panel, Rect2(846, 592, 430, 140), ALIEN_PANEL, ALIEN_LINE, 12)
+	panel.name = "FlightLogPanel"
+	panel.clip_contents = true
+	_label(panel, Rect2(18, 8, 270, 22), "FLIGHT LOG", 12, ALIEN_GREEN, MONO)
+	var log_button := _button(panel, Rect2(316, 6, 97, 27), "View log", _show_log)
 	log_button.add_theme_stylebox_override("normal", _style(Color("#14281a"), ALIEN_LINE, 8))
 	log_button.add_theme_stylebox_override("hover", _style(Color("#1e3925"), ALIEN_GREEN, 8))
 	log_button.add_theme_stylebox_override("pressed", _style(Color("#284b30"), ALIEN_GREEN, 8))
 	log_button.add_theme_color_override("font_color", ALIEN_GREEN)
 	log_button.add_theme_color_override("font_hover_color", Color("#d0ffc4"))
+	var scroll := ScrollContainer.new()
+	scroll.name = "FlightLogScroll"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.clip_contents = true
+	_place(panel, scroll, Rect2(18, 38, 389, 88))
+	var entries := VBoxContainer.new()
+	entries.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	entries.add_theme_constant_override("separation", 6)
+	scroll.add_child(entries)
 	var latest := messages.slice(0, 3)
 	for i in range(latest.size()):
-		var line := _label(side_panel, Rect2(864, 630 + i * 25, 389, 24), latest[i], 13, ALIEN_GREEN if i == 0 else ALIEN_DIM, MONO)
-		line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		var entry := _label(entries, Rect2(0, 0, 367, 0), latest[i], 13, ALIEN_GREEN if i == 0 else ALIEN_DIM, MONO, true)
+		entry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
 func _team_card(x: float, y: float, side: int) -> void:
