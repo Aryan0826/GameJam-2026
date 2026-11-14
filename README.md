@@ -26,7 +26,7 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 - **Shuffle** before moving or using a drafted ability; draw once per round. Pixel cards shuffle and flip to reveal your ability, which stays visible as a clickable card above **Finish / skip turn**. Click the card to choose a power target; the large reveal stays on screen for 3.6 seconds. **FX off** reveals it immediately. Choose a path: **Move → Use power** (both), **Move → Finish / skip turn** (move only), or **Use power → Finish / skip turn** (power only). To move, select a unit, click **Move / capture**, then a highlighted destination. To use power, click **Use power** and a highlighted target: your unit for Infected Trail, an enemy for Spy or Long Capture. The drawn card names the power.
 - In the draft, select two different pawns, assign them different abilities, and lock your choices. In local mode, pass the device when prompted.
 - **Take Over Aliens** queues the switch to a second player for the next Alien turn boundary. **Rematch** keeps the current mode, swaps the starter, and creates a new setup.
-- **Rules** shows the complete gameplay reference. **FX** toggles movement effects. **View log** can copy the match seed, starting side, committed actions, first flag round, duration, and outcome.
+- **Rules** opens Kalypso’s brief guide with the goal, quick-start steps, separate marked movement and capture screenshots, and current abilities. Drift Circuit keeps its separate rules. **FX** toggles movement effects. **View log** can copy the match seed, starting side, committed actions, first flag round, duration, and outcome.
 
 ## Project
 
