@@ -19,3 +19,5 @@
 The beveled landing pads are built with a mesh defined in `scripts/board.gd`. The cockpit frame, ship telemetry graphs and gauges, patrol silhouette, envoy portrait, chart, cracks, status markers, and movement previews are drawn with Godot primitives. A copy of the asset credits is accessible from the game's footer.
 
 The workspace retains femrek's CC0 [pawn sprite](https://opengameart.org/content/chess-pieces-in-svg-format) from the 2D release. The current release uses the 3D meshes.
+
+`art/kalypso-movement-guide.png` and `art/kalypso-capture-guide.png` are screenshots of the actual Godot board using the credited fleet meshes and font above. Arrows and markers show all 12 legal movement destinations or both forward captures in separate teaching positions. Rebuild them with `godot --path . --script tools/render_movement_guides.gd`. No AI-generated imagery is used.
