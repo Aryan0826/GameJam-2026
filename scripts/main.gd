@@ -569,12 +569,12 @@ func _draw_play() -> void:
 	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() or not state.fractures.is_empty() else MUTED)
 	_panel(side_panel, Rect2(846, 359, 430, 225))
 	_label(side_panel, Rect2(864, 369, 396, 25), "TURN CHOICES", 12, MUTED, MONO)
-	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 15, INK, SANS, true)
+	_label(side_panel, Rect2(864, 396, 218, 80), _action_hint(), 14, INK, SANS, true)
 	if selected >= 0 and selected in state.pawns:
 		var p: Dictionary = state.pawns[selected]
-		_action_button(Rect2(864, 462, 189, 38), "Move / capture", "standard")
+		_action_button(Rect2(864, 480, 189, 38), "Move / capture", "standard")
 		if p.ability != "":
-			_action_button(Rect2(864, 507, 189, 36), SPELLS[p.ability][0], "ability")
+			_action_button(Rect2(864, 524, 189, 36), SPELLS[p.ability][0], "ability")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
@@ -585,7 +585,10 @@ func _draw_play() -> void:
 		elif details.is_empty() and action_group == "power" and not face.is_empty():
 			details = SPELLS[face][1]
 		if not details.is_empty():
-			_label(side_panel, Rect2(864, 546, 394, 35), details, 13, MUTED, SANS, true)
+			var detail_label := _label(side_panel, Rect2(864, 562, 218, 20), details, 12, MUTED)
+			detail_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			detail_label.tooltip_text = details
+			detail_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	else:
 		_label(side_panel, Rect2(864, 510, 188, 70), "Select a unit to move. Click your card for power targets.", 15, MUTED, SANS, true)
 	if not face.is_empty():
@@ -598,7 +601,7 @@ func _draw_play() -> void:
 
 func _draw_power_card(face: String) -> void:
 	var available := not _group_actions("power").is_empty()
-	var card := _button(side_panel, Rect2(1062, 462, 196, 78), "Use power", _select_power_card)
+	var card := _button(side_panel, Rect2(1100, 386, 156, 194), "Use power", _select_power_card)
 	card.name = "PowerCardButton"
 	card.disabled = busy or not available or state.phase != "playing" or (not local_mode and state.active == 0)
 	card.tooltip_text = SPELLS[face][0] + " · " + SPELLS[face][1]

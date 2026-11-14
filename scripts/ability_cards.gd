@@ -126,9 +126,17 @@ func _draw() -> void:
 		var data: Dictionary = POWERS.get(face, {})
 		var tone: Color = data.get("color", CYAN)
 		_pixel_frame(Rect2(Vector2(4, 3), size - Vector2(8, 7)), tone, CARD_FILL)
-		draw_texture_rect(data.get("icon", BACK_ICON), Rect2(Vector2(12, 25), Vector2(24, 24)), false, tone)
-		draw_string(MONO, Vector2(44, 27), " ".join(data.get("title", [])), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, tone)
-		draw_string(MONO, Vector2(44, 48), action_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, CYAN if action_label in ["Use power", "Choose target"] else MUTED)
+		draw_string(MONO, Vector2(14, 20), data.get("serial", "ABILITY"), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, tone)
+		draw_line(Vector2(14, 28), Vector2(size.x - 14, 28), Color("#344c5a"), 1)
+		draw_texture_rect(data.get("icon", BACK_ICON), Rect2(Vector2(center.x - 24, 36), Vector2(48, 48)), false, tone)
+		var titles: Array = data.get("title", [])
+		for index in titles.size():
+			_center_text(titles[index], center.x, 104 + index * 16 + (8 if titles.size() == 1 else 0), 13, tone)
+		var description: Array = data.get("description", [])
+		for index in description.size():
+			_center_text(description[index], center.x, 141 + index * 14, 10, INK)
+		draw_line(Vector2(14, 167), Vector2(size.x - 14, 167), Color("#344c5a"), 1)
+		_center_text(action_label, center.x, 183, 11, CYAN if action_label in ["Use power", "Choose target"] else MUTED)
 		return
 	if not compact:
 		draw_rect(Rect2(Vector2(6, 6), size), Color(0, 0, 0, 0.45))
