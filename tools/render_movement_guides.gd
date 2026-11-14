@@ -3,6 +3,7 @@ extends SceneTree
 ## Run in graphical mode: godot --path . --script tools/render_movement_guides.gd
 const Board = preload("res://scripts/battle/board.gd")
 const Rules = preload("res://scripts/rules/rules.gd")
+const Drift = preload("res://scripts/rules/drift.gd")
 
 class Arrows extends Control:
 	var board: Control
@@ -44,6 +45,7 @@ func _render() -> void:
 	background.color = Color("#091924")
 	background.size = Vector2(1000, 700)
 	root.add_child(background)
+	var drift := "drift" in OS.get_cmdline_user_args()
 	for capture in [false, true]:
 		var board := Board.new()
 		board.size = Vector2(1000, 700)
@@ -52,7 +54,7 @@ func _render() -> void:
 		board.camera_pitch = deg_to_rad(68)
 		board.camera_yaw = 0
 		board._update_camera()
-		var state := Rules.create_match(7, 1)
+		var state := Rules.create_drift_match(7, 1, Drift.CENTER, 0) if drift else Rules.create_match(7, 1)
 		state.phase = "playing"
 		state.active = 1
 		state.dice[1] = "infected_trail"
@@ -80,7 +82,8 @@ func _render() -> void:
 		for square in [Vector2i(3, 7), Vector2i(7, 3), Vector2i(7, 7)]:
 			area = area.expand(board._project(square))
 		area = area.grow(42)
-		var filename := "kalypso-capture-guide.png" if capture else "kalypso-movement-guide.png"
+		var planet := "drift" if drift else "kalypso"
+		var filename := planet + ("-capture-guide.png" if capture else "-movement-guide.png")
 		root.get_texture().get_image().get_region(Rect2i(area)).save_png("res://art/guides/" + filename)
 		print("Captured %s with %d legal destinations." % [filename, arrows.actions.size()])
 		board.queue_free()

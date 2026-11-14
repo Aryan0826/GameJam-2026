@@ -37,6 +37,7 @@ var _save_timer: Timer
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_settings.load(SETTINGS)
 	for bus in ["Music", "Effects"]:
 		_apply_volume(bus, volume(bus))
@@ -56,9 +57,7 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.keycode == KEY_M and event.pressed and not event.echo:
-		_muted = not _muted
-		_settings.set_value("audio", "muted", _muted)
-		AudioServer.set_bus_mute(0, _muted)
+		set_muted(not _muted)
 		save_volumes()
 		get_viewport().set_input_as_handled()
 
@@ -67,6 +66,21 @@ func _exit_tree() -> void:
 	stop_music()
 	for player: AudioStreamPlayer in _effects.values():
 		player.stop()
+
+
+func muted() -> bool:
+	return _muted
+
+
+func set_muted(value: bool) -> void:
+	_muted = value
+	_settings.set_value("audio", "muted", value)
+	AudioServer.set_bus_mute(0, value)
+
+
+func pause_effects(value: bool) -> void:
+	for player: AudioStreamPlayer in _effects.values():
+		player.stream_paused = value
 
 
 func volume(bus: String) -> float:

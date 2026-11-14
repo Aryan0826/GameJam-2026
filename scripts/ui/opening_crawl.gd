@@ -9,7 +9,7 @@ signal crawl_finished
 
 @export_group("Story Content")
 @export var intro_text: String = "Beyond the last human star charts, a new signal waits."
-@export var episode_text: String = "THE HORIZON EXPEDITION"
+@export var episode_text: String = "UNCHARTED WILDS"
 @export var title_text: String = "FIRST CONTACT"
 @export_multiline var body_text: String = (
 	"We are the crew of the HORIZON, exploring beyond the last human star charts. " +

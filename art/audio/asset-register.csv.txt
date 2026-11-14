@@ -1,7 +1,7 @@
 asset_id,file_path,source_type,source_url_or_prompt,license,attribution,derivatives,verified
 observing-the-star,art/audio/music/observing-the-star.ogg,third-party,https://opengameart.org/content/another-space-background-track,CC0-1.0,yd (ObservingTheStar.ogg),"Renamed only; Menu, prologue and free flight loop",true
 my-very-own-dead-ship,art/audio/music/my-very-own-dead-ship.ogg,third-party,https://opengameart.org/content/background-space-track,CC0-1.0,yd (MyVeryOwnDeadShip.ogg),Renamed only; Cockpit and both duels loop,true
-rocket-thrust,art/audio/effects/rocket-thrust.ogg,user-supplied,nasa-rocket-engine-30s.mp3,Unverified,Original publisher unverified,"Trimmed to 4.0–9.5 s, mixed to mono, high-pass filtered and crossfaded into a 5 s loop",false
+rocket-thrust,art/audio/effects/rocket-thrust.ogg,third-party,https://opengameart.org/content/sci-fi-sounds,CC0-1.0,Kenney (spaceEngineLow_000.ogg),"Renamed only; five second engine clip looped by Godot. Published 2020, conventional GameSynth synthesis.",true
 infected-trail,art/audio/effects/infected-trail.ogg,third-party,https://opengameart.org/content/bubbling-acid,CC-BY-3.0,spookymodem (Acid Bubble.wav),"Trimmed to 1.55 s, faded in and out, and converted to Ogg Vorbis",true
 descent,art/audio/effects/descent.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (doorOpen_001.ogg),Renamed only; Orbital descent,true
 transmission,art/audio/effects/transmission.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (computerNoise_002.ogg),Renamed only; Comms typing,true

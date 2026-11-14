@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="The Fractured Flag & Drift Circuit"
+config/name="Uncharted Wilds"
 run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://art/flight/horizon.png"
@@ -19,6 +19,7 @@ config/icon="res://art/flight/horizon.png"
 
 Expedition="*res://scripts/core/expedition.gd"
 Soundtrack="*res://scripts/core/soundtrack.gd"
+PauseMenu="*res://scripts/ui/pause_menu.gd"
 
 [display]
 
@@ -28,8 +29,13 @@ window/size/window_width_override=1188
 window/size/window_height_override=765
 window/stretch/mode="canvas_items"
 
+[gui]
+
+theme/custom="res://art/fonts/game_theme.tres"
+
 [physics]
 
+common/physics_interpolation=true
 3d/physics_engine="Jolt Physics"
 
 [rendering]

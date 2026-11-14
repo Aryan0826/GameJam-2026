@@ -289,22 +289,11 @@ func _draw_map() -> void:
 
 
 func _draw_envoy() -> void:
-	draw_rect(Rect2(0, 0, 78, 68), Color("#181f33"))
-	var portrait: Array[String] = [
-		"     112211     ", "   1123333211   ", "  123334433321  ",
-		" 1233444443321 ", " 1232344432321 ", " 1232544452321 ",
-		"  12344443321  ", "  12324423321  ", "   123223321   ",
-		"    1223321    ", "    1122211    ", " 1111122211111 ",
-	]
-	var colors := [Color("#1d253c"), Color("#585174"), Color("#956c8b"), Color("#c593a5"), AMBER]
-	for y in portrait.size():
-		for x in portrait[y].length():
-			var symbol := portrait[y].substr(x, 1)
-			if symbol != " ":
-				draw_rect(Rect2(8 + x * 4, 6 + y * 4, 4, 4), colors[int(symbol) - 1])
-	for y in range(5, 68, 5):
-		draw_line(Vector2(0, y), Vector2(78, y), Color(0.1, 0.07, 0.2, 0.3))
-	draw_rect(Rect2(0, 0, 78, 68), Color("#58617a"), false, 1)
+	# Reuse the credited envoy sprite for any remaining compact cockpit view.
+	var sheet = preload("res://art/results/characters.png")
+	var cell := Vector2(32, 0) if expedition.current_system == ExpeditionState.CINDER else Vector2(16, 0)
+	draw_rect(Rect2(Vector2.ZERO, size), Color("#0a1b22"))
+	draw_texture_rect_region(sheet, Rect2((size - Vector2(48, 48)) * 0.5, Vector2(48, 48)), Rect2(cell, Vector2(16, 16)))
 
 
 func _caption(at: Vector2, caption: String, color: Color) -> void:

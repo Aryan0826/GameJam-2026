@@ -2,6 +2,7 @@ extends RefCounted
 ## Short, skippable transmissions. Story consequences never alter match rules.
 
 const CINDER := 2
+const Drift = preload("res://scripts/rules/drift.gd")
 
 
 static func line(role: String, text: String, system: int) -> Dictionary:
@@ -11,7 +12,7 @@ static func line(role: String, text: String, system: int) -> Dictionary:
 
 static func terms(system: int) -> String:
 	if system == CINDER:
-		return "Claim relays as the lanes shift. Reach 8 total: relay points + surviving ships. Win: navigation alliance. Lose: network access denied; marked Unproven."
+		return "Claim relays as the lanes shift. Reach %d points: relay points + surviving ships. Each ship lost costs 1 point. Win: navigation alliance. Lose: network access denied; marked Unproven." % Drift.TOTAL_TO_WIN
 	return "Hold the flag through 3 enemy turns, or eliminate their fleet. Win: alliance and landing clearance. Lose: landing denied; marked Unproven."
 
 
@@ -27,7 +28,7 @@ static func encounter(system: int, standing: String, seen: bool) -> Array[Dictio
 			line("navigator", "Approaching Cinder. The surface is moving... and we’re receiving a transmission.", system),
 			line("envoy", "Horizon. Nothing stands still here. Neither should your plans.", system),
 			line("captain", "We seek an alliance.", system),
-			line("envoy", "Then enter the Drift Circuit. Claim our relays as the lanes shift. Reach a combined total of eight relay points and surviving ships.", system),
+			line("envoy", "Then enter the Drift Circuit. Claim our relays as the lanes shift. Reach %d points from relay claims and surviving ships. Each ship lost costs one point." % Drift.TOTAL_TO_WIN, system),
 			line("captain", "A test of timing.", system),
 			line("envoy", "And foresight. Win, and our navigation network will recognize you as allies. Lose, and access is denied. You leave as you arrived, on your own.", system),
 		]

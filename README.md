@@ -1,11 +1,11 @@
-# The Fractured Flag and Drift Circuit
+# Uncharted Wilds
 
 Lead the Horizon crew as Captain Valeria, explore a solar system, and answer alien challenges from the ship’s cockpit. Each destination has a five-ship tactics duel on a 9 × 9 board. Play against the computer or share the keyboard and mouse in a local duel.
 
 | Destination | Challenge | Objective |
 | --- | --- | --- |
 | **Kalypso** | **The Fractured Flag** | Hold the center flag through three opposing turns or eliminate the opposing fleet. |
-| **Cinder** | **Drift Circuit** | Reach eight combined points from relay claims and surviving ships. |
+| **Cinder** | **Drift Circuit** | Reach 10 points from relay claims and surviving ships. Captured ships cost 1 point each. |
 
 ## Start the game
 
@@ -34,7 +34,7 @@ Each result shows a crew or alien lineup under a colored spotlight, a short exch
 - Click a ship, then a highlighted destination. Drag the board to rotate and tilt the camera. With the board focused, use the arrow keys to move the cursor and **Enter** to select.
 - Move one square orthogonally or one or two squares diagonally. A two-square diagonal can jump over an intervening ship. Capture one square diagonally forward. Crew capture toward the top of the board and Aliens toward the bottom.
 - **Rules** opens the current planet’s guide. The compact flight log wraps entries and scrolls vertically for long messages. **View log** opens the history and lets you copy replay data. **Rematch** swaps the starting side. **Take Over Aliens** switches a solo match to local control on an Alien turn boundary.
-- Adjust **Music** and **Effects** on the title screen. Press **M** to mute or unmute. **FX** controls visual motion.
+- Adjust **Music** and **Effects** on the title screen. Press **M** to mute or unmute. Press **Esc** during flight or either game to pause. The pause menu has Resume, Return to orbit during a match, Main menu, music and effects volume, mute, and Quit game. Help closes with Esc before the pause menu opens. **FX** controls visual motion.
 
 ### Kalypso · The Fractured Flag
 
@@ -61,7 +61,9 @@ Hold the center flag with the same ship through three opposing turns, or elimina
 
 Take one move or capture per turn. After both sides act, row **4** shifts right and row **6** shifts left, carrying their ships and wrapping at the edges. Hover over a highlighted move on either row to preview the landing.
 
-Each occupied gold relay scores one point after the shift, then relocates to another column on its own row. Row **5** stays still while its relay can relocate too. Your total is **relay points + surviving ships**. If only one side reaches eight on a shift, that side wins. If both reach eight on the same shift, or neither reaches it by round 12, the match draws.
+Each occupied gold relay scores one point after the shift, then relocates to another column on its own row. Row **5** stays still while its relay can relocate too. Your total is **relay points + surviving ships**. Start with **5 points** from five ships. Each captured ship reduces its side’s total by **1 point**; it does not award the captor an extra point. The scoreboard displays points only. If only one side reaches **10 points** on a shift, that side wins. If both reach 10 on the same shift, or neither reaches it by round 12, the match draws.
+
+Both games give a brief red blink and board shake when a ship is lost, or a green blink for your capture. In solo play the colors follow the Crew; in local play they follow the side taking the turn. **FX off** disables the blink, shake, and controller vibration. The Drift Circuit guide includes separate images for moves and captures, rendered from the actual board.
 
 ## Project layout
 
@@ -104,7 +106,7 @@ Get-ChildItem tests -Filter '*_test.gd' | Sort-Object Name | ForEach-Object {
 
 ~~~powershell
 New-Item -ItemType Directory -Force builds/windows, builds/web
-godot --headless --path . --export-release Windows builds/windows/FracturedFlag.exe
+godot --headless --path . --export-release Windows builds/windows/UnchartedWilds.exe
 godot --headless --path . --export-release Web builds/web/index.html
 ~~~
 
@@ -112,7 +114,7 @@ On Windows, keep the exported `FracturedFlag.pck` beside the executable. For the
 
 ## Credits
 
-Developed by the Horizon game jam team. See the [asset credits](ASSET_CREDITS.md) for individual files, licenses, modifications, and supplied assets whose origin still needs confirmation.
+Developed by the Horizon game jam team. See the [asset credits](ASSET_CREDITS.md) for individual files, licenses, and the unchanged space files whose sources still need confirmation. The interface uses the free Space Grotesk and IBM Plex Mono fonts, with their original licenses included.
 
 - **Horizon art:** Luis Zuno (Ansimuz). **Animated exhaust:** KlenchAndrei. [Sideview Sci-Fi](https://opengameart.org/content/sideview-sci-fi-patreon-collection) · [Free Pixel Rocket Exhaust](https://klenchandrei.itch.io/exhaust-free)
 - **Board models and sound effects:** Kenney. **Cockpit textures:** cheerful sprite. **Cockpit planets:** Screaming Brain Studios. [Space Kit](https://kenney.nl/assets/space-kit) · [Spaceship Interior](https://opengameart.org/content/spaceship-interior-0) · [Tiny Planet Pack](https://screamingbrainstudios.itch.io/tiny-planet-pack)
@@ -123,3 +125,5 @@ Developed by the Horizon game jam team. See the [asset credits](ASSET_CREDITS.md
 Story and travel checks: `godot --headless --path . --script tests/expedition_story_test.gd`. UI wrapping, message controls, natural descent and skipping: `godot --headless --path . --script tests/ui_descent_test.gd`. Rebuild actual previews with `godot --path . --script tools/render_story_preview.gd -- /absolute/output/folder` or `tools/render_descent_preview.gd`.
 
 The descent uses Jahobr’s 2017 CC0 star animation and DMolybdenum’s public domain Atlantis cockpit panorama. Full source links and adaptation details are in [descent credits](art/descent/SOURCE.md) and the in-game Asset credits. No AI generated assets were added.
+
+Flight keeps the existing planet and star art. Camera motion now uses physics interpolation, text readouts update ten times per second, and repeated drawing requests were removed. Ember and Aurelia are marked **Coming soon** above their planets. Live board portraits use the same credited aliens as the story.

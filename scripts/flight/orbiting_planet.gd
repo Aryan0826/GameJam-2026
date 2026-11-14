@@ -3,6 +3,7 @@ extends Node2D
 
 const ROTATION_SHADER = preload("res://shaders/body_rotation.gdshader")
 
+@export var challenge_available := false
 @export var display_name: String = "Planet"
 @export var orbit_radius: float = 2600.0
 @export var orbit_speed: float = 0.031
@@ -42,6 +43,17 @@ func _ready() -> void:
 	gravity_label.position.y = -gravity_influence_radius - 28.0
 	gravity_label.text = "%s GRAVITY" % display_name
 	gravity_label.add_theme_color_override("font_color", Color(marker_color, 0.7))
+	if not challenge_available:
+		var coming := Label.new()
+		coming.name = "ComingSoon"
+		coming.text = "Coming soon"
+		coming.position = Vector2(-110, -surface_radius - 40)
+		coming.size = Vector2(220, 28)
+		coming.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		coming.add_theme_font_override("font", preload("res://art/fonts/IBMPlexMono-Regular.ttf"))
+		coming.add_theme_font_size_override("font_size", 20)
+		coming.add_theme_color_override("font_color", Color("#f8d587"))
+		add_child(coming)
 	advance_orbit(0.0)
 
 
