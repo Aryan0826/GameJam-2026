@@ -7,7 +7,7 @@
 [ext_resource type="Script" path="res://scripts/flight/orbit_line_visual.gd" id="5_orbit_line_visual"]
 [ext_resource type="Texture2D" path="res://art/flight/bodies/sun_sheet.png" id="6_sun_texture"]
 [ext_resource type="Texture2D" path="res://art/flight/bodies/planet_animation.png" id="7_planet_texture"]
-[ext_resource type="Texture2D" path="res://art/flight/horizon.png" id="8_ship_texture"]
+[ext_resource type="Texture2D" path="res://art/flight/star_marine_trooper.png" id="8_ship_texture"]
 [ext_resource type="FontFile" path="res://art/fonts/SpaceGrotesk.ttf" id="9_space_font"]
 [ext_resource type="FontFile" path="res://art/fonts/IBMPlexMono-Regular.ttf" id="10_mono_font"]
 [ext_resource type="Script" path="res://scripts/flight/minimap_visual.gd" id="11_minimap_script"]
@@ -64,10 +64,9 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="CircleShape2D" id="CircleShape2D_ship"]
-radius = 16.0
-
 [node name="SolarSystem" type="Node2D"]
+physics_interpolation_mode = 2
+process_priority = 1
 script = ExtResource("1_solar_script")
 next_scene_path = "res://scenes/fractured_flag.tscn"
 
@@ -85,6 +84,7 @@ mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
 [node name="World" type="Node2D" parent="."]
+physics_interpolation_mode = 1
 
 [node name="OrbitLine" type="Node2D" parent="World"]
 script = ExtResource("5_orbit_line_visual")
@@ -308,17 +308,42 @@ horizontal_alignment = 1
 position = Vector2(-5200, 3800)
 scale = Vector2(0.4, 0.4)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/PlayerShip"]
-shape = SubResource("CircleShape2D_ship")
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="World/PlayerShip"]
+rotation = 1.5707964
+scale = Vector2(0.275, 0.275)
+polygon = PackedVector2Array(-32, -272, -40, -264, -64, -264, -80, -232, -88, -232, -88, -24, -88, 32, -104, 32, -96, -8, -96, -24, -152, -24, -144, 0, -192, 0, -184, 16, -184, 24, -208, 120, -208, 168, -160, 224, -160, 272, -128, 272, -128, 224, -112, 216, -112, 192, -88, 200, -64, 200, -64, 232, -48, 248, -48, 280, -16, 280, -8, 248, -8, 232, 8, 232, 16, 280, 48, 280, 48, 248, 64, 232, 64, 200, 88, 192, 112, 192, 128, 272, 160, 272, 160, 224, 192, 192, 200, 192, 200, 168, 208, 168, 192, 16, 192, 0, 144, 0, 152, -24, 96, -24, 104, 32, 88, 32, 80, -232, 80, -248, 32, -272, 32, -280, -32, -280)
 
 [node name="EngineThrusters" type="Node2D" parent="World/PlayerShip"]
 visible = false
-position = Vector2(-39, 22)
+position = Vector2(-77, 0)
 
 [node name="PortFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
 texture_filter = 1
+position = Vector2(2.2, -39.6)
 rotation = 1.5707964
-scale = Vector2(0.62, 0.248)
+scale = Vector2(0.5, 0.2)
+texture = ExtResource("12_thruster_texture")
+centered = false
+offset = Vector2(-64, -4)
+hframes = 9
+vframes = 3
+
+[node name="PortInnerFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
+texture_filter = 1
+position = Vector2(0, -8.8)
+rotation = 1.5707964
+scale = Vector2(0.5, 0.2)
+texture = ExtResource("12_thruster_texture")
+centered = false
+offset = Vector2(-64, -4)
+hframes = 9
+vframes = 3
+
+[node name="StarboardInnerFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
+texture_filter = 1
+position = Vector2(0, 8.8)
+rotation = 1.5707964
+scale = Vector2(0.5, 0.2)
 texture = ExtResource("12_thruster_texture")
 centered = false
 offset = Vector2(-64, -4)
@@ -327,9 +352,9 @@ vframes = 3
 
 [node name="StarboardFlame" type="Sprite2D" parent="World/PlayerShip/EngineThrusters"]
 texture_filter = 1
-position = Vector2(27, -14)
+position = Vector2(2.2, 39.6)
 rotation = 1.5707964
-scale = Vector2(0.55, 0.22)
+scale = Vector2(0.5, 0.2)
 texture = ExtResource("12_thruster_texture")
 centered = false
 offset = Vector2(-64, -4)
@@ -338,10 +363,15 @@ vframes = 3
 
 [node name="ShipSprite" type="Sprite2D" parent="World/PlayerShip"]
 texture_filter = 1
-scale = Vector2(1.5, 1.5)
+rotation = 1.5707964
+scale = Vector2(0.275, 0.275)
 texture = ExtResource("8_ship_texture")
+region_enabled = true
+region_rect = Rect2(48, 40, 416, 560)
 
 [node name="Camera2D" type="Camera2D" parent="World"]
+process_physics_priority = 1
+process_callback = 0
 zoom = Vector2(0.65, 0.65)
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0

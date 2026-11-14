@@ -33,8 +33,7 @@ File names describe how the game uses each clip. Edits are listed below. The Ken
 | Project file | Original asset and creator | License | In-game treatment |
 | --- | --- | --- | --- |
 | Ship telemetry in `scripts/battle/cockpit.gd` | Original project graphics drawn with Godot primitives | Project code; no external graph image assets | Animated reactor-output and thermal-load plots, grid lines, and power/oxygen/hull reserve gauges. Labels use `art/fonts/IBMPlexMono-Regular.ttf` (SIL OFL 1.1). |
-| `art/flight/horizon.png` | [Sideview Sci-Fi – Patreon Collection](https://opengameart.org/content/sideview-sci-fi-patreon-collection), `spaceship-unit.png` by Luis Zuno (Ansimuz) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), [bundled notice](art/flight/LICENSE-ansimuz.txt) | First thrust-free frame cropped from the original sprite strip. Used in flight and as the project icon. |
-| `art/flight/thruster_animation.png` | [Free Pixel Rocket Exhaust](https://klenchandrei.itch.io/exhaust-free), Exhaust 02 by KlenchAndrei | [CC0 1.0](art/flight/exhaust_CC0.txt) | Hand-animated ignition and sustained flame loop fitted to the Horizon |
+| `art/flight/thruster_animation.png` | [Free Pixel Rocket Exhaust](https://klenchandrei.itch.io/exhaust-free), Exhaust 02 by KlenchAndrei | [CC0 1.0](art/flight/exhaust_CC0.txt) | Hand-animated ignition and sustained flame loop fitted to the four Star Marine Trooper engine outlets |
 | `art/cockpit/westerlund-2.jpg` | [Westerlund 2 — Hubble’s 25th anniversary image](https://esahubble.org/images/heic1509a/). NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team | [CC BY 4.0](https://esahubble.org/public/copyright/) | Tinted windshield sky |
 | `art/cockpit/planet.png`, `moon.png`, `giant.png`, `star.png`, `outer.png` | [Tiny Planet Pack](https://screamingbrainstudios.itch.io/tiny-planet-pack) by Screaming Brain Studios | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | One frame each from the 128 × 128 Crystal, Moon, Saturn, Sun, and Neptune strips. Exterior backgrounds keyed out, displayed with tints. |
 | `art/cockpit/deck.png`, `grille.png` | [Spaceship Interior](https://opengameart.org/content/spaceship-interior-0) by cheerful sprite | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Reduced-size color textures from `panels_4_c.png` and `panels_2_c.png`. Applied to the cockpit frame drawn in Godot. |
@@ -55,6 +54,7 @@ The project received these files without a source link or separate license notic
 
 | Project file | Supplied source | In-game use |
 | --- | --- | --- |
+| `art/flight/star_marine_trooper.png`, `star_marine_trooper_icon.png` | User-supplied Star Marine Trooper OBJ, MTL and palette PNG; original files and VOX retained in `tools/ship_source` | Transparent 512 × 640 orthographic top-down render of the original geometry and palette, with height-based lighting for voxel detail. Rendered with `tools/render_ship_sprite.py`, without AI-generated artwork. Used in both flight systems; a square-padded version is the project icon. Four animated exhausts fitted to the model's outlets, with collision traced from the rendered hull. |
 | `art/flight/bodies/planet_animation.png` | `planet.gif` | Kalypso’s 60 frames in a 10 × 6 atlas |
 | `art/flight/bodies/planet2.png`, `planet3.png`, `planet4.png` | Planet sprite sheets | 50-frame strips for Ember, Cinder and Aurelia |
 | `art/flight/bodies/sun_sheet.png` | `sun.png` | 32-frame Solar Core rotation |

@@ -23,6 +23,7 @@ shader_parameter/bottom_fade_start = 0.88
 shader_parameter/bottom_fade_end = 0.98
 
 [node name="OpeningCrawl" type="Control" unique_id=953728374]
+physics_interpolation_mode = 2
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

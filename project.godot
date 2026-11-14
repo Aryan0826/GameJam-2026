@@ -13,7 +13,7 @@ config_version=5
 config/name="The Fractured Flag & Drift Circuit"
 run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-config/icon="res://art/flight/horizon.png"
+config/icon="res://art/flight/star_marine_trooper_icon.png"
 
 [autoload]
 
@@ -30,6 +30,7 @@ window/stretch/mode="canvas_items"
 
 [physics]
 
+common/physics_interpolation=true
 3d/physics_engine="Jolt Physics"
 
 [rendering]

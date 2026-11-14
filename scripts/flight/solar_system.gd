@@ -80,7 +80,6 @@ enum ShipState {
 @onready var ship_node: CharacterBody2D = $World/PlayerShip
 @onready var ship_sprite: Sprite2D = $World/PlayerShip/ShipSprite
 @onready var engine_thrusters: Node2D = $World/PlayerShip/EngineThrusters
-@onready var _thruster_mount: Vector2 = engine_thrusters.position
 @onready var camera: Camera2D = $World/Camera2D
 @onready var starfield_rect: ColorRect = $StarfieldLayer/StarfieldBackground
 @onready var hud_control: Control = $HUDLayer/HUD
@@ -185,7 +184,6 @@ func _ready() -> void:
 		ship_node.rotation = Vector2.UP.angle()
 		_ship_velocity = _destination_velocity(_course_target) + Vector2.UP * radius * planet_orbit_rot_speed
 	ship_node.velocity = _ship_velocity
-	_update_ship_orientation()
 	$HUDLayer/HUD/Destinations/Routes/Kalypso.pressed.connect(_set_course.bind(0))
 	$HUDLayer/HUD/Destinations/Routes/Cinder.pressed.connect(_set_course.bind(ExpeditionState.CINDER))
 	if system_index != 0:
@@ -195,6 +193,8 @@ func _ready() -> void:
 	var initial_zoom := lerpf(camera_cruise_zoom, camera_fast_zoom, clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0))
 	camera.zoom = Vector2.ONE * initial_zoom
 	camera.reset_smoothing()
+	# Prime the ship, planets and camera at their actual entry positions.
+	$World.reset_physics_interpolation()
 
 	# Initial UI states
 	if orbit_hud:
@@ -212,24 +212,17 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	_update_ship_orientation()
-	_update_thrusters(delta)
 	_update_engine_audio(delta)
 	_sun_anim_time = fposmod(_sun_anim_time + delta, sun_rotation_duration)
 	_planet_anim_time = fposmod(_planet_anim_time + delta, planet_rotation_duration)
 	_update_body_rotation(sun_sprite, _sun_anim_time / sun_rotation_duration)
 	_update_body_rotation(planet_sprite, _planet_anim_time / planet_rotation_duration)
 
-	# Smooth camera follow and dynamic velocity-based zoom
-	if camera and ship_node:
-		camera.position = ship_node.position
-		var speed_ratio = clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0)
-		var target_zoom = lerpf(camera_cruise_zoom, camera_fast_zoom, speed_ratio)
-		camera.zoom = camera.zoom.lerp(Vector2(target_zoom, target_zoom), 2.2 * delta)
-
-	# Starfield parallax
+	# Read the rendered camera after its interpolation/smoothing has run, rather
+	# than stepping the background through the latest raw physics positions.
 	if starfield_rect and starfield_rect.material is ShaderMaterial:
-		starfield_rect.material.set_shader_parameter("camera_offset", ship_node.position)
+		var view_center := get_viewport().get_canvas_transform().affine_inverse() * get_viewport_rect().get_center()
+		starfield_rect.material.set_shader_parameter("camera_offset", view_center)
 
 	# Redraw custom visual components
 	if sun_glow:
@@ -285,6 +278,16 @@ func _physics_process(delta: float) -> void:
 			_process_in_orbit(delta)
 		ShipState.TRANSITIONING:
 			_process_transitioning(delta)
+	_update_thrusters(delta)
+	_update_camera(delta)
+
+
+func _update_camera(delta: float) -> void:
+	# Camera and ship share a physics clock; Godot interpolates both for rendering.
+	camera.position = ship_node.position
+	var speed_ratio := clampf(_ship_velocity.length() / ship_max_speed, 0.0, 1.0)
+	var target_zoom := lerpf(camera_cruise_zoom, camera_fast_zoom, speed_ratio)
+	camera.zoom = camera.zoom.lerp(Vector2.ONE * target_zoom, 1.0 - exp(-2.2 * delta))
 
 
 func _update_planet_position(delta: float) -> void:
@@ -336,15 +339,6 @@ func get_system_map_data() -> Array[Dictionary]:
 	return bodies
 
 
-func _update_ship_orientation() -> void:
-	# Keep the side-view cockpit above the hull when the heading points left.
-	# Mirroring local Y preserves the nose direction and the flight controls.
-	var facing_left := Vector2.from_angle(ship_node.rotation).x < 0.0
-	ship_sprite.flip_v = facing_left
-	engine_thrusters.position.y = -_thruster_mount.y if facing_left else _thruster_mount.y
-	engine_thrusters.scale.y = -1.0 if facing_left else 1.0
-
-
 func _is_accelerating() -> bool:
 	return Input.is_action_pressed("ui_up") or Input.is_key_pressed(KEY_W)
 
@@ -368,6 +362,7 @@ func _update_thrusters(delta: float) -> void:
 
 
 func _process_free_flight(delta: float) -> void:
+	var previous_speed := _ship_velocity.length()
 	var turn_input: float = 0.0
 	var thrust_target: float = 0.0
 	var brake_input: float = 0.0
@@ -410,9 +405,10 @@ func _process_free_flight(delta: float) -> void:
 	# Near-zero space friction: authentic Newtonian coasting
 	_ship_velocity = _ship_velocity.move_toward(Vector2.ZERO, ship_linear_drag * _ship_velocity.length() * delta)
 
-	# Speed cap
-	if _ship_velocity.length() > cur_max_speed:
-		_ship_velocity = _ship_velocity.normalized() * cur_max_speed
+	# Releasing boost eases back to cruise instead of dropping 400 units/s at once.
+	# A cap still stops thrust from building speed beyond the active limit.
+	var allowed_speed := maxf(cur_max_speed, previous_speed - ship_brake_power * delta)
+	_ship_velocity = _ship_velocity.limit_length(allowed_speed)
 
 	# --- 1. Sun Gravity: continuous cosmic attraction to massive star ---
 	var to_sun: Vector2 = sun_node.position - ship_node.position
@@ -583,8 +579,7 @@ func _break_orbit() -> void:
 	_throttle = 0.5
 	_show_orbit_hud(false)
 
-	# Preserve the actual orbital momentum and the existing forward departure boost.
-	_ship_velocity += Vector2.from_angle(ship_node.rotation) * 260.0
+	# Resume from the current orbital momentum; normal thrust accelerates departure.
 	ship_node.velocity = _ship_velocity
 
 

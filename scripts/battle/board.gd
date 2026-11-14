@@ -58,6 +58,7 @@ var falling: Array[Node3D] = []
 
 
 func _ready() -> void:
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	focus_mode = Control.FOCUS_ALL
 	tooltip_text = "Click to select a unit or target. Drag to rotate the board view."
 	mouse_exited.connect(func():

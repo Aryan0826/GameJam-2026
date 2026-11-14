@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://clusahfnc2uyy"
-path="res://.godot/imported/horizon.png-f0afdeb14b87b40a533e5da634e42e4b.ctex"
+uid="uid://ctkmwhw8om5hn"
+path="res://.godot/imported/star_marine_trooper.png-7ba82c19f55e4243d901967ab84ec924.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/flight/horizon.png"
-dest_files=["res://.godot/imported/horizon.png-f0afdeb14b87b40a533e5da634e42e4b.ctex"]
+source_file="res://art/flight/star_marine_trooper.png"
+dest_files=["res://.godot/imported/star_marine_trooper.png-7ba82c19f55e4243d901967ab84ec924.ctex"]
 
 [params]
 

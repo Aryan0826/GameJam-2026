@@ -26,18 +26,19 @@ func _run() -> void:
 		var sprite: Sprite2D = flight.ship_sprite
 		var thrusters: Node2D = flight.engine_thrusters
 		var velocity: Vector2 = flight._ship_velocity
-		var mount: Vector2 = flight._thruster_mount
-		for angle in [0.0, PI / 4.0, 3.0 * PI / 4.0, PI, -3.0 * PI / 4.0, -PI / 4.0, 0.0]:
+		for angle in [0.0, PI / 4.0, PI / 2.0, 3.0 * PI / 4.0, PI, -3.0 * PI / 4.0, -PI / 2.0, -PI / 4.0, 0.0]:
 			ship.rotation = angle
-			flight._update_ship_orientation()
+			flight._process(0.0)
 			var forward := Vector2.from_angle(angle)
-			var cockpit_up := sprite.global_transform.basis_xform(Vector2.DOWN if sprite.flip_v else Vector2.UP)
-			_check(cockpit_up.y < 0.0, "Cockpit stays above the hull through left and right turns")
-			_check(sprite.global_transform.x.normalized().is_equal_approx(forward), "Nose follows the heading after mirroring")
-			var expected_y := -mount.y if forward.x < 0.0 else mount.y
-			_check(is_equal_approx(thrusters.position.y, expected_y)
-				and thrusters.scale.y == (-1.0 if forward.x < 0.0 else 1.0), "Both exhausts stay attached to the mirrored engines")
-			_check(is_equal_approx(ship.rotation, angle) and flight._ship_velocity == velocity, "Visual correction preserves heading and momentum")
+			var nose := sprite.global_transform.basis_xform(Vector2.UP).normalized()
+			_check(nose.is_equal_approx(forward), "Top-down ship nose follows the heading, including vertical flight")
+			_check(not sprite.flip_h and not sprite.flip_v, "Top-down hull rotates continuously without mirroring")
+			for flame: Sprite2D in thrusters.get_children():
+				var exhaust := flame.global_transform.basis_xform(Vector2.DOWN).normalized()
+				var mount_offset := flame.global_position - ship.global_position
+				_check(exhaust.is_equal_approx(-forward) and mount_offset.dot(forward) < 0.0,
+					"Each exhaust stays behind the ship and points opposite thrust")
+			_check(is_equal_approx(ship.rotation, angle) and flight._ship_velocity == velocity, "Presentation preserves heading and momentum")
 		flight.queue_free()
 		await process_frame
 	print("Ship orientation: %d checks, %d failures." % [checks, failures])

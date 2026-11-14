@@ -21,6 +21,8 @@ For a quick playtest, open [Fractured Flag](scenes/fractured_flag.tscn) or [Drif
 4. A centered cockpit looks straight ahead into black space. A freely licensed star animation makes forward motion clear. An incoming envoy hologram rises from the console and expands into the conversation screen. Press **Esc**, **Enter**, or **Skip descent** to skip the flight sequence.
 5. Press **Enter** or the highlighted **Continue** button directly beneath the message to reveal a line, then advance at your own pace. **Skip story** opens the challenge briefing. Accept to play solo, or choose **Local duel** for two people on one device. **Q** opens a farewell; Q again returns directly to flight. During a match, **Leave orbit** ends the duel and resumes flight.
 
+Flight and camera motion are interpolated between physics ticks. Releasing boost eases down to cruise speed, and resuming flight from orbit preserves momentum while thrust builds speed.
+
 ## The Horizon expedition
 
 Captain Valeria and Navigator Sol seek peaceful contact. Kalypso’s envoy Lyra tests your leadership on the collapsing arena; Cinder’s envoy Vesper tests your foresight in the shifting circuit. Each uses an existing freely licensed pixel character.
@@ -76,7 +78,7 @@ scripts/
   core/               Expedition state, story and audio service
 art/
   audio/              Music, effects and audio attribution
-  flight/             Horizon sprite, exhaust and celestial bodies
+  flight/             Star Marine Trooper sprite, exhaust and celestial bodies
   cockpit/            Cockpit surfaces, decals and sky art
   descent/            Centered cockpit photograph and forward star video
   fleet/              3D board units and relay model
@@ -114,7 +116,7 @@ On Windows, keep the exported `FracturedFlag.pck` beside the executable. For the
 
 Developed by the Horizon game jam team. See the [asset credits](ASSET_CREDITS.md) for individual files, licenses, modifications, and supplied assets whose origin still needs confirmation.
 
-- **Horizon art:** Luis Zuno (Ansimuz). **Animated exhaust:** KlenchAndrei. [Sideview Sci-Fi](https://opengameart.org/content/sideview-sci-fi-patreon-collection) · [Free Pixel Rocket Exhaust](https://klenchandrei.itch.io/exhaust-free)
+- **Player spaceship:** a transparent top-down render of the supplied Star Marine Trooper model, used in both flight systems and as the project icon. Rebuild with `python tools/render_ship_sprite.py` (NumPy and Pillow); the original OBJ, MTL, palette and VOX are retained in `tools/ship_source`. **Animated exhaust:** KlenchAndrei. [Free Pixel Rocket Exhaust](https://klenchandrei.itch.io/exhaust-free)
 - **Board models and sound effects:** Kenney. **Cockpit textures:** cheerful sprite. **Cockpit planets:** Screaming Brain Studios. [Space Kit](https://kenney.nl/assets/space-kit) · [Spaceship Interior](https://opengameart.org/content/spaceship-interior-0) · [Tiny Planet Pack](https://screamingbrainstudios.itch.io/tiny-planet-pack)
 - **Result art:** Emcee Flesher. **Card icons:** Gerrit Halfmann. **Nebula photography:** NASA, ESA and the Westerlund 2 imaging team. [Sci-Fi RogueLike Pixel Art](https://opengameart.org/content/sci-fi-roguelike-pixel-art) · [Pixelarticons](https://github.com/halfmage/pixelarticons/tree/v1.8.1) · [Westerlund 2](https://esahubble.org/images/heic1509a/)
 - **Music:** yd. **Infected Trail sound:** spookymodem. [Observing the Star](https://opengameart.org/content/another-space-background-track) · [My Very Own Dead Ship](https://opengameart.org/content/background-space-track) · [Bubbling Acid](https://opengameart.org/content/bubbling-acid)
