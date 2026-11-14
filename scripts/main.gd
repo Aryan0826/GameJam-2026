@@ -2,8 +2,13 @@ extends Control
 
 const Rules = preload("res://scripts/rules.gd")
 const Bot = preload("res://scripts/bot.gd")
+const Drift = preload("res://scripts/drift.gd")
+const DriftBot = preload("res://scripts/drift_bot.gd")
 const Arena = preload("res://scripts/board.gd")
 const Cockpit = preload("res://scripts/cockpit.gd")
+const AbilityCards = preload("res://scripts/ability_cards.gd")
+const KalypsoGuide = preload("res://scripts/kalypso_guide.gd")
+const ExpeditionState = preload("res://scripts/expedition.gd")
 const SANS = preload("res://art/SpaceGrotesk.ttf")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
 
@@ -15,6 +20,10 @@ const NORTH = Color("#ff937e")
 const SOUTH = Color("#83e1fa")
 const PANEL = Color("#111e29")
 const LINE = Color("#3d5b68")
+const ALIEN_GREEN = Color("#9cff83")
+const ALIEN_DIM = Color("#75ad83")
+const ALIEN_PANEL = Color("#0c1c15")
+const ALIEN_LINE = Color("#3b7950")
 const SIDES = ["Aliens", "Pilots"]
 const SPELLS = {
 	"shield": ["Shield", "Absorb one capture outside the beacon."],
@@ -28,29 +37,21 @@ const SPELLS = {
 const DRAFT_SPELLS = Rules.SPELLS
 const IMAGE_CREDIT = "NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team"
 const IMAGE_URL = "https://esahubble.org/images/heic1509a/"
-const RULES_TEXT = """[color=#f8d587]WIN THE DUEL[/color]
-Hold the center beacon through three enemy turns with the same unit, or remove every enemy unit. The match draws after round 8 if neither side wins.
 
-[color=#f8d587]TAKE YOUR TURN[/color]
-Roll first. Then choose one path: Move → Use power; Move → Finish turn; or Use power → Finish turn. A drafted ability counts as your move. Finish / skip turn is available at any time.
+const DRIFT_RULES_TEXT = """[color=#f8d587]RACE TO FIVE[/color]
+After both players act, the marked rows shift. Each gold relay occupied after the shift earns one point, then jumps to another column on the same row. Each relay can score once per round. Reach five points with a lead to win. A tie at five or more goes to another round. If no side wins by the end of round %d, the match draws.
 
-Move one tile orthogonally or one or two diagonally in any direction. A two-tile diagonal can jump a unit or hole. Regular captures are one tile diagonally forward: down for Aliens and up for Pilots. Enter the beacon from an adjacent square or by making a capture.
+[color=#f8d587]PLAN YOUR LANDING[/color]
+Row 4 shifts right and row 6 shifts left. The tiles lift and carry their units one square, wrapping around at the edge. The tiles on row 5 stay put, but its gold relay relocates after scoring too. For a relay at E4, aim for D4 so the shift carries you onto it. Hover over a highlighted move on a drift row to preview the landing.
 
-[color=#f8d587]WATCH THE RIM[/color]
-Cracks are safe until the round ends. Opposite pairs fall in rounds 2 and 4. Each remaining rim falls in rounds 3 and 5. Any unit on a falling tile is removed.
-
-[color=#f8d587]DRAFT ONE-USE ABILITIES[/color]
-Shield absorbs one capture and disappears on beacon entry. Teleport jumps to any empty, intact, uninfected tile outside the beacon. Fracture marks any intact tile outside the beacon to drop after the next turn, removing its occupant.
-
-Borrow Tomorrow moves its assigned unit one orthogonal step, then moves another ally one orthogonal step. The first unit cannot enter or leave the beacon. At the end of your next turn it returns to its echo, or is removed if that tile is blocked, infected or gone.
-
-[color=#f8d587]ROLL FOR AN ABILITY[/color]
-Roll once per round before moving or using a drafted ability. After rolling, the die panel shows your special power. To move, select a unit → Move / capture → select a highlighted destination. To use power, click Use power → click a highlighted target. For Infected Trail, the target is one of your units; for Spy or Long Capture, it is an enemy.
-
-Infected Trail blocks entry into the 3 × 3 area around a selected unit through the enemy turn, except the beacon. Spy takes control of an enemy within two orthogonal steps of any ally. It returns after three of your subsequent turns. It may stand on the beacon but cannot score or capture there while stolen. Long Capture lets one of your units take an enemy one or two tiles diagonally in any direction.
+[color=#f8d587]TAKE ONE ACTION[/color]
+Move one tile orthogonally or one or two diagonally to an empty square. A two-tile diagonal can jump over a unit. Capture one tile diagonally forward (Aliens down, Pilots up) to disrupt a rival’s setup.
 
 [color=#f8d587]CONTROLS[/color]
-Click a unit, choose an action, then click its target. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. In solo, Take Over Aliens switches to local play on the next alien turn boundary."""
+Click a unit, then a highlighted destination. Arrow keys move the board cursor and Enter selects. Esc clears a selection or closes help. Rematches swap the opening side and alternate the Center and Split relay layouts."""
+
+@export var drift_circuit := false
+@onready var expedition: ExpeditionState = get_node("/root/Expedition")
 
 var state: Dictionary = {}
 var legal: Array[Dictionary] = []
@@ -68,6 +69,7 @@ var takeover_button: Button
 var motion_button: Button
 var feedback: Label
 var signal_text: Label
+var beacon_label: Label
 var beacon_lamps: Array[Panel] = []
 var local_mode := false
 var takeover_queued := false
@@ -84,10 +86,30 @@ var overlay_kind := ""
 var first_flag_round := 0
 var started_at := 0
 var finished_at := 0
+var card_reveal: Control
+var shuffling := false
 var bold: FontVariation
+var _communication_tween: Tween
+var _terminal_screen: RichTextLabel
+var _terminal_messages: Array[Dictionary] = []
+var _terminal_active_line := 0
+var _terminal_characters := 0.0
+var _terminal_blink_time := 0.0
+var _encounter_options: Control
+var _telemetry_credit_label: Label
+var _communication_accept: Button
+var _communication_local: Button
+var _communication_prompt: Label
+var _communication_ready := false
+var _communication_presented := false
+var _leaving_orbit := false
 
 
 func _ready() -> void:
+	if not drift_circuit:
+		expedition.enter_system(0)
+	elif expedition.current_system == 0:
+		expedition.enter_system(ExpeditionState.CINDER)
 	bold = FontVariation.new()
 	bold.base_font = SANS
 	bold.variation_opentype = { TextServerManager.get_primary_interface().name_to_tag("wght"): 700 }
@@ -112,7 +134,7 @@ func _build_frame() -> void:
 	board.gui_input.connect(func(event: InputEvent):
 		if event is InputEventKey:
 			_unhandled_key_input(event))
-	_label(chrome, Rect2(66, 42, 490, 46), "Conqueror’s Chess", 36, INK, bold)
+	_label(chrome, Rect2(66, 42, 490, 46), "Drift Circuit" if drift_circuit else "Conqueror’s Chess", 36, INK, bold)
 	round_label = _label(chrome, Rect2(69, 91, 440, 23), "", 14, SOUTH, MONO)
 	_panel(chrome, Rect2(66, 124, 482, 87), Color(0.035, 0.068, 0.11, 0.95), LINE, 5)
 	var head := Cockpit.new()
@@ -121,10 +143,14 @@ func _build_frame() -> void:
 	_place(chrome, head, Rect2(75, 133, 78, 68))
 	_label(chrome, Rect2(163, 130, 370, 18), "ALIEN ENVOY  /  LIVE", 11, GOLD, MONO)
 	signal_text = _label(chrome, Rect2(163, 151, 367, 45), "", 16, INK, SANS, true)
-	_label(chrome, Rect2(850, 208, 111, 17), "BEACON HOLD", 12, GOLD, MONO)
+	beacon_label = _label(chrome, Rect2(850, 208, 111, 17), "BEACON HOLD", 12, GOLD, MONO)
 	for i in Rules.FLAG_REPLIES:
 		beacon_lamps.append(_panel(chrome, Rect2(965 + 25 * i, 212, 18, 8), Color("#26313b"), LINE, 1))
 	_button(chrome, Rect2(1130, 198, 144, 31), "System map", _show_map)
+	_button(chrome, Rect2(1130, 159, 144, 31), "Leave orbit", _leave_current_orbit)
+	beacon_label.visible = not drift_circuit
+	for lamp in beacon_lamps:
+		lamp.visible = not drift_circuit
 	mode_button = _button(chrome, Rect2(680, 811, 95, 31), "Solo", _show_modes)
 	takeover_button = _button(chrome, Rect2(783, 811, 150, 31), "Take Over Aliens", _takeover)
 	_button(chrome, Rect2(941, 811, 77, 31), "Rules", _show_rules)
@@ -133,10 +159,19 @@ func _build_frame() -> void:
 	side_panel = _layer(chrome)
 	side_panel.position.y = 106
 	side_panel.scale.y = 0.86
-	_label(self, Rect2(48, 831, 780, 16), IMAGE_CREDIT, 10, MUTED)
+	_telemetry_credit_label = _label(self, Rect2(48, 831, 590, 16), "SHIP GRAPHS: GODOT PRIMITIVES / IBM PLEX MONO", 10, MUTED)
 	feedback.position.y = 808
 	feedback.size.y = 19
 	_button(self, Rect2(1146, 811, 128, 31), "Asset credits", _show_credits)
+	_encounter_options = _layer(self)
+	_label(_encounter_options, Rect2(48, 815, 480, 22), "HORIZON / COMMUNICATION TERMINAL", 12, Color("#7ab594"), MONO)
+	_communication_local = _button(_encounter_options, Rect2(542, 811, 132, 31), "Local duel", _accept_challenge.bind(true))
+	_button(_encounter_options, Rect2(684, 811, 132, 31), "How to play", _show_rules)
+	_button(_encounter_options, Rect2(826, 811, 132, 31), "System map", _show_map)
+	_button(_encounter_options, Rect2(968, 811, 168, 31), "Replay prologue", _show_story)
+	card_reveal = AbilityCards.new()
+	_place(chrome, card_reveal, Rect2(178, 328, 500, 344))
+	card_reveal.hide()
 	overlay = _layer(self)
 
 
@@ -211,6 +246,10 @@ func _button(parent: Node, rect: Rect2, title: String, callback: Callable, accen
 
 
 func _clear(layer: Node) -> void:
+	if layer == overlay:
+		_stop_communication()
+		if _encounter_options != null:
+			_encounter_options.hide()
 	for child in layer.get_children():
 		layer.remove_child(child)
 		child.queue_free()
@@ -218,33 +257,166 @@ func _clear(layer: Node) -> void:
 
 func _show_home() -> void:
 	chrome.hide()
-	cockpit.mode = "approach"
+	cockpit.mode = "terminal"
 	cockpit.clearance = ""
 	_clear(overlay)
 	overlay_kind = "home"
-	_panel(overlay, Rect2(65, 117, 508, 576), Color(0.027, 0.060, 0.10, 0.96), LINE, 12)
-	_label(overlay, Rect2(94, 140, 445, 24), "INCOMING TRANSMISSION  /  ORBITAL ARENA", 13, SOUTH, MONO)
-	_label(overlay, Rect2(91, 179, 440, 118), "Conqueror’s\nChess", 53, INK, bold)
-	var head := Cockpit.new()
-	head.envoy = true
-	head.motion = false
-	_place(overlay, head, Rect2(95, 325, 78, 68))
-	_label(overlay, Rect2(188, 322, 354, 21), "ALIEN ENVOY", 13, GOLD, MONO)
-	_label(overlay, Rect2(188, 349, 354, 95), "“Commander Valeria, the Horizon has reached our arena. Win the trial and we will stand with Kalypso. Lose, and your crew is ours.”", 20, INK, SANS, true)
-	_button(overlay, Rect2(94, 476, 448, 49), "Accept challenge", func(): _start(false), true)
-	_button(overlay, Rect2(94, 540, 215, 43), "Local duel", func(): _start(true))
-	_button(overlay, Rect2(324, 540, 218, 43), "How to play", _show_rules)
-	_button(overlay, Rect2(94, 597, 448, 38), "System map", _show_map)
-	_button(overlay, Rect2(94, 644, 448, 32), "Replay prologue", _show_story)
-	_label(overlay, Rect2(728, 553, 420, 29), "HORIZON  /  APPROACH LOCKED", 14, GOLD, MONO)
+	_encounter_options.show()
+	_telemetry_credit_label.hide()
+	var system_data: Dictionary = expedition.current_system_data()
+	var planet_name := str(system_data.planet_name).capitalize()
+	var game_name := "Drift Circuit" if drift_circuit else "Conqueror’s Chess"
+	_label(overlay, Rect2(128, 58, 720, 24), "HORIZON // SHIP COMMUNICATIONS", 14, Color("#8effb2"), MONO)
+	var orbit_status := _label(overlay, Rect2(848, 58, 344, 24), "ORBIT / %s" % system_data.planet_name, 13, Color("#75ad83"), MONO)
+	orbit_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_label(overlay, Rect2(128, 90, 1064, 28), "%s / INCOMING TRANSMISSION" % game_name.to_upper(), 19, Color("#a6efc2"), MONO)
+	_terminal_screen = RichTextLabel.new()
+	_terminal_screen.bbcode_enabled = true
+	_terminal_screen.scroll_active = false
+	_terminal_screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_terminal_screen.add_theme_font_override("normal_font", MONO)
+	_terminal_screen.add_theme_font_size_override("normal_font_size", 18)
+	_terminal_screen.add_theme_color_override("default_color", Color("#b3f4c7"))
+	_terminal_screen.add_theme_constant_override("line_separation", 2)
+	_place(overlay, _terminal_screen, Rect2(128, 142, 1064, 312))
+	_terminal_messages = [
+		{"speaker": "ALIEN ENVOY", "color": "#a0edb4", "text": "Horizon, you have entered %s's orbit. Why have you come here?" % planet_name},
+		{"speaker": "HORIZON / VALERIA", "color": "#a6dfff", "text": "We are looking for friends away from home. We come in peace."},
+		{"speaker": "ALIEN ENVOY", "color": "#a0edb4", "text": "Then face us in %s. Win, and we will welcome you as friends. Lose, and you must leave our orbit in peace." % game_name},
+	]
+	_terminal_active_line = 0
+	_terminal_characters = 0.0
+	_terminal_blink_time = 0.0
+	_communication_prompt = _label(overlay, Rect2(128, 467, 1064, 22), "", 14, Color("#75ad83"), MONO)
+	_communication_accept = _terminal_action(Rect2(128, 506, 512, 32), "[ENTER] REVEAL TRANSMISSION", _advance_communication)
+	_terminal_action(Rect2(680, 506, 512, 32), "[Q] LEAVE ORBIT", _leave_planet_orbit)
+	_label(overlay, Rect2(128, 554, 1064, 18), "HORIZON / ORBIT LINK OPEN", 11, Color("#518368"), MONO)
+	_communication_accept.disabled = false
+	_communication_local.disabled = true
+	if _communication_presented:
+		_finish_communication()
+	else:
+		_communication_presented = true
+		_communication_tween = create_tween()
+		_communication_tween.tween_interval(0.2)
+		for i in _terminal_messages.size():
+			var message: String = _terminal_messages[i].text
+			_communication_tween.tween_callback(_begin_terminal_message.bind(i))
+			_communication_tween.tween_property(self, "_terminal_characters", float(message.length()), clampf(message.length() / 50.0, 0.75, 3.2)).from(0.0)
+			_communication_tween.tween_interval(0.25)
+		_communication_tween.tween_callback(_finish_communication)
+	_render_terminal()
+
+
+func _terminal_action(rect: Rect2, title: String, callback: Callable) -> Button:
+	var button := Button.new()
+	button.text = title
+	button.flat = true
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_override("font", MONO)
+	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_color_override("font_color", Color("#8effb2"))
+	button.add_theme_color_override("font_hover_color", Color("#e1ffeb"))
+	button.add_theme_color_override("font_disabled_color", Color("#3d6a50"))
+	for style_name in ["normal", "hover", "pressed", "disabled"]:
+		button.add_theme_stylebox_override(style_name, StyleBoxEmpty.new())
+	_place(overlay, button, rect)
+	button.pressed.connect(callback)
+	return button
+
+
+func _begin_terminal_message(index: int) -> void:
+	_terminal_active_line = index
+	_terminal_characters = 0.0
+
+
+func _process(delta: float) -> void:
+	if overlay_kind == "home":
+		_terminal_blink_time = fposmod(_terminal_blink_time + delta, 1.0)
+		_render_terminal()
+
+
+func _render_terminal() -> void:
+	var cursor := "_" if _terminal_blink_time < 0.55 else " "
+	var transcript := ""
+	for i in _terminal_messages.size():
+		if not _communication_ready and i > _terminal_active_line:
+			break
+		var message: Dictionary = _terminal_messages[i]
+		var full_text: String = message.text
+		var visible_text := full_text
+		if not _communication_ready and i == _terminal_active_line:
+			visible_text = full_text.substr(0, int(_terminal_characters)) + cursor
+		transcript += "[color=%s]%s >\n%s[/color]\n\n" % [message.color, message.speaker, visible_text]
+	if _communication_ready:
+		transcript += "[color=#8effb2]AWAITING COMMAND > %s[/color]" % cursor
+	if _terminal_screen.text != transcript:
+		_terminal_screen.text = transcript
+
+
+func _stop_communication() -> void:
+	if _communication_tween != null:
+		_communication_tween.kill()
+		_communication_tween = null
+	_communication_ready = false
+
+
+func _finish_communication() -> void:
+	if overlay_kind != "home":
+		return
+	_stop_communication()
+	_communication_ready = true
+	_communication_accept.text = "[ENTER] ACCEPT CHALLENGE"
+	_communication_accept.disabled = false
+	_communication_local.disabled = false
+	_communication_prompt.text = ""
+	_render_terminal()
+
+
+func _accept_challenge(local: bool = false) -> void:
+	if overlay_kind != "home" or not _communication_ready or busy:
+		return
+	_start(local)
+
+
+func _leave_planet_orbit() -> void:
+	if overlay_kind != "home" or busy:
+		return
+	_leave_current_orbit()
+
+
+func _advance_communication() -> void:
+	if overlay_kind != "home" or busy:
+		return
+	if _communication_ready:
+		_accept_challenge()
+	else:
+		_finish_communication()
+
+
+func _input(event: InputEvent) -> void:
+	if overlay_kind != "home" or busy or not event is InputEventKey:
+		return
+	if not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_Q:
+		get_viewport().set_input_as_handled()
+		_leave_planet_orbit()
+	elif event.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		get_viewport().set_input_as_handled()
+		_advance_communication()
 
 
 func _show_story() -> void:
+	expedition.reset_journey()
 	get_tree().change_scene_to_file("res://scenes/opening_crawl.tscn")
 
 
 func _start(local: bool, rematch: bool = false) -> void:
 	generation += 1
+	shuffling = false
+	card_reveal.hide()
 	busy = false
 	local_mode = local
 	takeover_queued = false
@@ -253,15 +425,21 @@ func _start(local: bool, rematch: bool = false) -> void:
 	var seed_value := randi()
 	while not state.is_empty() and seed_value == state.seed:
 		seed_value = randi()
-	state = Rules.create_match(seed_value, first)
+	if drift_circuit:
+		var layout := Drift.CENTER if not rematch else 1 - int(state.drift.layout)
+		var focus := randi_range(0, 2) if not rematch else (int(state.drift.focus) + randi_range(1, 2)) % 3
+		state = Rules.create_drift_match(seed_value, first, layout, focus)
+	else:
+		state = Rules.create_match(seed_value, first)
 	records.clear()
 	messages.clear()
 	assignments.clear()
 	first_flag_round = 0
-	started_at = 0
+	started_at = Time.get_ticks_msec() if drift_circuit else 0
 	finished_at = 0
 	feedback.text = ""
 	cockpit.mode = "trial"
+	_telemetry_credit_label.show()
 	cockpit.clearance = ""
 	cockpit.alert = 0.0
 	board.reset_visuals()
@@ -270,7 +448,7 @@ func _start(local: bool, rematch: bool = false) -> void:
 	_clear_selection()
 	_close_overlay(false)
 	chrome.show()
-	if local_mode:
+	if local_mode and state.phase == "draft":
 		_show_handoff()
 	_enter_turn()
 
@@ -286,6 +464,8 @@ func _enter_turn() -> void:
 		return
 	if state.phase == "finished":
 		_show_result()
+	elif drift_circuit and legal.size() == 1 and legal[0].kind == "pass":
+		_schedule_action(legal[0], 0.32)
 	elif not local_mode and state.active == 0:
 		if state.phase == "draft":
 			_commit(Bot.choose(state, legal))
@@ -303,20 +483,37 @@ func _schedule_action(action: Dictionary, delay: float) -> void:
 	busy = false
 	if overlay_kind != "":
 		return
-	var choice := Bot.choose(state, legal) if action.is_empty() else action
+	var choice := action
+	if choice.is_empty():
+		choice = DriftBot.choose(state, legal) if drift_circuit else Bot.choose(state, legal)
 	_commit(choice)
 
 
 func _commit(action: Dictionary) -> void:
 	if busy or action.is_empty():
 		return
+	var stamp := generation
+	if action.kind == "roll":
+		busy = true
+		shuffling = motion
+		if motion:
+			card_reveal.start_shuffle()
+		_refresh()
+		if motion:
+			await get_tree().create_timer(AbilityCards.SHUFFLE_TIME + AbilityCards.FLIP_TIME / 2).timeout
+			if stamp != generation:
+				return
 	var result := Rules.apply_action(state, action)
 	if not result.ok:
+		busy = false
+		shuffling = false
+		card_reveal.hide()
 		_note("That action is no longer available.")
 		_refresh()
 		return
 	var was_draft: bool = state.phase == "draft"
 	var played_round: int = state.round
+	var shifting: bool = result.events.any(func(event: Dictionary): return event.kind == "drift_score")
 	state = result.state
 	records.append(action.duplicate(true))
 	var rolled: bool = action.kind == "roll"
@@ -336,12 +533,22 @@ func _commit(action: Dictionary) -> void:
 			cockpit.alert = 0.7
 		if first_flag_round == 0 and event.kind == "flag" and event.get("pawn", -1) >= 0:
 			first_flag_round = played_round
-		if event.kind not in ["turn", "draft_lock"]:
-			messages.push_front(event.text.replace("Pawns", "Units").replace("pawns", "units").replace("Pawn", "Unit").replace("pawn", "unit").replace("flag", "beacon"))
+		if event.kind not in ["turn", "draft_lock", "drift_move"]:
+			var event_text: String = "%s drew %s." % [SIDES[event.side], SPELLS[event.special][0]] if event.kind == "roll" else event.text
+			messages.push_front(event_text.replace("Pawns", "Units").replace("pawns", "units").replace("Pawn", "Unit").replace("pawn", "unit").replace("flag", "beacon"))
 			if messages.size() > 12:
 				messages.pop_back()
 	legal = Rules.legal_actions(state)
 	if rolled:
+		shuffling = false
+		card_reveal.reveal(state.dice[state.active])
+		_refresh()
+		if card_reveal.visible:
+			await get_tree().create_timer(AbilityCards.FLIP_TIME / 2 + AbilityCards.REVEAL_HOLD).timeout
+			if stamp != generation:
+				return
+		card_reveal.hide()
+		busy = false
 		if not local_mode and state.active == 0:
 			_schedule_action({}, 0.24 if motion else 0.10)
 		else:
@@ -352,8 +559,10 @@ func _commit(action: Dictionary) -> void:
 		return
 	busy = true
 	_refresh()
-	var stamp := generation
-	await get_tree().create_timer(0.65 if motion else 0.10).timeout
+	var turn_delay := 0.65 if motion else 0.10
+	if motion and shifting:
+		turn_delay = Arena.DRIFT_DELAY + Arena.DRIFT_DURATION + 0.15
+	await get_tree().create_timer(turn_delay).timeout
 	if stamp != generation:
 		return
 	busy = false
@@ -397,23 +606,34 @@ func _refresh() -> void:
 	board.sync()
 	_update_transmission()
 	var draft: bool = state.phase == "draft"
-	round_label.text = "PRIVATE DRAFT" if draft else "ROUND %02d / 08     ·     %s" % [state.round, "DUEL COMPLETE" if state.phase == "finished" else SIDES[state.active].to_upper() + " TO ACT"]
-	var flag_status := "%d/%d HELD" % [state.replies, Rules.FLAG_REPLIES] if state.holder >= 0 else "UNCLAIMED"
-	var occupant := _pawn_at(state.flag)
-	if state.holder < 0 and occupant >= 0:
-		flag_status = "STOLEN UNIT  /  NO SCORE"
-	status_label.text = "BEACON  %s     /     %s" % [_coord(state.flag), flag_status]
+	var turn_text: String = "DUEL COMPLETE" if state.phase == "finished" else SIDES[state.active].to_upper() + " TO ACT"
+	round_label.text = "PRIVATE DRAFT" if draft else "ROUND %02d / %02d     ·     %s" % [state.round, Drift.ROUND_LIMIT if drift_circuit else 8, turn_text]
+	if drift_circuit:
+		var coords := PackedStringArray()
+		for relay: Vector2i in state.drift.relays:
+			coords.append(_coord(relay))
+		status_label.text = "LANES SHIFTING" if board.shift_tween else "RELAYS   " + "  /  ".join(coords)
+	else:
+		var flag_status := "%d/%d HELD" % [state.replies, Rules.FLAG_REPLIES] if state.holder >= 0 else "UNCLAIMED"
+		if state.holder < 0 and _pawn_at(state.flag) >= 0:
+			flag_status = "STOLEN UNIT  /  NO SCORE"
+		status_label.text = "BEACON  %s     /     %s" % [_coord(state.flag), flag_status]
 	mode_button.text = "Local" if local_mode else "Solo"
 	takeover_button.disabled = draft or local_mode or takeover_queued or state.phase != "playing"
 	takeover_button.text = "Takeover queued" if takeover_queued else "Take Over Aliens"
 	_clear(side_panel)
 	if draft:
 		_draw_draft()
+	elif drift_circuit:
+		_draw_drift_play()
 	else:
 		_draw_play()
 
 
 func _update_transmission() -> void:
+	if drift_circuit:
+		signal_text.text = "The relay race has ended." if state.phase == "finished" else "Gold relays score after the shift, then move along their rows."
+		return
 	var line := "Configure your units. The trial begins when both sides lock their choices."
 	var lamp_color := SOUTH
 	if state.holder >= 0 and state.pawns[state.holder].side == 0:
@@ -463,24 +683,30 @@ func _draw_play() -> void:
 	_team_card(846, 148, 0)
 	_team_card(1067, 148, 1)
 	_panel(side_panel, Rect2(846, 238, 430, 108))
-	_label(side_panel, Rect2(864, 249, 180, 22), "ABILITY DIE", 12, MUTED, MONO)
 	var face: String = state.dice[state.active]
-	var special_name: String = SPELLS[face][0] if not face.is_empty() else "Ready to roll"
-	_label(side_panel, Rect2(864, 273, 209, 32), special_name, 23, LILAC, bold)
-	var roll := _button(side_panel, Rect2(1073, 268, 185, 36), "Roll ability" if face.is_empty() else "Roll: %d" % state.rolls[state.active], _roll_ability, face.is_empty())
-	roll.disabled = busy or state.phase != "playing" or not face.is_empty() or (not local_mode and state.active == 0)
+	var deck := AbilityCards.new()
+	deck.compact = true
+	deck.face = face
+	deck.shuffling = shuffling
+	_place(side_panel, deck, Rect2(851, 242, 80, 69))
+	_label(side_panel, Rect2(936, 246, 175, 20), "ABILITY DECK", 12, MUTED, MONO)
+	var special_name: String = SPELLS[face][0] if not face.is_empty() else ("Shuffling…" if shuffling else "Ready to shuffle")
+	_label(side_panel, Rect2(936, 271, 190, 29), special_name, 18, AbilityCards.POWERS[face].color if face in AbilityCards.POWERS else LILAC, MONO)
+	var shuffle := _button(side_panel, Rect2(1130, 258, 128, 38), "Card drawn" if not face.is_empty() else ("Shuffling…" if shuffling else "Shuffle"), _shuffle_ability, face.is_empty())
+	shuffle.tooltip_text = SPELLS[face][1] if not face.is_empty() else "Shuffle once to draw your ability card."
+	shuffle.disabled = busy or state.phase != "playing" or not face.is_empty() or (not local_mode and state.active == 0)
 	var drops := "Purple cracks fall after this turn." if not state.fractures.is_empty() else "Rim cracks fall after both turns."
 	if state.fractures.is_empty() and state.cracks.is_empty():
-		drops = "Roll before moving. Skip turn is always available."
+		drops = "Shuffle before moving. Skip turn is always available." if face.is_empty() else "Card ready. Move, use power, or finish your turn."
 	_label(side_panel, Rect2(864, 310, 390, 25), drops, 14, GOLD if not state.cracks.is_empty() or not state.fractures.is_empty() else MUTED)
-	_panel(side_panel, Rect2(846, 359, 430, 282))
+	_panel(side_panel, Rect2(846, 359, 430, 225))
 	_label(side_panel, Rect2(864, 369, 396, 25), "TURN CHOICES", 12, MUTED, MONO)
-	_label(side_panel, Rect2(864, 396, 394, 55), _action_hint(), 16, INK, SANS, true)
+	_label(side_panel, Rect2(864, 396, 218, 80), _action_hint(), 14, INK, SANS, true)
 	if selected >= 0 and selected in state.pawns:
 		var p: Dictionary = state.pawns[selected]
-		_action_button(Rect2(864, 462, 189, 38), "Move / capture", "standard")
+		_action_button(Rect2(864, 480, 189, 38), "Move / capture", "standard")
 		if p.ability != "":
-			_action_button(Rect2(864, 509, 189, 38), SPELLS[p.ability][0], "ability")
+			_action_button(Rect2(864, 524, 189, 36), SPELLS[p.ability][0], "ability")
 		var details := Rules.ability_reason(state, p) if p.ability != "" else ""
 		if not p.borrow.is_empty():
 			details = "Returns to %s at the end of this turn." % _coord(p.borrow.origin)
@@ -491,20 +717,81 @@ func _draw_play() -> void:
 		elif details.is_empty() and action_group == "power" and not face.is_empty():
 			details = SPELLS[face][1]
 		if not details.is_empty():
-			_label(side_panel, Rect2(865, 595, 387, 36), details, 13, MUTED, SANS, true)
+			var detail_label := _label(side_panel, Rect2(864, 562, 218, 20), details, 12, MUTED)
+			detail_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			detail_label.tooltip_text = details
+			detail_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	else:
-		_label(side_panel, Rect2(864, 473, 188, 40), "Hold the beacon through three enemy turns.", 16, GOLD, bold, true)
-		_label(side_panel, Rect2(864, 518, 188, 67), "Select a unit to move. Power targets appear after Use power.", 14, MUTED, SANS, true)
+		_label(side_panel, Rect2(864, 510, 188, 70), "Select a unit to move. Click your card for power targets.", 15, MUTED, SANS, true)
 	if not face.is_empty():
-		_action_button(Rect2(1062, 462, 196, 38), "Use power", "power")
-	var skip := _button(side_panel, Rect2(1062, 509, 196, 38), "Finish / skip turn", _skip_turn)
+		_draw_power_card(face)
+	_draw_flight_log()
+	var skip := _button(side_panel, Rect2(846, 744, 430, 42), "Finish / skip turn", _skip_turn)
+	skip.name = "FinishTurnButton"
 	skip.disabled = busy or state.phase != "playing" or (not local_mode and state.active == 0)
-	_panel(side_panel, Rect2(846, 654, 430, 145))
-	_label(side_panel, Rect2(864, 665, 270, 22), "FLIGHT LOG", 12, MUTED, MONO)
-	_button(side_panel, Rect2(1162, 663, 97, 27), "View log", _show_log)
+
+
+func _draw_power_card(face: String) -> void:
+	var available := not _group_actions("power").is_empty()
+	var card := _button(side_panel, Rect2(1100, 386, 156, 194), "Use power", _select_power_card)
+	card.name = "PowerCardButton"
+	card.disabled = busy or not available or state.phase != "playing" or (not local_mode and state.active == 0)
+	card.tooltip_text = SPELLS[face][0] + " · " + SPELLS[face][1]
+	var tone: Color = AbilityCards.POWERS[face].color
+	for appearance in ["normal", "disabled", "pressed", "hover"]:
+		var highlighted: bool = appearance == "hover" or appearance == "pressed" or (action_group == "power" and appearance == "normal")
+		var fill := Color(tone, 0.08) if highlighted else Color.TRANSPARENT
+		card.add_theme_stylebox_override(appearance, _style(fill, tone if highlighted else Color.TRANSPARENT, 0))
+	for appearance in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_disabled_color", "font_focus_color"]:
+		card.add_theme_color_override(appearance, Color.TRANSPARENT)
+	card.add_theme_stylebox_override("focus", _style(Color.TRANSPARENT, SOUTH, 0))
+	var view := AbilityCards.new()
+	view.docked = true
+	view.face = face
+	view.action_label = "Choose target" if action_group == "power" else "Use power"
+	if state.turn_power_used:
+		view.action_label = "Power used"
+	elif busy:
+		view.action_label = "Revealing…" if card_reveal.visible else "Please wait…"
+	elif not local_mode and state.active == 0:
+		view.action_label = "Opponent's card"
+	elif not available:
+		view.action_label = "No legal targets"
+	_place(card, view, Rect2(Vector2.ZERO, card.size))
+
+
+func _select_power_card() -> void:
+	if busy or state.phase != "playing" or _group_actions("power").is_empty() or (not local_mode and state.active == 0):
+		return
+	_set_group("power")
+
+
+func _draw_drift_play() -> void:
+	_team_card(846, 148, 0)
+	_team_card(1067, 148, 1)
+	_panel(side_panel, Rect2(846, 238, 430, 108))
+	_label(side_panel, Rect2(864, 249, 230, 22), "RELAY LAYOUT", 12, LILAC, MONO)
+	_label(side_panel, Rect2(864, 273, 390, 32), Drift.LAYOUT_NAMES[state.drift.layout], 23, INK, bold)
+	_label(side_panel, Rect2(864, 310, 390, 25), "ROW 4 →   /   ROW 6 ←   AFTER BOTH TURNS", 13, LILAC, MONO)
+	_panel(side_panel, Rect2(846, 359, 430, 225))
+	_label(side_panel, Rect2(864, 371, 394, 37), "Reach five points with the lead.", 21, GOLD, bold)
+	_label(side_panel, Rect2(864, 419, 394, 56), _action_hint(), 16, INK, SANS, true)
+	_label(side_panel, Rect2(864, 488, 390, 70), "Claimed relays jump to a new square on the same row. Hover over a highlighted move to preview its landing.", 16, MUTED, SANS, true)
+	_draw_flight_log()
+
+
+func _draw_flight_log() -> void:
+	_panel(side_panel, Rect2(846, 592, 430, 140), ALIEN_PANEL, ALIEN_LINE, 12)
+	_label(side_panel, Rect2(864, 600, 270, 22), "ALIEN FLIGHT LOG", 12, ALIEN_GREEN, MONO)
+	var log_button := _button(side_panel, Rect2(1162, 598, 97, 27), "View log", _show_log)
+	log_button.add_theme_stylebox_override("normal", _style(Color("#14281a"), ALIEN_LINE, 8))
+	log_button.add_theme_stylebox_override("hover", _style(Color("#1e3925"), ALIEN_GREEN, 8))
+	log_button.add_theme_stylebox_override("pressed", _style(Color("#284b30"), ALIEN_GREEN, 8))
+	log_button.add_theme_color_override("font_color", ALIEN_GREEN)
+	log_button.add_theme_color_override("font_hover_color", Color("#d0ffc4"))
 	var latest := messages.slice(0, 3)
 	for i in range(latest.size()):
-		var line := _label(side_panel, Rect2(864, 695 + i * 30, 389, 27), latest[i], 14, INK if i == 0 else MUTED)
+		var line := _label(side_panel, Rect2(864, 630 + i * 25, 389, 24), latest[i], 13, ALIEN_GREEN if i == 0 else ALIEN_DIM, MONO)
 		line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
 
@@ -517,23 +804,14 @@ func _team_card(x: float, y: float, side: int) -> void:
 	for pawn: Dictionary in state.pawns.values():
 		if pawn.side == side:
 			count += 1
-	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), "%d UNITS IN PLAY" % count, 13, MUTED, MONO)
+	var summary := "%d PTS  /  %d UNITS" % [state.drift.scores[side], count] if drift_circuit else "%d UNITS IN PLAY" % count
+	_label(side_panel, Rect2(x + 16, y + 42, 179, 24), summary, 13, MUTED, MONO)
 
 
-func _roll_ability() -> void:
+func _shuffle_ability() -> void:
 	if busy or {"kind": "roll"} not in legal or (not local_mode and state.active == 0):
 		return
 	board.grab_focus()
-	if motion:
-		busy = true
-		var stamp := generation
-		_refresh()
-		_note("Rolling the ability die…")
-		await get_tree().create_timer(0.28).timeout
-		if stamp != generation:
-			return
-		busy = false
-		feedback.text = ""
 	_commit({"kind": "roll"})
 
 
@@ -547,11 +825,19 @@ func _action_hint() -> String:
 	if state.phase == "finished":
 		return "Duel complete."
 	if busy:
+		if drift_circuit and board.shift_tween:
+			return "Rows 4 and 6 are shifting."
+		if shuffling:
+			return "Shuffling the ability cards…"
+		if card_reveal.visible:
+			return "Your ability card is ready."
 		if not local_mode and state.active == 0:
 			return "Aliens are taking their turn."
 		return "Resolving the turn."
+	if drift_circuit:
+		return "Select a highlighted move or capture." if selected >= 0 else "Select one of your units to see its legal moves."
 	if state.dice[state.active].is_empty():
-		return "Step 1: Roll the die. Or finish / skip to pass without acting."
+		return "Step 1: Shuffle the ability cards. Or finish / skip to pass without acting."
 	if state.turn_power_used:
 		return "Move + power complete. Finish your turn." if state.turn_move else "Power-only path complete. Finish your turn."
 	if action_group == "power":
@@ -754,18 +1040,55 @@ func _modal(kind: String, title: String, height: float = 520) -> Panel:
 func _show_handoff() -> void:
 	handoff = true
 	chrome.hide()
-	var box := _modal("handoff", "Pass to the %s player" % SIDES[state.active], 274)
+	var box := _modal("handoff", "Pass to the %s player" % SIDES[state.active], 319)
 	_label(box, Rect2(31, 98, 610, 57), "Your draft is private until both players lock their choices.", 21, MUTED, SANS, true)
 	_button(box, Rect2(31, 186, 620, 45), "Ready to draft", func():
 		handoff = false
 		chrome.show()
 		_close_overlay(), true)
+	_button(box, Rect2(31, 247, 620, 41), "Leave orbit", _leave_current_orbit)
 
 
 func _show_rules() -> void:
-	var box := _modal("rules", "How to play", 702)
-	_rich(box, Rect2(31, 94, 621, 516), RULES_TEXT)
+	if not drift_circuit:
+		_show_kalypso_guide(0)
+		return
+	var box := _modal("rules", "Drift Circuit rules", 702)
+	_rich(box, Rect2(31, 94, 621, 516), DRIFT_RULES_TEXT % Drift.ROUND_LIMIT)
 	_button(box, Rect2(31, 634, 620, 41), "Back", _close_overlay)
+
+
+func _show_kalypso_guide(page: int) -> void:
+	var box := _modal("rules", "Kalypso · How to play", 740)
+	_panel(box, Rect2(31, 89, 620, 83), Color("#192a32"), LINE, 4)
+	_label(box, Rect2(45, 94, 590, 20), "GOAL", 12, GOLD, MONO)
+	_label(box, Rect2(45, 116, 590, 50), KalypsoGuide.OBJECTIVE, 19, INK, SANS, true)
+	var tabs := ["Quick start", "Moves", "Abilities"]
+	for index in tabs.size():
+		var tab := _button(box, Rect2(31 + index * 210, 185, 200, 36), tabs[index], _show_kalypso_guide.bind(index), page == index)
+		tab.name = "GuideTab%d" % index
+	if page == 0:
+		_rich(box, Rect2(31, 238, 620, 418), KalypsoGuide.QUICK_START, 18)
+	elif page == 1:
+		var examples := [
+			["MOVE", "res://art/kalypso-movement-guide.png", KalypsoGuide.MOVEMENT],
+			["CAPTURE", "res://art/kalypso-capture-guide.png", KalypsoGuide.CAPTURES],
+		]
+		for index in examples.size():
+			var x := 31 + index * 320
+			_label(box, Rect2(x, 235, 300, 24), examples[index][0], 15, SOUTH if index == 0 else NORTH, MONO)
+			var screenshot := TextureRect.new()
+			screenshot.name = "MovementScreenshot" if index == 0 else "CaptureScreenshot"
+			screenshot.texture = load(examples[index][1])
+			screenshot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			screenshot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			screenshot.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			_place(box, screenshot, Rect2(x, 266, 300, 259))
+			_rich(box, Rect2(x, 535, 300, 91), examples[index][2], 16)
+		_rich(box, Rect2(31, 632, 620, 38), "Enter the flag from an adjacent tile or by capture. Click a ship to see legal targets; drag the board to rotate.", 14)
+	else:
+		_rich(box, Rect2(31, 238, 620, 425), KalypsoGuide.ABILITIES, 17)
+	_button(box, Rect2(31, 680, 620, 41), "Back to game" if not state.is_empty() else "Back", _close_overlay)
 
 
 func _show_credits() -> void:
@@ -775,13 +1098,29 @@ func _show_credits() -> void:
 
 
 func _show_map() -> void:
-	var box := _modal("map", "Orbital chart", 438)
+	var box := _modal("map", "%s chart" % expedition.current_system_data().name, 438)
 	var chart := Cockpit.new()
 	chart.map_only = true
 	chart.motion = false
 	_place(box, chart, Rect2(27, 79, 620, 250))
 	_label(box, Rect2(31, 317, 620, 25), "Horizon holding position above the arena. Orbital chart is schematic.", 15, MUTED)
 	_button(box, Rect2(31, 365, 620, 41), "Back to cockpit", _close_overlay)
+
+
+func _leave_current_orbit() -> void:
+	if _leaving_orbit:
+		return
+	_leaving_orbit = true
+	if expedition.leave_orbit() == OK:
+		generation += 1
+		busy = true
+		_stop_communication()
+	else:
+		_leaving_orbit = false
+		if overlay_kind == "home":
+			_communication_prompt.text = "Unable to return to flight. Please try again."
+		else:
+			_note("Could not leave the current planet's orbit.")
 
 
 func _show_modes() -> void:
@@ -826,50 +1165,82 @@ func _copy_replay() -> void:
 		"first_flag_round": first_flag_round, "result": state.reason, "winner": state.winner,
 		"elapsed_ms": end - started_at if started_at > 0 else 0,
 	}
+	if drift_circuit:
+		replay["mode"] = "drift"
+		replay["rules_version"] = 5
+		replay["layout"] = state.drift.layout
+		replay["bot_focus"] = state.drift.focus
 	DisplayServer.clipboard_set(JSON.stringify(replay))
 	_note("Replay copied.")
 	_close_overlay()
 
 
 func _show_result() -> void:
+	if state.is_empty() or state.phase != "finished":
+		return
+	expedition.record_battle(int(state.winner))
+	var next_available := expedition.has_next_system()
 	var title := "Trial unresolved"
-	var outcome := "The Horizon remains in orbit pending a decision."
+	var outcome := "The trial ends in a draw. You may try again or return to exploration."
+	cockpit.clearance = ""
 	match state.winner:
 		1:
 			title = "Alliance secured"
-			outcome = "The envoy opened a landing corridor for the Horizon."
+			outcome = "The people of %s welcome the Horizon as friends. A landing corridor is open." % str(expedition.current_system_data().planet_name).capitalize()
 			cockpit.clearance = "land"
 		0:
-			title = "Horizon detained"
-			outcome = "The envoy has dispatched a patrol to take custody."
-			cockpit.clearance = "detained"
+			title = "Challenge lost"
+			outcome = "The envoy asks the Horizon to leave orbit in peace. You can explore another planet or try again."
+	if drift_circuit:
+		title = "Circuit drawn" if state.winner < 0 else "%s win the circuit" % SIDES[state.winner]
 	_clear(overlay)
 	overlay_kind = "result"
 	var dim := ColorRect.new()
 	dim.color = Color(0.025, 0.032, 0.07, 0.84)
 	_place(overlay, dim, Rect2(0, 237, 1320, 570))
-	var box := _panel(overlay, Rect2(319, 306, 682, 383), PANEL, LINE, 12)
+	var box := _panel(overlay, Rect2(319, 262 if next_available else 292, 682, 491 if next_available else 432), PANEL, LINE, 12)
 	_label(box, Rect2(29, 19, 622, 59), title, 39, INK, bold)
 	var description: String = {
 		"flag": "The beacon held through three opposing turns.",
 		"elimination": "The opposing side lost its final unit.",
 		"mutual_elimination": "Both sides lost their final units.",
-		"round_cap": "Eight rounds elapsed without a winner."
+		"round_cap": "Eight rounds elapsed without a winner.",
+		"relays": "The winning score was reached after the final shift.",
+		"drift_limit": "Twelve rounds elapsed without a winner."
 	}.get(state.reason, "")
+	if drift_circuit:
+		description = "Aliens %d / Pilots %d. " % state.drift.scores + description
 	_label(box, Rect2(31, 86, 620, 62), outcome, 21, INK, SANS, true)
 	_label(box, Rect2(31, 146, 620, 53), description, 17, MUTED, SANS, true)
 	_label(box, Rect2(31, 209, 620, 25), "ROUND %02d   /   SEED %d" % [state.round, state.seed], 14, GOLD, MONO)
-	_button(box, Rect2(31, 252, 620, 46), "Rematch", func(): _start(local_mode, true), true)
-	_button(box, Rect2(31, 311, 302, 41), "View board", func(): _close_overlay(false))
-	_button(box, Rect2(348, 311, 303, 41), "Copy replay data", _copy_replay)
+	var rematch_y := 311 if next_available else 252
+	var footer_y := rematch_y + 59
+	if next_available:
+		var travel_title := "%s to %s" % ["Withdraw" if state.winner == 0 else "Travel", expedition.next_system_name()]
+		_button(box, Rect2(31, 252, 620, 46), travel_title, _travel_to_next_system, true)
+	_button(box, Rect2(31, rematch_y, 620, 46), "Rematch", func(): _start(local_mode, true), not next_available)
+	_button(box, Rect2(31, footer_y, 302, 41), "View board", func(): _close_overlay(false))
+	_button(box, Rect2(348, footer_y, 303, 41), "Copy replay data", _copy_replay)
+	_button(box, Rect2(31, footer_y + 57, 620, 41), "Leave orbit", _leave_current_orbit)
 
 
-func _rich(parent: Node, rect: Rect2, value: String) -> void:
+func _travel_to_next_system() -> void:
+	if busy or state.is_empty() or state.phase != "finished" or not expedition.has_next_system():
+		return
+	busy = true
+	generation += 1
+	var scene_error := expedition.fly_to(ExpeditionState.CINDER, true)
+	if scene_error != OK:
+		busy = false
+		_note("Could not set course for Cinder.")
+
+
+func _rich(parent: Node, rect: Rect2, value: String, px: int = 18) -> void:
 	var rich := RichTextLabel.new()
 	rich.bbcode_enabled = true
 	rich.text = value
 	rich.add_theme_font_override("normal_font", SANS)
-	rich.add_theme_font_size_override("normal_font_size", 18)
+	rich.add_theme_font_size_override("normal_font_size", px)
 	rich.add_theme_color_override("default_color", INK)
 	rich.meta_clicked.connect(func(url): OS.shell_open(str(url)))
 	_place(parent, rich, rect)
@@ -897,6 +1268,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		elif overlay_kind == "" and selected >= 0:
 			_clear_selection()
 			_refresh()
+		elif overlay_kind in ["", "handoff"]:
+			_leave_current_orbit()
 		return
 	if overlay_kind != "" or state.is_empty():
 		return
@@ -907,7 +1280,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if direction != Vector2i.ZERO:
 		var cursor: Vector2i = board.keyboard_square
 		if cursor == Vector2i.ZERO:
-			cursor = state.pawns[selected].pos if selected in state.pawns else state.flag
+			cursor = state.pawns[selected].pos if selected in state.pawns else Vector2i(5, 5)
 		board.keyboard_square = (cursor + direction).clamp(Vector2i.ONE, Vector2i.ONE * Rules.BOARD_SIZE)
 		get_viewport().set_input_as_handled()
 	elif event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE] and board.keyboard_square != Vector2i.ZERO:

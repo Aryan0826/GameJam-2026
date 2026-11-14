@@ -11,9 +11,13 @@ config_version=5
 [application]
 
 config/name="Conqueror's Chess"
-run/main_scene="res://scenes/opening_crawl.tscn"
+run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+Expedition="*res://scripts/expedition.gd"
 
 [display]
 

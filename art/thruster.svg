@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 128" width="256" height="128">
+  <!-- Outer Thermal Shimmer & Exhaust Smoke Base -->
+  <path d="M 230,64 C 175,18 50,28 5,64 C 50,100 175,110 230,64 Z" fill="#d00000" opacity="0.2" />
+  <path d="M 235,64 C 190,26 80,36 20,64 C 80,92 190,102 235,64 Z" fill="#dc2f02" opacity="0.4" />
+
+  <!-- Main Fiery Jet Envelope -->
+  <path d="M 240,64 C 205,30 110,40 35,64 C 110,88 205,98 240,64 Z" fill="#e85d04" opacity="0.7" />
+  <path d="M 242,64 C 215,36 130,44 65,64 C 130,84 215,92 242,64 Z" fill="#f48c06" opacity="0.85" />
+
+  <!-- Mid White-Orange Flame Core -->
+  <path d="M 244,64 C 225,44 150,48 90,64 C 150,80 225,84 244,64 Z" fill="#faa307" opacity="0.95" />
+  <path d="M 246,64 C 232,48 170,52 110,64 C 170,76 232,80 246,64 Z" fill="#ffba08" />
+
+  <!-- High-Intensity Heat Hub (Connecting edge on Right) -->
+  <ellipse cx="236" cy="64" rx="14" ry="34" fill="#fff" opacity="0.95" />
+  <ellipse cx="243" cy="64" rx="6" ry="24" fill="#ffffff" />
+  <path d="M 246,64 C 238,50 195,54 145,64 C 195,74 238,78 246,64 Z" fill="#ffffff" />
+
+  <!-- Combustion Sparks & Flurry Fragments (Spitting Left) -->
+  <circle cx="105" cy="42" r="3" fill="#e85d04" opacity="0.7" />
+  <circle cx="70" cy="80" r="2.5" fill="#f48c06" opacity="0.8" />
+  <circle cx="140" cy="38" r="2" fill="#faa307" opacity="0.9" />
+  <circle cx="45" cy="52" r="1.5" fill="#ffba08" opacity="0.75" />
+  <circle cx="30" cy="70" r="2" fill="#d00000" opacity="0.6" />
+  <circle cx="120" cy="88" r="3" fill="#e85d04" opacity="0.7" />
+
+  <polygon points="180,56 195,64 180,72 168,64" fill="#fff" opacity="0.85" />
+  <polygon points="125,58 135,64 125,70 118,64" fill="#ffba08" opacity="0.9" />
+</svg>

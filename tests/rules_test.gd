@@ -253,7 +253,8 @@ func _replay() -> void:
 	for seed_value in range(1, 9):
 		var s := Rules.create_match(seed_value)
 		var replay: Array[Dictionary] = []
-		while s.phase != "finished" and replay.size() < 40:
+		# Two drafts, then up to roll, move, power and finish for each turn.
+		while s.phase != "finished" and replay.size() < 2 + 8 * 2 * 4:
 			var before := s.duplicate(true)
 			var legal := Rules.legal_actions(s)
 			var choice := Bot.choose(s, legal)

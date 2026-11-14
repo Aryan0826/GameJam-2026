@@ -4,6 +4,7 @@ extends Control
 signal square_pressed(square: Vector2i)
 
 const Rules = preload("rules.gd")
+const Drift = preload("drift.gd")
 const MONO = preload("res://art/IBMPlexMono-Regular.ttf")
 const ROVER = preload("res://art/fleet/rover.glb")
 const INTERCEPTOR = preload("res://art/fleet/craft-speederd.glb")
@@ -12,8 +13,14 @@ const NORTH = Color("#ff9479")
 const SOUTH = Color("#73d9fa")
 const GOLD = Color("#ffda8f")
 const LILAC = Color("#bd9dff")
+const DRIFT_ARROW = Color("#8dffe9")
+const DRIFT_DELAY := 0.26
+const DRIFT_DURATION := 0.58
 const SPELL_ICON = {"shield": "S", "fracture": "F", "teleport": "P", "borrow_tomorrow": "T"}
 const TOP := 0.14
+const CAMERA_TARGET := Vector3(0, -0.38, 0.28)
+const DRAG_THRESHOLD := 6.0
+const ORBIT_SENSITIVITY := 0.006
 
 var state: Dictionary = {}
 var targets: Dictionary = {}
@@ -29,6 +36,12 @@ var power := 1.0
 var viewport_3d: SubViewport
 var world: Node3D
 var camera: Camera3D
+var camera_yaw := 0.0
+var camera_pitch := 0.0
+var camera_distance := 0.0
+var pointer_down := false
+var orbiting := false
+var pointer_origin := Vector2.ZERO
 var tiles: Dictionary = {}
 var pieces: Dictionary = {}
 var landings: Dictionary = {}
@@ -38,11 +51,16 @@ var rover_mesh: Mesh
 var interceptor_mesh: Mesh
 var unit_materials: Dictionary = {}
 var flag_node: Node3D
+var relay_nodes: Array[Node3D] = []
+var displayed_relays: Array[Vector2i] = []
+var shift_pending := false
+var shift_tween: Tween
 var falling: Array[Node3D] = []
 
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
+	tooltip_text = "Click to select a unit or target. Drag to rotate the board view."
 	mouse_exited.connect(func():
 		hover = Vector2i.ZERO
 		queue_redraw())
@@ -60,7 +78,11 @@ func _ready() -> void:
 	camera.fov = 35.0
 	camera.position = Vector3(1.6, 8.0, 12.6)
 	world.add_child(camera)
-	camera.look_at(Vector3(0, -0.38, 0.28))
+	var offset := camera.position - CAMERA_TARGET
+	camera_distance = offset.length()
+	camera_yaw = atan2(offset.x, offset.z)
+	camera_pitch = asin(offset.y / camera_distance)
+	_update_camera()
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-52, -32, 0)
 	light.light_energy = 0.94
@@ -76,12 +98,20 @@ func _ready() -> void:
 		"light": _material(Color("#204256"), 0.15), "dark": _material(Color("#183548"), 0.15),
 		"flag": _material(Color("#85673b")), "crack": _material(Color("#7b3d4d")),
 		"fracture": _material(Color("#743f76")), "infected": _material(Color("#584287")),
+		"cinder_light": _material(Color("#a04c3b"), 0.12), "cinder_dark": _material(Color("#713025"), 0.12),
+		"lane_light": _material(Color("#68424d"), 0.25), "lane_dark": _material(Color("#432838"), 0.25),
+		"relay": _material(Color("#b88a35"), 0.2),
 		"gold": _material(GOLD, 0.30)
 	}
 	tile_mesh = _platform_mesh()
 	rover_mesh = _imported_mesh(ROVER)
 	interceptor_mesh = _imported_mesh(INTERCEPTOR)
-	_build_flag()
+	var dish := _imported_mesh(DISH)
+	flag_node = _build_receiver(dish, Vector3(0.9, 0.70, 0.9))
+	for i in 3:
+		var relay := _build_receiver(dish, Vector3(0.66, 0.57, 0.66))
+		relay.hide()
+		relay_nodes.append(relay)
 
 
 func _material(color: Color, metallic: float = 0.0) -> StandardMaterial3D:
@@ -133,12 +163,13 @@ func _mesh(parent: Node3D, geometry: Mesh, material: Material, at: Vector3) -> M
 	return model
 
 
-func _build_flag() -> void:
-	flag_node = Node3D.new()
-	world.add_child(flag_node)
-	var receiver := _mesh(flag_node, _imported_mesh(DISH), palette.gold, Vector3.ZERO)
-	receiver.scale = Vector3(0.9, 0.70, 0.9)
+func _build_receiver(dish: Mesh, dimensions: Vector3) -> Node3D:
+	var base := Node3D.new()
+	world.add_child(base)
+	var receiver := _mesh(base, dish, palette.gold, Vector3.ZERO)
+	receiver.scale = dimensions
 	receiver.rotation.y = PI * 0.24
+	return base
 
 
 func _new_unit(owner: int, at: Vector3) -> Node3D:
@@ -176,7 +207,13 @@ func _paint_unit(unit: Node3D, side: int, dimmed: bool) -> void:
 
 
 func reset_visuals() -> void:
+	if shift_tween:
+		shift_tween.kill()
+		shift_tween = null
+	shift_pending = false
+	displayed_relays.clear()
 	landings.clear()
+	hover = Vector2i.ZERO
 	for node in pieces.values() + tiles.values() + falling:
 		if is_instance_valid(node):
 			node.queue_free()
@@ -195,6 +232,11 @@ func power_on() -> void:
 func sync() -> void:
 	if state.is_empty():
 		return
+	var drift := state.has("drift")
+	if shift_pending:
+		_start_lane_shift()
+	if drift and shift_tween == null:
+		displayed_relays.assign(state.drift.relays)
 	for y in range(1, Rules.BOARD_SIZE + 1):
 		for x in range(1, Rules.BOARD_SIZE + 1):
 			var square := Vector2i(x, y)
@@ -204,8 +246,13 @@ func sync() -> void:
 					tiles.erase(square)
 				continue
 			if square not in tiles:
-				tiles[square] = _mesh(world, tile_mesh, palette.dark, _world_at(square, 0.0))
-			var key := "light" if (x + y) % 2 == 0 else "dark"
+				var pad := _mesh(world, tile_mesh, palette.dark, _world_at(square, 0.0))
+				pad.set_meta("shade", "light" if (x + y) % 2 == 0 else "dark")
+				tiles[square] = pad
+			if drift:
+				_paint_drift_tile(square)
+				continue
+			var key: String = tiles[square].get_meta("shade")
 			if square == state.flag:
 				key = "flag"
 			elif square in state.fractures:
@@ -216,7 +263,8 @@ func sync() -> void:
 				key = "infected"
 			tiles[square].material_override = palette[key]
 	flag_node.position = _world_at(state.flag)
-	flag_node.visible = true
+	flag_node.visible = not drift
+	_sync_relay_models()
 	for id in pieces.keys():
 		if id not in state.pawns:
 			_remove_model(pieces[id], false)
@@ -243,8 +291,13 @@ func sync() -> void:
 		model.set_meta("destination", destination)
 		var tween := create_tween().bind_node(model)
 		for landing: Dictionary in path:
-			_hop(tween, model, _world_at(landing.from), _world_at(landing.to),
-				landing.kind == "capture", landing.teleport, path.size())
+			if landing.kind == "drift_move":
+				if path.size() == 1:
+					tween.tween_interval(DRIFT_DELAY)
+				_slide(tween, model, landing.from, landing.to, TOP)
+			else:
+				_hop(tween, model, _world_at(landing.from), _world_at(landing.to),
+					landing.kind == "capture", landing.teleport, path.size())
 	queue_redraw()
 
 
@@ -254,14 +307,73 @@ func show_events(events: Array) -> void:
 		return
 	var teleported := {}
 	for event: Dictionary in events:
-		if event.kind == "ability" and event.ability == "teleport":
+		if event.kind == "drift_score":
+			shift_pending = true
+		elif event.kind == "ability" and event.ability == "teleport":
 			teleported[event.pawn] = true
-		elif event.kind in ["step", "capture", "returned"]:
+		elif event.kind in ["step", "capture", "returned", "drift_move"]:
 			var landing := event.duplicate()
 			landing.teleport = event.pawn in teleported
 			if event.pawn not in landings:
 				landings[event.pawn] = []
 			landings[event.pawn].append(landing)
+
+
+func _paint_drift_tile(square: Vector2i) -> void:
+	var pad: MeshInstance3D = tiles[square]
+	var lane := Drift.direction(square.y) != 0
+	var key: String = ("lane_" if lane else "cinder_") + str(pad.get_meta("shade"))
+	if square in displayed_relays and (not lane or shift_tween == null):
+		key = "relay"
+	pad.material_override = palette[key]
+
+
+func _sync_relay_models() -> void:
+	for i in relay_nodes.size():
+		var model := relay_nodes[i]
+		model.visible = i < displayed_relays.size()
+		if not model.visible:
+			continue
+		var square := displayed_relays[i]
+		model.position = _world_at(square)
+		model.visible = not state.pawns.values().any(func(pawn: Dictionary): return pawn.pos == square)
+
+
+func _start_lane_shift() -> void:
+	shift_pending = false
+	var previous := tiles.duplicate()
+	for from: Vector2i in previous:
+		if Drift.direction(from.y) == 0:
+			continue
+		var to := Drift.landing(from, Rules.BOARD_SIZE)
+		var pad: MeshInstance3D = previous[from]
+		tiles[to] = pad
+		var tween := create_tween().bind_node(pad)
+		tween.tween_interval(DRIFT_DELAY)
+		_slide(tween, pad, from, to, 0.0)
+	shift_tween = create_tween().bind_node(self)
+	shift_tween.tween_interval(DRIFT_DELAY + DRIFT_DURATION)
+	shift_tween.finished.connect(func():
+		shift_tween = null
+		displayed_relays.assign(state.drift.relays)
+		for square: Vector2i in tiles:
+			_paint_drift_tile(square)
+		_sync_relay_models()
+		queue_redraw())
+
+
+func _slide(tween: Tween, model: Node3D, from: Vector2i, to: Vector2i, height: float) -> void:
+	tween.tween_method(_place_on_lane.bind(model, from, to, height), 0.0, 1.0, DRIFT_DURATION)
+
+
+func _place_on_lane(progress: float, model: Node3D, from: Vector2i, to: Vector2i, height: float) -> void:
+	var travel := smoothstep(0.20, 0.80, progress)
+	var lift := smoothstep(0.0, 0.20, progress) * (1.0 - smoothstep(0.80, 1.0, progress))
+	var direction := Drift.direction(from.y)
+	var x := float(from.x) + direction * travel
+	if absi(to.x - from.x) > 1 and travel >= 0.5:
+		x -= direction * Rules.BOARD_SIZE
+	model.position = Vector3(x - 5.0, height + 0.48 * lift, from.y - 5.0)
 
 
 func _hop(tween: Tween, model: Node3D, origin: Vector3, destination: Vector3, impact: bool, teleport: bool, segments: int) -> void:
@@ -334,17 +446,56 @@ func _pick_square(local_pos: Vector2) -> Vector2i:
 	return picked
 
 
+func _update_camera() -> void:
+	camera.position = CAMERA_TARGET + camera_distance * Vector3(
+		sin(camera_yaw) * cos(camera_pitch), sin(camera_pitch), cos(camera_yaw) * cos(camera_pitch))
+	camera.look_at(CAMERA_TARGET)
+	queue_redraw()
+
+
+func _cancel_drag() -> void:
+	pointer_down = false
+	orbiting = false
+	mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT or (what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree()):
+		_cancel_drag()
+
+
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		hover = _pick_square(event.position)
-		queue_redraw()
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var square := _pick_square(event.position)
-		if square != Vector2i.ZERO:
-			grab_focus()
-			keyboard_square = Vector2i.ZERO
-			square_pressed.emit(square)
+		var movement: Vector2 = event.relative
+		if pointer_down and not orbiting and event.position.distance_to(pointer_origin) >= DRAG_THRESHOLD:
+			orbiting = true
+			movement = event.position - pointer_origin
+			mouse_default_cursor_shape = Control.CURSOR_DRAG
+		if pointer_down and orbiting:
+			camera_yaw = wrapf(camera_yaw - movement.x * ORBIT_SENSITIVITY, -PI, PI)
+			camera_pitch = clampf(camera_pitch + movement.y * ORBIT_SENSITIVITY, deg_to_rad(25), deg_to_rad(75))
+			hover = Vector2i.ZERO
+			_update_camera()
 			accept_event()
+		else:
+			hover = _pick_square(event.position)
+			queue_redraw()
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			pointer_down = true
+			orbiting = false
+			pointer_origin = event.position
+			grab_focus()
+		elif pointer_down:
+			# Delay selection until release so dragging never commits a game action.
+			var was_orbiting := orbiting
+			_cancel_drag()
+			hover = _pick_square(event.position) if Rect2(Vector2.ZERO, size).has_point(event.position) else Vector2i.ZERO
+			if not was_orbiting and hover != Vector2i.ZERO and hover == _pick_square(pointer_origin):
+				keyboard_square = Vector2i.ZERO
+				square_pressed.emit(hover)
+			queue_redraw()
+		accept_event()
 
 
 func _process(delta: float) -> void:
@@ -356,16 +507,20 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if state.is_empty() or not is_instance_valid(camera):
 		return
-	draw_texture_rect(viewport_3d.get_texture(), Rect2(Vector2.ZERO, size), false, Color(0.83, 1.0, 0.98, power))
+	var tint := Color(1.0, 0.94, 0.90, power) if state.has("drift") else Color(0.83, 1.0, 0.98, power)
+	draw_texture_rect(viewport_3d.get_texture(), Rect2(Vector2.ZERO, size), false, tint)
 	for y in range(38, int(size.y) - 28, 5):
 		draw_line(Vector2(85, y), Vector2(size.x - 85, y), Color(0.025, 0.12, 0.17, 0.21))
 	if power < 0.99:
 		draw_line(Vector2(67, size.y * power), Vector2(size.x - 67, size.y * power), Color(0.40, 1.0, 0.93, (1.0 - power) * 0.8), 3)
+	var column_offset := -1.12 if state.has("drift") else -0.76
 	for i in range(1, Rules.BOARD_SIZE + 1):
-		_text(_project_world(_world_at(Vector2i(i, 1)) + Vector3(0, 0, -0.76)) + Vector2(-4, 1), char(64 + i), 12)
+		_text(_project_world(_world_at(Vector2i(i, 1)) + Vector3(0, 0, column_offset)) + Vector2(-4, 1), char(64 + i), 12)
 		_text(_project_world(_world_at(Vector2i(1, i)) + Vector3(-0.90, 0, 0)) + Vector2(-4, 4), str(i), 12)
 	for square: Vector2i in tiles:
 		_pad_lights(square)
+	if state.has("drift"):
+		_draw_drift()
 	for square: Vector2i in state.cracks:
 		_hazard(square, NORTH)
 	for square: Vector2i in state.fractures:
@@ -376,7 +531,7 @@ func _draw() -> void:
 		draw_line(point + Vector2(-7, -7), point + Vector2(7, 7), LILAC, 1.5, true)
 		draw_line(point + Vector2(-7, 7), point + Vector2(7, -7), LILAC, 1.5, true)
 	for square: Vector2i in [hover, keyboard_square]:
-		if square != Vector2i.ZERO:
+		if square != Vector2i.ZERO and shift_tween == null:
 			_outline(square, Color("#bfcee7"))
 	for square: Vector2i in targets:
 		var point := _project(square)
@@ -400,10 +555,37 @@ func _draw() -> void:
 		_text(point + Vector2(-10, 25), "%d/%d" % [state.replies, Rules.FLAG_REPLIES], 11, GOLD)
 
 
+func _draw_drift() -> void:
+	for y in [4, 6]:
+		var direction := Drift.direction(y)
+		for x in [1, 3, 5, 7, 9]:
+			var pad: MeshInstance3D = tiles[Vector2i(x, y)]
+			var at := pad.position + Vector3(0, TOP, 0.24)
+			var from := _project_world(at + Vector3(-0.22 * direction, 0, 0))
+			var to := _project_world(at + Vector3(0.22 * direction, 0, 0))
+			_arrow(from, to, DRIFT_ARROW, 2.2)
+	for relay: Vector2i in displayed_relays:
+		_outline(relay, GOLD)
+	var preview := hover if hover in targets else keyboard_square
+	if preview in targets and Drift.direction(preview.y) != 0:
+		var landing := Drift.landing(preview, Rules.BOARD_SIZE)
+		_outline(landing, DRIFT_ARROW)
+		if absi(landing.x - preview.x) == 1:
+			_arrow(_project(preview), _project(landing), DRIFT_ARROW, 2.2)
+
+
+func _arrow(from: Vector2, to: Vector2, color: Color, width: float) -> void:
+	var back := (from - to).normalized() * 6.0
+	draw_line(from, to, color, width, true)
+	draw_polyline(PackedVector2Array([to + back.rotated(-0.55), to, to + back.rotated(0.55)]), color, width, true)
+
+
 func _pawn_status(pawn: Dictionary) -> void:
 	var foot := _project(pawn.pos)
 	var team := NORTH if pawn.side == 0 else SOUTH
 	var at := _world_at(pawn.pos)
+	if shift_tween and pawn.id in pieces:
+		at = pieces[pawn.id].position
 	draw_line(_project_world(at + Vector3(-0.24, 0, 0.40)), _project_world(at + Vector3(0.24, 0, 0.40)),
 		team.darkened(0.32) if state.phase == "draft" and pawn.side != state.active else team, 1.7, true)
 	if pawn.id in [selected, second]:
@@ -444,10 +626,13 @@ func _hazard(square: Vector2i, color: Color) -> void:
 
 
 func _pad_lights(square: Vector2i) -> void:
-	var at := _world_at(square)
+	var pad: MeshInstance3D = tiles[square]
+	var at := pad.position + Vector3.UP * TOP
 	var tint := Color("#4d9eab")
-	if square == state.flag:
+	if square == state.flag or (square in displayed_relays and (shift_tween == null or Drift.direction(square.y) == 0)):
 		tint = GOLD
+	elif state.has("drift"):
+		tint = Color("#d28260")
 	elif square in state.fractures:
 		tint = LILAC
 	elif square in state.cracks:

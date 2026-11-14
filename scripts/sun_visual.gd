@@ -5,6 +5,7 @@ extends Node2D
 @export var glow_radius: float = 260.0
 @export var glow_color: Color = Color(1.0, 0.72, 0.15, 0.20)
 @export var inner_color: Color = Color(1.0, 0.88, 0.35, 0.38)
+@export var flare_color: Color = Color(1.0, 0.82, 0.25, 0.20)
 
 var _time: float = 0.0
 
@@ -29,4 +30,4 @@ func _draw() -> void:
 		var flare_len: float = r * (1.12 + 0.16 * sin(_time * 3.5 + float(i) * 1.5))
 		var pt1 = Vector2.from_angle(angle) * (r * 0.6)
 		var pt2 = Vector2.from_angle(angle) * flare_len
-		draw_line(pt1, pt2, Color(1.0, 0.82, 0.25, 0.20), 3.0)
+		draw_line(pt1, pt2, flare_color, 3.0)

@@ -10,6 +10,7 @@ const DIRECTIONS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
 const DIAGONALS := [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
 const SIDE_NAMES := ["Aliens", "Pilots"]
 const RNG_RANGE := 2147483646
+const Drift = preload("drift.gd")
 
 
 static func create_match(seed_value: int, first_override: int = -1) -> Dictionary:
@@ -33,6 +34,20 @@ static func create_match(seed_value: int, first_override: int = -1) -> Dictionar
 	return state
 
 
+static func create_drift_match(seed_value: int, first_override: int, layout: int, focus: int) -> Dictionary:
+	var state := create_match(seed_value, first_override)
+	state.phase = "playing"
+	state.active = state.first
+	state.flag = Vector2i.ZERO
+	for pawn: Dictionary in state.pawns.values():
+		pawn.pos.y = 1 if pawn.side == 0 else BOARD_SIZE
+	state.drift = {
+		"layout": layout, "relays": Drift.relays(layout, posmod(seed_value, 2) == 1),
+		"scores": [0, 0], "focus": focus,
+	}
+	return state
+
+
 static func legal_actions(state: Dictionary) -> Array[Dictionary]:
 	if state.phase == "draft":
 		return _draft_actions(state)
@@ -41,6 +56,11 @@ static func legal_actions(state: Dictionary) -> Array[Dictionary]:
 		return actions
 	var side: int = state.active
 	var occupancy := _occupancy(state)
+	if state.has("drift"):
+		actions = _normal_actions(state, occupancy)
+		if actions.is_empty():
+			actions.append({"kind": "pass"})
+		return actions
 	if state.dice[side].is_empty():
 		actions.append({"kind": "roll"})
 	else:
@@ -64,10 +84,12 @@ static func apply_action(state: Dictionary, action: Dictionary) -> Dictionary:
 
 
 ## For simulation of an action already enumerated for this exact state.
-static func apply_legal_action(state: Dictionary, action: Dictionary) -> Dictionary:
+static func apply_legal_action(state: Dictionary, action: Dictionary, report_events: bool = true) -> Dictionary:
 	var next := state.duplicate(true)
 	var events: Array[Dictionary] = []
-	if next.phase == "draft":
+	if next.has("drift"):
+		_play_drift_turn(next, action, events, report_events)
+	elif next.phase == "draft":
 		_lock_draft(next, action, events)
 	elif action.kind == "roll":
 		var pip := _roll(next, 6) + 1
@@ -82,6 +104,58 @@ static func apply_legal_action(state: Dictionary, action: Dictionary) -> Diction
 		else:
 			_resolve_action(next, action, events)
 	return {"state": next, "events": events, "ok": true}
+
+
+static func _play_drift_turn(state: Dictionary, action: Dictionary, events: Array[Dictionary], report: bool) -> void:
+	if action.kind != "pass":
+		_resolve_action(state, action, events)
+	if state.turn == 0:
+		state.active = 1 - state.active
+		state.turn = 1
+		if report:
+			_turn_event(state, events)
+		return
+
+	var points := [0, 0]
+	for pawn: Dictionary in state.pawns.values():
+		var origin: Vector2i = pawn.pos
+		pawn.pos = Drift.landing(origin, BOARD_SIZE)
+		if report and origin != pawn.pos:
+			events.append({"kind": "drift_move", "pawn": pawn.id, "from": origin, "to": pawn.pos})
+	var occupied := _occupancy(state)
+	var relocations := PackedStringArray()
+	for i in state.drift.relays.size():
+		var relay: Vector2i = state.drift.relays[i]
+		if relay not in occupied:
+			continue
+		var side: int = state.pawns[occupied[relay]].side
+		points[side] += 1
+		var destination := Drift.relocate(relay, BOARD_SIZE, occupied)
+		state.drift.relays[i] = destination
+		if report:
+			relocations.append("%s → %s" % [_tile(relay), _tile(destination)])
+	for side in 2:
+		state.drift.scores[side] += points[side]
+	if report:
+		if not relocations.is_empty():
+			_event(events, "relay_relocated", "Relays moved · %s." % " / ".join(relocations))
+		_event(events, "drift_score", "Rows shifted · Aliens +%d / Pilots +%d." % points)
+
+	var scores: Array = state.drift.scores
+	if scores[0] != scores[1] and maxi(scores[0], scores[1]) >= Drift.POINTS_TO_WIN:
+		_finish(state, 0 if scores[0] > scores[1] else 1, "relays")
+	elif state.round == Drift.ROUND_LIMIT:
+		_finish(state, -1, "drift_limit")
+	if state.phase == "finished":
+		if report:
+			var message := "The circuit ended in a draw." if state.winner == -1 else "%s won the relay race." % SIDE_NAMES[state.winner]
+			_event(events, "result", message, {"side": state.winner, "reason": state.reason})
+		return
+	state.active = state.first
+	state.turn = 0
+	state.round += 1
+	if report:
+		_turn_event(state, events)
 
 
 static func ability_reason(state: Dictionary, pawn: Dictionary) -> String:

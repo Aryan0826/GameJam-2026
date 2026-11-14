@@ -2,6 +2,7 @@ extends Control
 ## Fixed camera layers for the windshield and the rover's dashboard.
 
 const PHOTO = preload("res://art/westerlund-2.jpg")
+const ExpeditionState = preload("res://scripts/expedition.gd")
 const PLANET = preload("res://art/cockpit/planet.png")
 const MOON = preload("res://art/cockpit/moon.png")
 const GIANT = preload("res://art/cockpit/giant.png")
@@ -15,6 +16,8 @@ const AQUA = Color("#81eada")
 const AMBER = Color("#f0b17b")
 const EDGE = Color("#677684")
 
+@onready var expedition: ExpeditionState = get_node("/root/Expedition")
+
 var mode := "approach"
 var clearance := ""
 var motion := true
@@ -23,15 +26,43 @@ var alert := 0.0
 var stars: PackedVector2Array
 var map_only := false
 var envoy := false
+var _planet_art: Texture2D = PLANET
+var _star_art: Texture2D = STAR
+var _planet_color: Color = Color("#eedcfa")
+var _star_color: Color = Color("#ffcfac")
+var _star_line_color: Color = Color(1.0, 0.66, 0.39, 0.30)
+var _planet_name: String = "KALYPSO"
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if not envoy:
+		_configure_system_art()
 	var random := RandomNumberGenerator.new()
 	random.seed = 3016
 	for i in 100:
 		stars.append(Vector2(random.randi_range(34, 1280), random.randi_range(24, 490)))
+
+
+func _configure_system_art() -> void:
+	var system_data: Dictionary = expedition.current_system_data()
+	_planet_name = system_data.planet_name
+	if str(system_data.planet_art).is_empty():
+		return
+	var planet_frame := AtlasTexture.new()
+	planet_frame.atlas = load(str(system_data.planet_art)) as Texture2D
+	planet_frame.region = Rect2(Vector2.ZERO, Vector2.ONE * float(system_data.planet_frame_size))
+	_planet_art = planet_frame
+	_planet_color = Color.WHITE
+	if str(system_data.star_art).is_empty():
+		return
+	var star_frame := AtlasTexture.new()
+	star_frame.atlas = load(str(system_data.star_art)) as Texture2D
+	star_frame.region = Rect2(0, 0, 500, 500)
+	_star_art = star_frame
+	_star_color = Color.WHITE
+	_star_line_color = Color(system_data.star_color, 0.3)
 
 
 func _process(delta: float) -> void:
@@ -48,6 +79,12 @@ func _draw() -> void:
 	if envoy:
 		_draw_envoy()
 		return
+	if mode == "terminal":
+		_draw_terminal()
+		return
+	if mode == "trial":
+		_draw_ship_telemetry()
+		return
 	var active := mode == "trial"
 	var horizon := 241.0 if active else 595.0
 	var window := Rect2(35, 18, 1250, horizon)
@@ -62,8 +99,8 @@ func _draw() -> void:
 
 	var drift := Vector2(roundf(sin(time * 0.23) * 10), roundf(cos(time * 0.19) * 6))
 	var star_pos := Vector2(696, 89) if active else Vector2(631, 130)
-	_body(STAR, star_pos + drift * 0.3, 37 if active else 60, Color("#ffcfac"))
-	draw_line(star_pos + Vector2(-29, 0), star_pos + Vector2(29, 0), Color(1.0, 0.66, 0.39, 0.30), 1)
+	_body(_star_art, star_pos + drift * 0.3, 37 if active else 60, _star_color)
+	draw_line(star_pos + Vector2(-29, 0), star_pos + Vector2(29, 0), _star_line_color, 1)
 	_ringed(Vector2(1130, 96 if active else 143) + drift * 0.45, 52 if active else 89)
 	_body(OUTER, Vector2(842, 64 if active else 102) - drift * 0.15, 19 if active else 34, Color("#b4c7ff"))
 
@@ -72,7 +109,7 @@ func _draw() -> void:
 	var diameter := 270.0 if active else 440.0
 	for i in range(4, 0, -1):
 		draw_arc(center, diameter * 0.493 + 4 * i, -PI, 0.17, 90, Color(0.76, 0.37, 0.92, 0.055 * (5 - i)), 2)
-	_body(PLANET, center, diameter, Color("#eedcfa"))
+	_body(_planet_art, center, diameter, _planet_color)
 	draw_arc(center, diameter * 0.493, -2.8, -0.34, 90, Color(1.0, 0.54, 0.86, 0.52), 2)
 	_body(MOON, center + Vector2(-193, -74) if not active else center + Vector2(-157, -59), 68 if not active else 43, Color("#bccbe5"))
 	_windshield(horizon)
@@ -85,6 +122,62 @@ func _draw() -> void:
 	elif alert > 0 and motion:
 		var amount := 0.38 * alert
 		draw_rect(Rect2(38, horizon - 8, 1244, 3), Color(1, 0.39, 0.26, amount))
+
+
+func _draw_terminal() -> void:
+	var horizon := 595.0
+	draw_rect(Rect2(Vector2.ZERO, size), Color("#101622"))
+	draw_rect(Rect2(35, 18, 1250, horizon), Color("#06110e"))
+	# Subtle scan lines sit behind the live communication text.
+	for y in range(34, 594, 4):
+		draw_line(Vector2(38, y), Vector2(1282, y), Color(0.30, 0.85, 0.56, 0.035), 1.0)
+	var scan_y := 34.0 + fposmod(time * 32.0, 550.0)
+	draw_rect(Rect2(38, scan_y, 1244, 3), Color(0.35, 1.0, 0.65, 0.025))
+	draw_line(Vector2(126, 125), Vector2(1194, 125), Color(0.37, 0.9, 0.65, 0.22), 1.0)
+	_windshield(horizon)
+	_dashboard(horizon)
+
+
+func _draw_ship_telemetry() -> void:
+	var horizon := 241.0
+	draw_rect(Rect2(Vector2.ZERO, size), Color("#101622"))
+	draw_rect(Rect2(35, 18, 1250, horizon), Color("#07151e"))
+	_telemetry_graph(Rect2(586, 48, 240, 144), "REACTOR OUTPUT", AQUA, 0.0)
+	_telemetry_graph(Rect2(850, 48, 240, 144), "THERMAL LOAD", AMBER, 1.7)
+	_caption(Vector2(1114, 65), "RESERVES", AQUA)
+	var labels: Array[String] = ["PWR", "O2", "HULL"]
+	var levels: Array[float] = [0.86, 0.95, 0.98]
+	for i in labels.size():
+		var y := 88.0 + float(i) * 23.0
+		draw_string(MONO, Vector2(1114, y), labels[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#8cafbb"))
+		draw_rect(Rect2(1152, y - 7.0, 65, 5), Color("#20353d"))
+		var level: float = levels[i] + sin(time * 0.4 + float(i)) * 0.01
+		draw_rect(Rect2(1152, y - 7.0, 65 * level, 5), AQUA if i != 0 else AMBER)
+	_windshield(horizon)
+	_dashboard(horizon)
+
+
+func _telemetry_graph(rect: Rect2, title: String, color: Color, phase: float) -> void:
+	draw_rect(rect, Color("#0a1b25"))
+	draw_rect(rect, Color(color, 0.22), false, 1.0)
+	draw_string(MONO, rect.position + Vector2(10, 19), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, color)
+	var plot := Rect2(rect.position + Vector2(11, 35), rect.size - Vector2(22, 49))
+	for x in 7:
+		var grid_x := plot.position.x + plot.size.x * float(x) / 6.0
+		draw_line(Vector2(grid_x, plot.position.y), Vector2(grid_x, plot.end.y), Color(color, 0.075), 1.0)
+	for y in 5:
+		var grid_y := plot.position.y + plot.size.y * float(y) / 4.0
+		draw_line(Vector2(plot.position.x, grid_y), Vector2(plot.end.x, grid_y), Color(color, 0.075), 1.0)
+	var points := PackedVector2Array()
+	for i in 97:
+		var sample := float(i) / 96.0
+		var level := 0.52 + sin(sample * 9.0 - time * 0.7 + phase) * 0.16 + sin(sample * 23.0 + time * 0.4 + phase) * 0.055
+		points.append(Vector2(plot.position.x + sample * plot.size.x, plot.end.y - level * plot.size.y))
+	var fill := PackedVector2Array([Vector2(plot.position.x, plot.end.y)])
+	fill.append_array(points)
+	fill.append(Vector2(plot.end.x, plot.end.y))
+	draw_colored_polygon(fill, Color(color, 0.07))
+	draw_polyline(points, color, 1.5, true)
 
 
 func _body(sprite: Texture2D, center: Vector2, diameter: float, tint: Color = Color.WHITE) -> void:
@@ -182,8 +275,8 @@ func _draw_map() -> void:
 			var angle := step * TAU / 96
 			orbit.append(origin + Vector2(cos(angle), sin(angle) * 0.38) * i)
 		draw_polyline(orbit, Color("#40556d"), 1, true)
-	_body(STAR, origin, 49)
-	_body(PLANET, origin + Vector2(-91, -25), 42)
+	_body(_star_art, origin, 49)
+	_body(_planet_art, origin + Vector2(-91, -25), 42)
 	_body(MOON, origin + Vector2(-123, -43), 15)
 	_ringed(origin + Vector2(110, -52), 31)
 	_body(OUTER, origin + Vector2(219, 33), 26)
@@ -191,7 +284,7 @@ func _draw_map() -> void:
 	_poly([rover + Vector2(-5, 4), rover + Vector2(0, -6), rover + Vector2(5, 4)], AQUA)
 	draw_dashed_line(rover + Vector2(8, 0), rover + Vector2(62, 0), AQUA, 1, 3)
 	_caption(rover + Vector2(68, 4), "HORIZON", AQUA)
-	_caption(origin + Vector2(-193, -46), "ARENA WORLD", AMBER)
+	_caption(origin + Vector2(-193, -46), _planet_name, AMBER)
 	_caption(origin + Vector2(-11, 40), "LOCAL STAR", AMBER)
 
 
