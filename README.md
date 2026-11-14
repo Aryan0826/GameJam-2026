@@ -22,6 +22,8 @@ For the browser build, serve `output/web` from the workspace root. For example, 
 
 ## Controls
 
+- Adjust **Music** and **Effects** separately on the title screen. Press **M** at any time to mute or unmute the mix. **FX** in the cockpit controls visual motion.
+
 - During solar-system flight, hold **W / Up** to accelerate; the ship coasts on release. Exhaust runs while accelerating and during automatic orbit entry. Hold **Shift / Space** while accelerating to boost, **A / D** or **Left / Right** to steer, and **S / Down** to brake. Descent begins after **2 seconds** in stable orbit.
 - The rocket begins in open space with a wide camera view. The planets orbit the sun in this order: Ember, Kalypso (home), Cinder, and Aurelia. Their separate orbits and colored gravity boundaries appear on the minimap. The gravity indicator identifies the local planetary well.
 - After the Kalypso battle, choose **Return to flight** to resume flying near Kalypso. Choose a destination from the flight HUD. **Rematch** stays at the current planet. **Replay prologue** restarts the journey.

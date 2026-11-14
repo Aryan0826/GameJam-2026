@@ -1,0 +1,22 @@
+asset_id,file_path,source_type,source_url_or_prompt,license,attribution,derivatives,verified
+observing-the-star,art/audio/observing-the-star.ogg,third-party,https://opengameart.org/content/another-space-background-track,CC0-1.0,yd (ObservingTheStar.ogg),"Renamed only; Menu, prologue and free flight loop",true
+my-very-own-dead-ship,art/audio/my-very-own-dead-ship.ogg,third-party,https://opengameart.org/content/background-space-track,CC0-1.0,yd (MyVeryOwnDeadShip.ogg),Renamed only; Cockpit and both duels loop,true
+rocket-thrust,art/audio/rocket-thrust.ogg,user-supplied,nasa-rocket-engine-30s.mp3,Unverified,Original publisher unverified,"Trimmed to 4.0–9.5 s, mixed to mono, high-pass filtered and crossfaded into a 5 s loop",false
+infected-trail,art/audio/infected-trail.ogg,third-party,https://opengameart.org/content/bubbling-acid,CC-BY-3.0,spookymodem (Acid Bubble.wav),"Trimmed to 1.55 s, faded in and out, and converted to Ogg Vorbis",true
+descent,art/audio/descent.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (doorOpen_001.ogg),Renamed only; Orbital descent,true
+transmission,art/audio/transmission.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (computerNoise_002.ogg),Renamed only; Comms typing,true
+capture,art/audio/capture.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (impactMetal_001.ogg),Renamed only; Capture impact,true
+collapse,art/audio/collapse.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (explosionCrunch_001.ogg),Renamed only; Arena collapse and piece loss,true
+lane-shift,art/audio/lane-shift.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (doorClose_001.ogg),Renamed only; Cinder lane shift,true
+shield,art/audio/shield.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (forceField_001.ogg),Renamed only; Shield activation and break,true
+teleport,art/audio/teleport.ogg,third-party,https://kenney.nl/assets/sci-fi-sounds,CC0-1.0,Kenney (laserSmall_001.ogg),Renamed only; Teleport,true
+click,art/audio/click.ogg,third-party,https://kenney.nl/assets/interface-sounds,CC0-1.0,Kenney (click_001.ogg),Renamed only; Menu and cockpit buttons,true
+select,art/audio/select.ogg,third-party,https://kenney.nl/assets/interface-sounds,CC0-1.0,Kenney (select_001.ogg),Renamed only; Unit selection and setting course,true
+confirm,art/audio/confirm.ogg,third-party,https://kenney.nl/assets/interface-sounds,CC0-1.0,Kenney (confirmation_001.ogg),"Renamed only; Orbit lock, match and warning confirmations",true
+spy,art/audio/spy.ogg,third-party,https://kenney.nl/assets/interface-sounds,CC0-1.0,Kenney (glitch_001.ogg),Renamed only; Spy takeover,true
+relay,art/audio/relay.ogg,third-party,https://kenney.nl/assets/interface-sounds,CC0-1.0,Kenney (pluck_001.ogg),Renamed only; Beacon claim and Cinder relay scoring,true
+move,art/audio/move.ogg,third-party,https://kenney.nl/assets/interface-sounds,CC0-1.0,Kenney (drop_001.ogg),Renamed only; Unit landing,true
+shuffle,art/audio/shuffle.ogg,third-party,https://kenney.nl/assets/casino-audio,CC0-1.0,Kenney (card-shuffle.ogg),Trimmed to 1.25 s with a short fade,true
+card-reveal,art/audio/card-reveal.ogg,third-party,https://kenney.nl/assets/casino-audio,CC0-1.0,Kenney (card-place-2.ogg),Renamed only; Ability reveal,true
+victory,art/audio/victory.ogg,third-party,https://kenney.nl/assets/music-jingles,CC0-1.0,Kenney (jingles_HIT12.ogg),Renamed only; Pilot victory,true
+defeat,art/audio/defeat.ogg,third-party,https://kenney.nl/assets/music-jingles,CC0-1.0,Kenney (jingles_HIT00.ogg),Renamed only; Pilot defeat,true

@@ -171,7 +171,7 @@ theme_override_constants/separation = 16
 custom_minimum_size = Vector2(340, 62)
 layout_mode = 2
 mouse_default_cursor_shape = 2
-focus_neighbor_top = NodePath("../Exit")
+focus_neighbor_top = NodePath("../../Audio/Effects")
 focus_neighbor_bottom = NodePath("../Exit")
 theme_override_styles/normal = SubResource("StyleBox_explore")
 text = "Explore"
@@ -181,8 +181,45 @@ custom_minimum_size = Vector2(340, 62)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 focus_neighbor_top = NodePath("../Explore")
-focus_neighbor_bottom = NodePath("../Explore")
+focus_neighbor_bottom = NodePath("../../Audio/Music")
 text = "Exit"
+
+[node name="Audio" type="HBoxContainer" parent="Menu/Content"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 13
+
+[node name="MusicLabel" type="Label" parent="Menu/Content/Audio"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("4_mono")
+theme_override_font_sizes/font_size = 14
+text = "Music"
+
+[node name="Music" type="HSlider" parent="Menu/Content/Audio"]
+custom_minimum_size = Vector2(125, 20)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Music volume"
+focus_neighbor_top = NodePath("../../Actions/Exit")
+focus_neighbor_bottom = NodePath("../Effects")
+max_value = 1.0
+step = 0.05
+
+[node name="EffectsLabel" type="Label" parent="Menu/Content/Audio"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("4_mono")
+theme_override_font_sizes/font_size = 14
+text = "Effects"
+
+[node name="Effects" type="HSlider" parent="Menu/Content/Audio"]
+custom_minimum_size = Vector2(125, 20)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Sound effects volume"
+focus_neighbor_top = NodePath("../Music")
+focus_neighbor_bottom = NodePath("../../Actions/Explore")
+max_value = 1.0
+step = 0.05
 
 [node name="Status" type="Label" parent="Menu/Content"]
 custom_minimum_size = Vector2(0, 22)
@@ -204,7 +241,7 @@ grow_vertical = 0
 theme_override_colors/font_color = Color(0.667, 0.722, 0.82, 1)
 theme_override_fonts/font = ExtResource("4_mono")
 theme_override_font_sizes/font_size = 13
-text = "UP / DOWN TO CHOOSE   /   ENTER TO SELECT"
+text = "UP / DOWN TO CHOOSE   /   LEFT / RIGHT TO ADJUST   /   M TO MUTE"
 horizontal_alignment = 1
 
 [connection signal="pressed" from="Menu/Content/Actions/Explore" to="." method="_explore"]

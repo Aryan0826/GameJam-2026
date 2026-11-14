@@ -84,7 +84,7 @@ outline_size = 6
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.8, 0)
 modulate = Color(1, 0.9, 0.12, 1)
 outline_modulate = Color(0, 0, 0, 0.7)
-text = "THE FRACTURED FLAG"
+text = "THE CONQUEROR'S GAMBIT"
 font = ExtResource("4_space_font")
 font_size = 50
 outline_size = 7
@@ -93,13 +93,15 @@ outline_size = 7
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
 modulate = Color(1, 0.9, 0.12, 1)
 outline_modulate = Color(0, 0, 0, 0.6)
-text = "The scientists of planet KALYPSO have achieved the impossible: the secret of interstellar travel has finally been unlocked.
+text = "EARTH has mastered interstellar travel. A GENERAL aboard the flagship HORIZON leads a campaign to expand its domain, conquering planets in one system before moving to the next.
 
-With their homeworld's ancient energy reserves depleted, COMMANDER VALERIA is chosen to helm the flagship HORIZON on humanity's first deep space expedition.
+As he approaches a new planetary system, its alien inhabitants transmit an unexpected challenge. They will settle the conflict on a CHESSBOARD.
 
-Entering uncharted space, the expedition discovers a collapsing orbital arena and encounters an enigmatic ALIEN FLEET.
+If the General wins, they will surrender their planets to Earth without a fight. If he loses, he must withdraw his forces and leave their worlds in peace.
 
-To forge a vital alliance and ensure their people's survival, the Commander must now take the board, hold the fractured flag, and emerge victorious...."
+The terms are clear. The next chapter of Earth's expansion will be decided one move at a time.
+
+The General has arrived at a new system to conquer..."
 font = ExtResource("4_space_font")
 outline_size = 4
 vertical_alignment = 0
@@ -121,7 +123,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.294118, 0.835294, 0.933333, 1)
 theme_override_fonts/font = ExtResource("4_space_font")
 theme_override_font_sizes/font_size = 28
-text = "A short time ago in a star system far, far away..."
+text = "Earth has reached the stars. Now, its borders must follow."
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -132,7 +134,7 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -320.0
+offset_left = -420.0
 offset_top = -40.0
 offset_right = -20.0
 offset_bottom = -14.0
@@ -141,7 +143,7 @@ grow_vertical = 0
 theme_override_colors/font_color = Color(1, 1, 1, 0.4)
 theme_override_fonts/font = ExtResource("5_mono_font")
 theme_override_font_sizes/font_size = 13
-text = "[SPACE] Fast Forward  •  [ESC/ENTER] Skip"
+text = "[HOLD SPACE] Speed up  •  [ESC/ENTER] Skip"
 horizontal_alignment = 2
 
 [node name="MusicPlayer" type="AudioStreamPlayer" parent="." unique_id=2077258044]
