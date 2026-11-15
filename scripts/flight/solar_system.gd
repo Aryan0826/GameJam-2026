@@ -360,15 +360,15 @@ func _update_thrusters(delta: float) -> void:
 		_thruster_anim_time = 0.0
 		return
 	_thruster_anim_time += delta
-	var animation_step := floori(_thruster_anim_time * THRUSTER_FPS)
-	# Play the GIF's ignition once, then keep its full-flame cycle running.
-	var flame_frame := animation_step if animation_step < THRUSTER_IGNITION_FRAMES else THRUSTER_IGNITION_FRAMES + (animation_step - THRUSTER_IGNITION_FRAMES) % THRUSTER_LOOP_FRAMES
 	var boosting := not entering_orbit and (Input.is_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_SPACE))
-	var boost_scale := 1.3 if boosting else 1.0
-	for flame: Sprite2D in engine_thrusters.get_children():
-		flame.frame = flame_frame
-		# The sheet points down; each sprite is rotated to exhaust behind the ship.
-		flame.scale.y = flame.scale.x * 0.4 * boost_scale
+	var boost_scale := 1.35 if boosting else 1.0
+	var base_scales: Array[float] = [0.55, 0.42, 0.42, 0.28, 0.28]
+	for i in engine_thrusters.get_child_count():
+		var flame := engine_thrusters.get_child(i) as Sprite2D
+		var base_s: float = base_scales[i] if i < base_scales.size() else 0.35
+		var flicker := 1.0 + sin(_thruster_anim_time * 48.0 + float(i) * 1.6) * 0.12
+		flame.scale.x = base_s * 1.3 * flicker * boost_scale
+		flame.scale.y = base_s * (1.05 if boosting else 1.0)
 
 
 func _process_free_flight(delta: float) -> void:

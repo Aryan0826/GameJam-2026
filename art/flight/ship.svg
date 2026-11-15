@@ -45,46 +45,18 @@
       <stop offset="50%" stop-color="#38bdf8" />
       <stop offset="100%" stop-color="#ffffff" />
     </linearGradient>
-
-    <!-- Engine Thruster Plasma Glow -->
-    <radialGradient id="cyanPlasma" cx="70%" cy="50%" r="70%">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="30%" stop-color="#7dd3fc" />
-      <stop offset="65%" stop-color="#0284c7" />
-      <stop offset="100%" stop-color="#082f49" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="amberPlasma" cx="70%" cy="50%" r="70%">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="35%" stop-color="#fdba74" />
-      <stop offset="70%" stop-color="#ea580c" />
-      <stop offset="100%" stop-color="#7c2d12" stop-opacity="0" />
-    </radialGradient>
   </defs>
 
-  <!-- ==================== 1. ENGINE EXHAUST PLUMES (STERN) ==================== -->
-  <g id="engine-plumes">
-    <!-- Outer Main Engine Cyan Plumes -->
-    <polygon points="6,184 56,164 56,204" fill="url(#cyanPlasma)" opacity="0.95" />
-    <polygon points="6,328 56,308 56,348" fill="url(#cyanPlasma)" opacity="0.95" />
-    
-    <!-- Central Heavy Thruster Amber Plume -->
-    <polygon points="12,256 50,234 50,278" fill="url(#amberPlasma)" opacity="0.9" />
-    
-    <!-- Secondary Auxiliary Thruster Amber Plumes -->
-    <polygon points="22,140 58,126 58,154" fill="url(#amberPlasma)" opacity="0.85" />
-    <polygon points="22,372 58,358 58,386" fill="url(#amberPlasma)" opacity="0.85" />
-  </g>
-
-  <!-- ==================== 2. ENGINE NOZZLE HARDWARE ==================== -->
+  <!-- ==================== 1. ENGINE NOZZLE HARDWARE (UNLIT AT IDLE) ==================== -->
   <g id="engine-bells">
     <!-- Auxiliary Outer Nozzles -->
     <polygon points="44,128 66,124 66,156 44,152" fill="#1e293b" stroke="#090d16" stroke-width="2" />
     <rect x="40" y="132" width="6" height="16" rx="1" fill="#090d16" stroke="#475569" stroke-width="1.5" />
-    <circle cx="48" cy="140" r="4.5" fill="#ea580c" />
+    <ellipse cx="45" cy="140" rx="2" ry="5" fill="#334155" />
 
     <polygon points="44,356 66,352 66,384 44,380" fill="#1e293b" stroke="#090d16" stroke-width="2" />
     <rect x="40" y="360" width="6" height="16" rx="1" fill="#090d16" stroke="#475569" stroke-width="1.5" />
-    <circle cx="48" cy="372" r="4.5" fill="#ea580c" />
+    <ellipse cx="45" cy="372" rx="2" ry="5" fill="#334155" />
 
     <!-- Port & Starboard Colossal Main Engine Bells -->
     <polygon points="36,164 70,158 70,210 36,204" fill="#334155" stroke="#090d16" stroke-width="2.5" />
@@ -92,14 +64,14 @@
     <line x1="42" y1="176" x2="64" y2="176" stroke="#0f172a" stroke-width="2" />
     <line x1="42" y1="184" x2="64" y2="184" stroke="#0f172a" stroke-width="2" />
     <line x1="42" y1="192" x2="64" y2="192" stroke="#0f172a" stroke-width="2" />
-    <ellipse cx="38" cy="184" rx="4" ry="9" fill="#38bdf8" />
+    <ellipse cx="37" cy="184" rx="3" ry="9" fill="#1e293b" />
 
     <polygon points="36,302 70,296 70,348 36,342" fill="#334155" stroke="#090d16" stroke-width="2.5" />
     <rect x="30" y="306" width="8" height="32" rx="2" fill="#0f172a" stroke="#64748b" stroke-width="2" />
     <line x1="42" y1="314" x2="64" y2="314" stroke="#0f172a" stroke-width="2" />
     <line x1="42" y1="322" x2="64" y2="322" stroke="#0f172a" stroke-width="2" />
     <line x1="42" y1="330" x2="64" y2="330" stroke="#0f172a" stroke-width="2" />
-    <ellipse cx="38" cy="328" rx="4" ry="9" fill="#38bdf8" />
+    <ellipse cx="37" cy="328" rx="3" ry="9" fill="#1e293b" />
 
     <!-- Center Heavy Flagship Engine Bell -->
     <polygon points="32,230 68,222 68,290 32,282" fill="#334155" stroke="#090d16" stroke-width="2.5" />
@@ -107,10 +79,10 @@
     <line x1="38" y1="246" x2="62" y2="246" stroke="#0f172a" stroke-width="2" />
     <line x1="38" y1="256" x2="62" y2="256" stroke="#0f172a" stroke-width="2" />
     <line x1="38" y1="266" x2="62" y2="266" stroke="#0f172a" stroke-width="2" />
-    <ellipse cx="34" cy="256" rx="4" ry="13" fill="#f97316" />
+    <ellipse cx="33" cy="256" rx="3.5" ry="13" fill="#1e293b" />
   </g>
 
-  <!-- ==================== 3. UNDERCARRIAGE & LATERAL TRENCH ==================== -->
+  <!-- ==================== 2. UNDERCARRIAGE & LATERAL TRENCH ==================== -->
   <g id="lateral-trench">
     <!-- Stern Transom / Engine Mounting Wall -->
     <polygon points="58,116 74,110 74,402 58,396" fill="#090d16" stroke="#000000" stroke-width="2.5" />
@@ -123,7 +95,7 @@
     <line x1="96" y1="450" x2="484" y2="260" stroke="#1e293b" stroke-width="2" />
   </g>
 
-  <!-- ==================== 4. MAIN WEDGE ARMORED HULL ==================== -->
+  <!-- ==================== 3. MAIN WEDGE ARMORED HULL ==================== -->
   <g id="main-hull">
     <!-- Port / Upper Hull Wedge -->
     <polygon points="66,120 98,66 252,136 246,146 496,256 66,256" fill="url(#hullUpper)" stroke="#0f172a" stroke-width="2.5" />
@@ -146,7 +118,7 @@
     <line x1="446" y1="278" x2="432" y2="260" stroke="#1e293b" stroke-width="2" />
   </g>
 
-  <!-- ==================== 5. CONQUEROR CRIMSON WAR STRIPES ==================== -->
+  <!-- ==================== 4. CONQUEROR CRIMSON WAR STRIPES ==================== -->
   <g id="war-stripes">
     <!-- Prow Chevron Border -->
     <polygon points="496,256 422,220 414,228 480,256 414,284 422,292" fill="url(#crimsonUpper)" stroke="#450a0a" stroke-width="1.5" />
@@ -172,7 +144,7 @@
     <polygon points="174,322 316,286 316,280 174,316" fill="url(#crimsonLower)" />
   </g>
 
-  <!-- ==================== 6. GLOWING ICE-BLUE HANGARS / SHIELD BAYS ==================== -->
+  <!-- ==================== 5. GLOWING ICE-BLUE HANGARS / SHIELD BAYS ==================== -->
   <g id="hangar-bays">
     <!-- Port Hangar Bay -->
     <polygon points="246,170 302,192 292,206 236,184" fill="#090d16" stroke="#0284c7" stroke-width="2.5" />
@@ -185,7 +157,7 @@
     <line x1="274" y1="329" x2="264" y2="317" stroke="#ffffff" stroke-width="2" />
   </g>
 
-  <!-- ==================== 7. SUPERSTRUCTURE TIER 1 (LOWER CITADEL) ==================== -->
+  <!-- ==================== 6. SUPERSTRUCTURE TIER 1 (LOWER CITADEL) ==================== -->
   <g id="citadel-tier1">
     <polygon points="82,140 112,110 392,238 392,256 82,256" fill="url(#deckUpper)" stroke="#1e293b" stroke-width="2" />
     <polygon points="82,256 392,256 392,274 112,402 82,372" fill="url(#deckLower)" stroke="#1e293b" stroke-width="2" />
@@ -195,13 +167,13 @@
     <line x1="360" y1="256" x2="460" y2="256" stroke="#0f172a" stroke-width="2" />
   </g>
 
-  <!-- ==================== 8. SUPERSTRUCTURE TIER 2 (MID DECK) ==================== -->
+  <!-- ==================== 7. SUPERSTRUCTURE TIER 2 (MID DECK) ==================== -->
   <g id="citadel-tier2">
     <polygon points="92,166 122,142 318,240 318,256 92,256" fill="url(#deckUpper)" stroke="#1e293b" stroke-width="2" />
     <polygon points="92,256 318,256 318,272 122,370 92,346" fill="url(#deckLower)" stroke="#1e293b" stroke-width="2" />
   </g>
 
-  <!-- ==================== 9. FORWARD DUAL TURRETS ==================== -->
+  <!-- ==================== 8. FORWARD DUAL TURRETS ==================== -->
   <g id="forward-turrets" fill="#1e293b" stroke="#090d16" stroke-width="1.5">
     <!-- Forward Deck Turret 1 (Port) -->
     <circle cx="338" cy="235" r="5.5" fill="#475569" />
@@ -224,7 +196,7 @@
     <rect x="364" y="268" width="8" height="1.8" fill="#090d16" />
   </g>
 
-  <!-- ==================== 10. HEAVY TURBOLASER BATTERIES (TERRACE) ==================== -->
+  <!-- ==================== 9. HEAVY TURBOLASER BATTERIES (TERRACE) ==================== -->
   <g id="heavy-turbolasers" fill="#334155" stroke="#090d16" stroke-width="2">
     <!-- Port Batteries (4 Barbettes) -->
     <circle cx="154" cy="152" r="7.5" /><rect x="154" y="148" width="16" height="3" stroke="none" fill="#090d16" /><rect x="154" y="153" width="16" height="3" stroke="none" fill="#090d16" />
@@ -239,7 +211,7 @@
     <circle cx="274" cy="306" r="7.5" /><rect x="274" y="302" width="16" height="3" stroke="none" fill="#090d16" /><rect x="274" y="307" width="16" height="3" stroke="none" fill="#090d16" />
   </g>
 
-  <!-- ==================== 11. COMMAND BRIDGE CITADEL (TIER 3) ==================== -->
+  <!-- ==================== 10. COMMAND BRIDGE CITADEL (TIER 3) ==================== -->
   <g id="command-citadel">
     <!-- Upper Terrace -->
     <polygon points="102,186 132,172 240,242 240,270 132,340 102,326" fill="url(#deckUpper)" stroke="#0f172a" stroke-width="2.5" />
