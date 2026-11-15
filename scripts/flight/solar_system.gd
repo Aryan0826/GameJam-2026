@@ -113,6 +113,7 @@ var _orbit_timer: float = 0.0
 var _sun_anim_time: float = 0.0
 var _planet_anim_time: float = 0.0
 var _thruster_anim_time: float = 0.0
+var _facing_left: bool = false
 var _planet_name: String = "KALYPSO"
 var _star_name: String = "SOLAR CORE"
 var _star_color: Color = Color(1.0, 0.85, 0.2)
@@ -227,9 +228,10 @@ func _process(delta: float) -> void:
 		var target_zoom = lerpf(camera_cruise_zoom, camera_fast_zoom, speed_ratio)
 		camera.zoom = camera.zoom.lerp(Vector2(target_zoom, target_zoom), 2.2 * delta)
 
-	# Starfield parallax
+	# Starfield parallax synced to active camera viewport
 	if starfield_rect and starfield_rect.material is ShaderMaterial:
-		starfield_rect.material.set_shader_parameter("camera_offset", ship_node.position)
+		var cam_pos: Vector2 = camera.get_screen_center_position() if camera else ship_node.position
+		starfield_rect.material.set_shader_parameter("camera_offset", cam_pos)
 
 	# Redraw custom visual components
 	if sun_glow:
@@ -339,10 +341,12 @@ func get_system_map_data() -> Array[Dictionary]:
 func _update_ship_orientation() -> void:
 	# Keep the side-view cockpit above the hull when the heading points left.
 	# Mirroring local Y preserves the nose direction and the flight controls.
-	var facing_left := Vector2.from_angle(ship_node.rotation).x < 0.0
-	ship_sprite.flip_v = facing_left
-	engine_thrusters.position.y = -_thruster_mount.y if facing_left else _thruster_mount.y
-	engine_thrusters.scale.y = -1.0 if facing_left else 1.0
+	var forward_x := Vector2.from_angle(ship_node.rotation).x
+	if absf(forward_x) > 0.05:
+		_facing_left = forward_x < 0.0
+	ship_sprite.flip_v = _facing_left
+	engine_thrusters.position.y = -_thruster_mount.y if _facing_left else _thruster_mount.y
+	engine_thrusters.scale.y = -1.0 if _facing_left else 1.0
 
 
 func _is_accelerating() -> bool:
@@ -401,7 +405,11 @@ func _process_free_flight(delta: float) -> void:
 	# Real mechanics: Gradual throttle build-up & velocity accumulation
 	_throttle = move_toward(_throttle, thrust_target, 1.4 * delta) if thrust_target > 0.0 else 0.0
 	if _throttle > 0.01:
-		_ship_velocity += forward * cur_accel * _throttle * delta
+		var cur_speed := _ship_velocity.length()
+		if cur_speed < cur_max_speed:
+			_ship_velocity += forward * cur_accel * _throttle * delta
+		else:
+			_ship_velocity += forward * (cur_accel * 0.4 * _throttle * delta)
 
 	# Retro brake: gradual deceleration
 	if brake_input > 0.0:
@@ -410,20 +418,20 @@ func _process_free_flight(delta: float) -> void:
 	# Near-zero space friction: authentic Newtonian coasting
 	_ship_velocity = _ship_velocity.move_toward(Vector2.ZERO, ship_linear_drag * _ship_velocity.length() * delta)
 
-	# Speed cap
-	if _ship_velocity.length() > cur_max_speed:
-		_ship_velocity = _ship_velocity.normalized() * cur_max_speed
+	# Speed cap: normal engines cap at cur_max_speed, while solar slingshots can exceed it up to MAX_SLINGSHOT_SPEED
+	const MAX_SLINGSHOT_SPEED := 3200.0
+	if _ship_velocity.length() > MAX_SLINGSHOT_SPEED:
+		_ship_velocity = _ship_velocity.normalized() * MAX_SLINGSHOT_SPEED
 
 	# --- 1. Sun Gravity: continuous cosmic attraction to massive star ---
 	var to_sun: Vector2 = sun_node.position - ship_node.position
 	var dist_sun: float = to_sun.length()
 	if dist_sun > 10.0:
-		var sun_pull: float = sun_gravity_constant / maxf(dist_sun, 450.0)
+		var sun_pull: float = sun_gravity_constant / maxf(dist_sun, 260.0)
+		if dist_sun < 1800.0:
+			var proximity := 1.0 - (dist_sun / 1800.0)
+			sun_pull += (sun_gravity_constant * 3.4 / maxf(dist_sun, 220.0)) * proximity * proximity
 		_ship_velocity += to_sun.normalized() * sun_pull * delta
-
-		# Sun core repulsion buffer: safely pushes ship away if too close to surface
-		if dist_sun < sun_min_dist:
-			_ship_velocity += (-to_sun.normalized()) * (sun_min_dist - dist_sun) * 14.0 * delta
 
 	# --- 2. Planet Gravitational Well: planet exerts its own pull when close ---
 	var to_planet: Vector2 = planet_node.position - ship_node.position
@@ -440,6 +448,8 @@ func _process_free_flight(delta: float) -> void:
 	ship_node.velocity = _ship_velocity
 	ship_node.move_and_slide()
 	_ship_velocity = ship_node.velocity
+	if camera and ship_node:
+		camera.position = ship_node.position
 
 	# Complete the free-flight step before handing its position and momentum to orbit.
 	if not _is_accelerating():
